@@ -60,7 +60,8 @@ A deliberate double-entry ledger:
 - **`accounts`** — budget accounts (org, team, agent, vendor), each with a balance
 - **`entries`** — immutable double-entry lines; the append-only audit log. Includes a compressed
   JSON receipt of the full x402 payment context. Balances are derived transactionally.
-- **`policies`** — caps, time windows, vendor allowlists
+- **`policies`** — layered ceilings (per-transaction · per-session · per-day · cumulative org-wide),
+  evaluated against each spend's intent at runtime; plus time windows and vendor allowlists
 - **`agents` / `sessions`** — identity + session budgets
 
 ## Status
