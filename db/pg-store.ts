@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "./client";
+import type { Policy } from "@/core/policy";
 import {
   type Account,
   type AccountType,
@@ -99,6 +100,41 @@ function makeTx(client: PoolClient): Tx {
         [key, transactionId],
       );
     },
+    async getPolicies(accountId) {
+      const { rows } = await client.query(
+        `SELECT id, account_id, label, enabled, limit_micro, window_seconds,
+                vendor_allow, vendor_block, approval_threshold_micro
+           FROM policies
+          WHERE account_id = $1 AND enabled IS NOT false`,
+        [accountId],
+      );
+      return rows.map(toPolicy);
+    },
+    async spentInWindow(accountId, windowSeconds) {
+      const { rows } = await client.query(
+        `SELECT COALESCE(SUM(-amount_micro), 0) AS spent
+           FROM entries
+          WHERE account_id = $1 AND kind = 'debit'
+            AND created_at >= now() - ($2 || ' seconds')::interval`,
+        [accountId, String(windowSeconds)],
+      );
+      return BigInt(rows[0]?.spent ?? 0);
+    },
+  };
+}
+
+function toPolicy(row: Record<string, unknown>): Policy {
+  return {
+    id: row.id as string,
+    accountId: row.account_id as string,
+    label: (row.label as string | null) ?? "",
+    enabled: row.enabled !== false,
+    limitMicro: row.limit_micro == null ? null : BigInt(row.limit_micro as string),
+    windowSeconds: row.window_seconds == null ? null : Number(row.window_seconds),
+    vendorAllow: (row.vendor_allow as string[] | null) ?? null,
+    vendorBlock: (row.vendor_block as string[] | null) ?? null,
+    approvalThresholdMicro:
+      row.approval_threshold_micro == null ? null : BigInt(row.approval_threshold_micro as string),
   };
 }
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
 import type { AccountType } from "@/core/store";
@@ -85,6 +86,84 @@ export async function listEntries(limit = 50): Promise<EntryRow[]> {
     hash: r.hash as string,
     createdAt: new Date(r.created_at as string).toISOString(),
   }));
+}
+
+export interface PolicyRow {
+  id: string;
+  accountId: string;
+  accountName: string;
+  label: string;
+  enabled: boolean;
+  limitMicro: bigint | null;
+  windowSeconds: number | null;
+  vendorAllow: string[] | null;
+  vendorBlock: string[] | null;
+  approvalThresholdMicro: bigint | null;
+}
+
+export interface PolicyInput {
+  accountId: string;
+  label: string;
+  limitMicro?: bigint | null;
+  windowSeconds?: number | null;
+  vendorAllow?: string[] | null;
+  vendorBlock?: string[] | null;
+  approvalThresholdMicro?: bigint | null;
+}
+
+export async function listPolicies(): Promise<PolicyRow[]> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT p.id, p.account_id, a.name AS account_name, p.label, p.enabled,
+            p.limit_micro, p.window_seconds, p.vendor_allow, p.vendor_block,
+            p.approval_threshold_micro
+       FROM policies p
+       JOIN accounts a ON a.id = p.account_id
+      ORDER BY a.type, a.name, p.created_at`,
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    accountId: r.account_id as string,
+    accountName: r.account_name as string,
+    label: (r.label as string | null) ?? "",
+    enabled: r.enabled !== false,
+    limitMicro: r.limit_micro == null ? null : BigInt(r.limit_micro as string),
+    windowSeconds: r.window_seconds == null ? null : Number(r.window_seconds),
+    vendorAllow: (r.vendor_allow as string[] | null) ?? null,
+    vendorBlock: (r.vendor_block as string[] | null) ?? null,
+    approvalThresholdMicro:
+      r.approval_threshold_micro == null ? null : BigInt(r.approval_threshold_micro as string),
+  }));
+}
+
+export async function createPolicy(input: PolicyInput): Promise<string> {
+  const id = randomUUID();
+  const scope = input.windowSeconds != null ? "window" : input.limitMicro != null ? "per_txn" : "rule";
+  await query(
+    `INSERT INTO policies
+       (id, account_id, label, enabled, scope, limit_micro, window_seconds,
+        vendor_allow, vendor_block, approval_threshold_micro)
+     VALUES ($1,$2,$3,true,$4,$5,$6,$7,$8,$9)`,
+    [
+      id,
+      input.accountId,
+      input.label,
+      scope,
+      input.limitMicro == null ? null : input.limitMicro.toString(),
+      input.windowSeconds ?? null,
+      input.vendorAllow && input.vendorAllow.length ? JSON.stringify(input.vendorAllow) : null,
+      input.vendorBlock && input.vendorBlock.length ? JSON.stringify(input.vendorBlock) : null,
+      input.approvalThresholdMicro == null ? null : input.approvalThresholdMicro.toString(),
+    ],
+  );
+  return id;
+}
+
+export async function setPolicyEnabled(id: string, enabled: boolean): Promise<void> {
+  await query(`UPDATE policies SET enabled = $2 WHERE id = $1`, [id, enabled]);
+}
+
+export async function deletePolicy(id: string): Promise<void> {
+  await query(`DELETE FROM policies WHERE id = $1`, [id]);
 }
 
 export async function listDenials(limit = 20): Promise<DenialRow[]> {

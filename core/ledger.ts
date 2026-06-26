@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { GENESIS_HASH, hashEntry } from "./hash";
+import { evaluatePolicies } from "./policy";
 import { type Entry, type Store, type Tx, isConflict } from "./store";
 
 export interface SpendRequest {
@@ -14,7 +15,7 @@ export interface SpendRequest {
   receipt?: unknown;
 }
 
-export type SpendStatus = "committed" | "denied" | "duplicate";
+export type SpendStatus = "committed" | "denied" | "duplicate" | "needs_approval";
 
 export interface SpendResult {
   status: SpendStatus;
@@ -85,6 +86,29 @@ async function settle(
       receipt: request.receipt ?? null,
     });
     return { status: "denied", transactionId, reason: "account_frozen" };
+  }
+
+  const policies = await tx.getPolicies(budget.id);
+  if (policies.length > 0) {
+    const verdict = await evaluatePolicies(policies, {
+      amountMicro: request.amountMicro,
+      vendorId: vendor.id,
+      spentInWindow: (windowSeconds) => tx.spentInWindow(budget.id, windowSeconds),
+    });
+    if (verdict.decision !== "allow") {
+      await tx.insertDenial({
+        id: randomUUID(),
+        accountId: budget.id,
+        attemptedMicro: request.amountMicro,
+        reason: verdict.reason,
+        agentId: request.agentId ?? null,
+        sessionId: request.sessionId ?? null,
+        intent: request.intent ?? null,
+        receipt: request.receipt ?? null,
+      });
+      const status = verdict.decision === "needs_approval" ? "needs_approval" : "denied";
+      return { status, transactionId, reason: verdict.reason };
+    }
   }
 
   if (request.amountMicro > budget.balanceMicro) {

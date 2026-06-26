@@ -1,3 +1,5 @@
+import type { Policy } from "./policy";
+
 export type AccountType = "org" | "team" | "agent" | "vendor";
 
 export interface Account {
@@ -46,6 +48,8 @@ export interface Tx {
   insertDenial(denial: Denial): Promise<void>;
   getIdempotent(key: string): Promise<string | null>;
   putIdempotent(key: string, transactionId: string): Promise<void>;
+  getPolicies(accountId: string): Promise<Policy[]>;
+  spentInWindow(accountId: string, windowSeconds: number): Promise<bigint>;
 }
 
 export interface Store {

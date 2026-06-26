@@ -1,3 +1,4 @@
+import type { Policy } from "./policy";
 import {
   type Account,
   type Denial,
@@ -17,12 +18,19 @@ export class MemStore implements Store {
   readonly entries: Entry[] = [];
   readonly denials: Denial[] = [];
   private idempotency = new Map<string, string>();
+  private policies = new Map<string, Policy[]>();
 
   private commitLock: Promise<void> = Promise.resolve();
   private barrier: Barrier | null = null;
 
   seedAccount(account: Account): void {
     this.accounts.set(account.id, { account: clone(account), version: 0 });
+  }
+
+  seedPolicy(policy: Policy): void {
+    const list = this.policies.get(policy.accountId) ?? [];
+    list.push(clone(policy));
+    this.policies.set(policy.accountId, list);
   }
 
   getAccount(id: string): Account | null {
@@ -72,6 +80,14 @@ export class MemStore implements Store {
       getIdempotent: async (key) => idempotencyWrites.get(key) ?? this.idempotency.get(key) ?? null,
       putIdempotent: async (key, transactionId) => {
         idempotencyWrites.set(key, transactionId);
+      },
+      getPolicies: async (accountId) => (this.policies.get(accountId) ?? []).map(clone),
+      spentInWindow: async (accountId) => {
+        let total = 0n;
+        for (const entry of this.entries) {
+          if (entry.accountId === accountId && entry.kind === "debit") total += -entry.amountMicro;
+        }
+        return total;
       },
     };
 
