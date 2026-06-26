@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
 CREATE TABLE IF NOT EXISTS policies (
   id                       UUID PRIMARY KEY,
   account_id               UUID NOT NULL,
-  scope                    TEXT NOT NULL,
+  label                    TEXT,
+  enabled                  BOOLEAN NOT NULL DEFAULT true,
+  scope                    TEXT,
   limit_micro              BIGINT,
   window_seconds           BIGINT,
   vendor_allow             JSONB,
@@ -58,6 +60,10 @@ CREATE TABLE IF NOT EXISTS policies (
   approval_threshold_micro BIGINT,
   created_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE policies ADD COLUMN IF NOT EXISTS label TEXT;
+ALTER TABLE policies ADD COLUMN IF NOT EXISTS enabled BOOLEAN;
+UPDATE policies SET enabled = true WHERE enabled IS NULL;
 
 CREATE TABLE IF NOT EXISTS agents (
   id           UUID PRIMARY KEY,
