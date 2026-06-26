@@ -12,8 +12,9 @@
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:invariant": "vitest run test/invariant"
+    "test": "vitest run test/invariant",
+    "test:invariant": "vitest run test/invariant",
+    "test:live": "vitest run test/live"
   },
   "dependencies": {
     "@aws-sdk/dsql-signer": "^3.1075.0",

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { MemStore } from "../../core/mem-store";
-import { spend, type SpendResult } from "../../core/ledger";
-import { verifyChain } from "../../core/audit";
-import { GENESIS_HASH } from "../../core/hash";
-import type { Account } from "../../core/store";
+import { MemStore } from "@/core/mem-store";
+import { spend, type SpendResult } from "@/core/ledger";
+import { verifyChain } from "@/core/audit";
+import { GENESIS_HASH } from "@/core/hash";
+import type { Account } from "@/core/store";
 
 const USD = 1_000_000n;
 
