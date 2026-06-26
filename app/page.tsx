@@ -2,6 +2,7 @@ import { listAccounts, listDenials, listEntries } from "../lib/data";
 import { formatUsd } from "../lib/money";
 import { SpendSimulator } from "../components/spend-simulator";
 import { FreezeToggle, KillSwitch } from "../components/freeze-controls";
+import { LiveRefresh } from "../components/live-refresh";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +14,11 @@ const TYPE_LABEL: Record<string, string> = {
   vendor: "Vendor",
 };
 
+const REASON_LABEL: Record<string, string> = {
+  cap_exceeded: "Over budget",
+  account_frozen: "Account frozen",
+};
+
 export default async function Dashboard() {
   const [accounts, entries, denials] = await Promise.all([
     listAccounts(),
@@ -22,8 +28,10 @@ export default async function Dashboard() {
 
   const org = accounts.find((a) => a.type === "org");
   const cap = org?.capMicro ?? 0n;
-  const remaining = org?.balanceMicro ?? 0n;
-  const spent = cap - remaining;
+  const spent = accounts
+    .filter((a) => a.type === "vendor")
+    .reduce((sum, a) => sum + a.balanceMicro, 0n);
+  const remaining = cap - spent;
   const pctSpent = cap > 0n ? Number((spent * 1000n) / cap) / 10 : 0;
 
   const budgets = accounts
@@ -55,10 +63,7 @@ export default async function Dashboard() {
             One budget your agents can&apos;t break.
           </h1>
         </div>
-        <div className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5">
-          <span className="h-2 w-2 rounded-full bg-commit" />
-          <span className="text-xs tabular text-fg-dim">Aurora DSQL · us-east-1 / us-east-2</span>
-        </div>
+        <LiveRefresh />
       </header>
 
       <section className="mt-8 rounded-xl border border-line bg-surface p-6">
@@ -169,7 +174,7 @@ export default async function Dashboard() {
               <div key={d.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
                   <div className="truncate text-sm text-fg">{d.intent ?? "spend"}</div>
-                  <div className="text-xs text-deny">{d.reason}</div>
+                  <div className="text-xs text-deny">{REASON_LABEL[d.reason] ?? d.reason}</div>
                 </div>
                 <span className="tabular shrink-0 text-sm text-fg-dim">{formatUsd(d.attemptedMicro)}</span>
               </div>

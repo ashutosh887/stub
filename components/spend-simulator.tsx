@@ -114,7 +114,7 @@ export function SpendSimulator({
       <button
         onClick={authorize}
         disabled={busy || !budgetAccountId || !vendorAccountId}
-        className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-ink transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-40"
       >
         {busy ? "Authorizing…" : "Authorize spend"}
       </button>

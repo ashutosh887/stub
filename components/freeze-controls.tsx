@@ -32,7 +32,7 @@ export function KillSwitch({ anyActive }: { anyActive: boolean }) {
     <button
       onClick={toggle}
       disabled={working}
-      className={`rounded-md border px-3 py-1.5 text-xs font-medium uppercase tracking-wide transition-colors disabled:opacity-50 ${
+      className={`rounded-md border px-3 py-1.5 text-xs font-medium uppercase tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 ${
         anyActive
           ? "border-deny-dim bg-deny-dim/20 text-deny hover:bg-deny-dim/30"
           : "border-commit-dim bg-commit-dim/20 text-commit hover:bg-commit-dim/30"
@@ -70,7 +70,7 @@ export function FreezeToggle({
       onClick={toggle}
       disabled={working}
       title={frozen ? "Resume this account" : "Freeze this account"}
-      className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50 ${
+      className={`rounded px-2 py-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 ${
         frozen
           ? "bg-deny-dim/30 text-deny hover:bg-deny-dim/50"
           : "text-fg-mute hover:bg-surface-2 hover:text-fg"

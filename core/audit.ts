@@ -7,12 +7,6 @@ export interface ChainProblem {
   kind: "broken_link" | "bad_hash";
 }
 
-/**
- * Walks the per-account hash chain in insertion order and reports any entry whose
- * recomputed hash does not match, or whose prev_hash does not link to the prior
- * entry's hash. An empty result proves the ledger is tamper-evident: no row was
- * altered, inserted, or removed after the fact.
- */
 export function verifyChain(entries: Entry[]): ChainProblem[] {
   const lastHashByAccount = new Map<string, string>();
   const problems: ChainProblem[] = [];

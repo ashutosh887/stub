@@ -11,12 +11,6 @@ import {
   isConflict,
 } from "./store";
 
-/**
- * Aurora DSQL-backed store. The ledger logic is identical to MemStore's; here the OCC
- * conflict is enforced by DSQL itself — two transactions that update the same account
- * row concurrently make the loser's COMMIT fail with SQLSTATE 40001, which we surface
- * as ConflictError for spend()'s retry/deny loop.
- */
 export class PgStore implements Store {
   async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const client = await getPool().connect();
@@ -122,7 +116,5 @@ function toAccount(row: Record<string, unknown>): Account {
 async function rollbackQuietly(client: PoolClient): Promise<void> {
   try {
     await client.query("ROLLBACK");
-  } catch {
-    // The transaction is already aborted; nothing to undo.
-  }
+  } catch {}
 }

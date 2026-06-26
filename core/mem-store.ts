@@ -12,14 +12,6 @@ interface Versioned {
   version: number;
 }
 
-/**
- * In-memory model of Aurora DSQL's optimistic concurrency control. Each row carries
- * a version. A transaction reads from a snapshot (the committed version it first saw)
- * and buffers writes; at commit, if any row it intends to write has advanced past the
- * version it read, the commit fails with SQLSTATE 40001 — exactly DSQL's behavior for
- * concurrent writers racing the same row. This lets us prove the overspend invariant
- * without a live cluster; PgStore runs the identical ledger logic against real DSQL.
- */
 export class MemStore implements Store {
   private accounts = new Map<string, Versioned>();
   readonly entries: Entry[] = [];
@@ -38,7 +30,6 @@ export class MemStore implements Store {
     return found ? clone(found.account) : null;
   }
 
-  /** Forces the next `n` transactions to finish their reads before any of them commit. */
   arm(n: number): void {
     this.barrier = new Barrier(n);
   }

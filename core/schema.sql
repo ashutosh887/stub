@@ -1,8 +1,3 @@
--- Stub ledger schema for Aurora DSQL (PostgreSQL-16 subset).
--- Constraints respected: no foreign keys, no triggers, no sequences (client-generated
--- UUIDs avoid OCC hot spots), BIGINT micro-USD money (1 = $0.000001), JSONB receipts.
--- Each statement runs in its own implicit transaction (DSQL DDL constraint).
-
 CREATE TABLE IF NOT EXISTS accounts (
   id              UUID PRIMARY KEY,
   type            TEXT NOT NULL,
