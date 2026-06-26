@@ -1,7 +1,7 @@
 import "server-only";
-import { query } from "../core/db";
-import { PgStore } from "../core/pg-store";
-import type { AccountType } from "../core/store";
+import { query } from "@/db/client";
+import { PgStore } from "@/db/pg-store";
+import type { AccountType } from "@/core/store";
 
 export const store = new PgStore();
 

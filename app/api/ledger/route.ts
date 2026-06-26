@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { listDenials, listEntries } from "../../../lib/data";
-import { formatUsd, microToUsd } from "../../../lib/money";
+import { listDenials, listEntries } from "@/lib/data";
+import { formatUsd, microToUsd } from "@/lib/money";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

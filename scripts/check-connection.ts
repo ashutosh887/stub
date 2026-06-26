@@ -1,4 +1,4 @@
-import { query, close } from "../core/db";
+import { query, close } from "@/db/client";
 
 async function main() {
   const { rows } = await query<{ now: string; version: string }>(

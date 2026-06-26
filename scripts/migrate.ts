@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { query, close } from "../core/db";
+import { query, close } from "@/db/client";
 
-const schemaPath = fileURLToPath(new URL("../core/schema.sql", import.meta.url));
+const schemaPath = fileURLToPath(new URL("../db/schema.sql", import.meta.url));
 
 function statements(sql: string): string[] {
   return sql

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { spend } from "../../../core/ledger";
-import { store } from "../../../lib/data";
-import { usdToMicro } from "../../../lib/money";
+import { spend } from "@/core/ledger";
+import { store } from "@/lib/data";
+import { usdToMicro } from "@/lib/money";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

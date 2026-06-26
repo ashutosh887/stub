@@ -1,5 +1,5 @@
-import type { PoolClient } from "pg";
-import { getPool } from "./db";
+import type { Pool, PoolClient } from "pg";
+import { getPool } from "./client";
 import {
   type Account,
   type AccountType,
@@ -9,11 +9,13 @@ import {
   type Tx,
   ConflictError,
   isConflict,
-} from "./store";
+} from "@/core/store";
 
 export class PgStore implements Store {
+  constructor(private readonly pool: Pool = getPool()) {}
+
   async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-    const client = await getPool().connect();
+    const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
       const result = await fn(makeTx(client));

@@ -2,19 +2,22 @@ import { DsqlSigner } from "@aws-sdk/dsql-signer";
 import { Pool, type PoolClient } from "pg";
 import "dotenv/config";
 
-let pool: Pool | undefined;
+export interface DsqlConfig {
+  endpoint: string;
+  region: string;
+  database?: string;
+  user?: string;
+  max?: number;
+}
 
-export function getPool(): Pool {
-  if (pool) return pool;
-
-  const endpoint = required("DSQL_ENDPOINT");
-  const region = process.env.DSQL_REGION ?? "us-east-1";
-  const database = process.env.DSQL_DATABASE ?? "postgres";
-  const user = process.env.DSQL_USER ?? "admin";
+export function createPool(config: DsqlConfig): Pool {
+  const { endpoint, region } = config;
+  const database = config.database ?? "postgres";
+  const user = config.user ?? "admin";
 
   const signer = new DsqlSigner({ hostname: endpoint, region });
 
-  pool = new Pool({
+  const created = new Pool({
     host: endpoint,
     port: 5432,
     database,
@@ -24,16 +27,29 @@ export function getPool(): Pool {
       user === "admin"
         ? signer.getDbConnectAdminAuthToken()
         : signer.getDbConnectAuthToken(),
-    max: Number(process.env.DSQL_POOL_MAX ?? 5),
+    max: config.max ?? Number(process.env.DSQL_POOL_MAX ?? 5),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     maxLifetimeSeconds: 600,
   });
 
-  pool.on("error", (err) => {
-    console.error("[dsql] idle pool client error:", err.message);
+  created.on("error", (err) => {
+    console.error(`[dsql:${region}] idle pool client error:`, err.message);
   });
 
+  return created;
+}
+
+let pool: Pool | undefined;
+
+export function getPool(): Pool {
+  if (pool) return pool;
+  pool = createPool({
+    endpoint: required("DSQL_ENDPOINT"),
+    region: process.env.DSQL_REGION ?? "us-east-1",
+    database: process.env.DSQL_DATABASE,
+    user: process.env.DSQL_USER,
+  });
   return pool;
 }
 

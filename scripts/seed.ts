@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { GENESIS_HASH } from "../core/hash";
-import { query, close } from "../core/db";
+import { GENESIS_HASH } from "@/core/hash";
+import { query, close } from "@/db/client";
 
 const USD = 1_000_000n;
 
