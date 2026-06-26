@@ -1,0 +1,158 @@
+import { randomUUID } from "node:crypto";
+import { GENESIS_HASH, hashEntry } from "./hash";
+import { type Entry, type Store, type Tx, isConflict } from "./store";
+
+export interface SpendRequest {
+  budgetAccountId: string;
+  vendorAccountId: string;
+  amountMicro: bigint;
+  idempotencyKey?: string;
+  agentId?: string;
+  sessionId?: string;
+  userId?: string;
+  intent?: string;
+  receipt?: unknown;
+}
+
+export type SpendStatus = "committed" | "denied" | "duplicate";
+
+export interface SpendResult {
+  status: SpendStatus;
+  transactionId: string;
+  reason?: string;
+  conflicts: number;
+  attempts: number;
+}
+
+export interface SpendOptions {
+  maxRetries?: number;
+}
+
+const DEFAULT_MAX_RETRIES = 50;
+
+export async function spend(
+  store: Store,
+  request: SpendRequest,
+  options: SpendOptions = {},
+): Promise<SpendResult> {
+  if (request.amountMicro <= 0n) {
+    throw new Error("amountMicro must be positive");
+  }
+
+  const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
+  let conflicts = 0;
+
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const outcome = await store.transaction((tx) => settle(tx, request));
+      return { ...outcome, conflicts, attempts: attempt };
+    } catch (err) {
+      if (isConflict(err) && attempt <= maxRetries) {
+        conflicts += 1;
+        await backoff(attempt);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+async function settle(
+  tx: Tx,
+  request: SpendRequest,
+): Promise<Omit<SpendResult, "conflicts" | "attempts">> {
+  if (request.idempotencyKey) {
+    const existing = await tx.getIdempotent(request.idempotencyKey);
+    if (existing) return { status: "duplicate", transactionId: existing };
+  }
+
+  const budget = await tx.getAccount(request.budgetAccountId);
+  if (!budget) throw new Error(`unknown budget account: ${request.budgetAccountId}`);
+  const vendor = await tx.getAccount(request.vendorAccountId);
+  if (!vendor) throw new Error(`unknown vendor account: ${request.vendorAccountId}`);
+
+  const transactionId = randomUUID();
+
+  if (budget.frozen) {
+    await tx.insertDenial({
+      id: randomUUID(),
+      accountId: budget.id,
+      attemptedMicro: request.amountMicro,
+      reason: "account_frozen",
+      agentId: request.agentId ?? null,
+      sessionId: request.sessionId ?? null,
+      intent: request.intent ?? null,
+      receipt: request.receipt ?? null,
+    });
+    return { status: "denied", transactionId, reason: "account_frozen" };
+  }
+
+  if (request.amountMicro > budget.balanceMicro) {
+    await tx.insertDenial({
+      id: randomUUID(),
+      accountId: budget.id,
+      attemptedMicro: request.amountMicro,
+      reason: "cap_exceeded",
+      agentId: request.agentId ?? null,
+      sessionId: request.sessionId ?? null,
+      intent: request.intent ?? null,
+      receipt: request.receipt ?? null,
+    });
+    return { status: "denied", transactionId, reason: "cap_exceeded" };
+  }
+
+  const debit = buildEntry({
+    transactionId,
+    account: budget,
+    kind: "debit",
+    amountMicro: -request.amountMicro,
+    request,
+  });
+  const credit = buildEntry({
+    transactionId,
+    account: vendor,
+    kind: "credit",
+    amountMicro: request.amountMicro,
+    request,
+  });
+
+  await tx.insertEntry(debit);
+  await tx.insertEntry(credit);
+  await tx.updateAccount(budget.id, budget.balanceMicro - request.amountMicro, debit.hash);
+  await tx.updateAccount(vendor.id, vendor.balanceMicro + request.amountMicro, credit.hash);
+
+  if (request.idempotencyKey) {
+    await tx.putIdempotent(request.idempotencyKey, transactionId);
+  }
+
+  return { status: "committed", transactionId };
+}
+
+function buildEntry(args: {
+  transactionId: string;
+  account: { id: string; lastEntryHash: string };
+  kind: "debit" | "credit";
+  amountMicro: bigint;
+  request: SpendRequest;
+}): Entry {
+  const id = randomUUID();
+  const prevHash = args.account.lastEntryHash || GENESIS_HASH;
+  const fields = {
+    id,
+    transactionId: args.transactionId,
+    accountId: args.account.id,
+    kind: args.kind,
+    amountMicro: args.amountMicro,
+    agentId: args.request.agentId ?? null,
+    sessionId: args.request.sessionId ?? null,
+    userId: args.request.userId ?? null,
+    intent: args.request.intent ?? null,
+    receipt: args.request.receipt ?? null,
+  };
+  return { ...fields, prevHash, hash: hashEntry(prevHash, fields) };
+}
+
+async function backoff(attempt: number): Promise<void> {
+  const jitter = Math.min(attempt * 2, 25);
+  await new Promise((resolve) => setTimeout(resolve, jitter));
+}
