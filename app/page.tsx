@@ -1,8 +1,9 @@
-import { listAccounts, listDenials, listEntries } from "../lib/data";
-import { formatUsd } from "../lib/money";
+import { listAccounts, listDenials, listEntries, listPolicies } from "../lib/data";
+import { formatUsd, microToUsd } from "../lib/money";
 import { SpendSimulator } from "../components/spend-simulator";
 import { FreezeToggle, KillSwitch } from "../components/freeze-controls";
 import { LiveRefresh } from "../components/live-refresh";
+import { PolicyEditor, type PolicyView } from "../components/policy-editor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,14 +18,33 @@ const TYPE_LABEL: Record<string, string> = {
 const REASON_LABEL: Record<string, string> = {
   cap_exceeded: "Over budget",
   account_frozen: "Account frozen",
+  per_txn_limit: "Over per-transaction cap",
+  window_limit: "Over rolling-window cap",
+  vendor_blocked: "Vendor blocked",
+  vendor_not_allowed: "Vendor not allow-listed",
+  needs_approval: "Needs human approval",
 };
 
 export default async function Dashboard() {
-  const [accounts, entries, denials] = await Promise.all([
+  const [accounts, entries, denials, policies] = await Promise.all([
     listAccounts(),
     listEntries(40),
     listDenials(20),
+    listPolicies(),
   ]);
+
+  const policyViews: PolicyView[] = policies.map((p) => ({
+    id: p.id,
+    accountId: p.accountId,
+    accountName: p.accountName,
+    label: p.label,
+    enabled: p.enabled,
+    limitUsd: p.limitMicro == null ? null : microToUsd(p.limitMicro),
+    windowSeconds: p.windowSeconds,
+    vendorAllow: p.vendorAllow,
+    vendorBlock: p.vendorBlock,
+    approvalUsd: p.approvalThresholdMicro == null ? null : microToUsd(p.approvalThresholdMicro),
+  }));
 
   const org = accounts.find((a) => a.type === "org");
   const cap = org?.capMicro ?? 0n;
@@ -141,6 +161,17 @@ export default async function Dashboard() {
           </div>
         </section>
       </div>
+
+      <section className="mt-6 rounded-xl border border-line bg-surface p-6">
+        <SectionTitle>Policies · the spend gate</SectionTitle>
+        <p className="mt-1 text-sm text-fg-dim">
+          Layered ceilings evaluated on every spend, inside the same transaction as the ledger
+          write. A flat balance can&apos;t tell 50×$0.01 from 1×$2.40 — these can.
+        </p>
+        <div className="mt-4">
+          <PolicyEditor policies={policyViews} budgets={budgets} vendors={vendors} />
+        </div>
+      </section>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-line bg-surface p-6">
