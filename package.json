@@ -12,6 +12,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm run test:invariant",
     "test": "vitest run test/invariant",
     "test:invariant": "vitest run test/invariant",
     "test:live": "vitest run test/live"
@@ -20,6 +21,7 @@
     "@aws-sdk/dsql-signer": "^3.1075.0",
     "geist": "^1.7.2",
     "next": "^16.2.9",
+    "openai": "^6.45.0",
     "pg": "^8.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
