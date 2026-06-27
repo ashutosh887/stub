@@ -7,15 +7,16 @@ import { verifyChain } from "@/core/audit";
 import { GENESIS_HASH } from "@/core/hash";
 import type { Entry } from "@/core/store";
 import { formatUsd } from "@/lib/money";
+import { dsql } from "@/config";
 
 const USD = 1_000_000n;
 const AMOUNT = 1n * USD;
 const AFFORDABLE = 2;
 const WRITERS = 6;
 
-const REGION_A = process.env.DSQL_REGION ?? "us-east-1";
-const REGION_B = process.env.DSQL_REGION_PEER ?? "us-east-2";
-const PEER_ENDPOINT = process.env.DSQL_ENDPOINT_PEER;
+const REGION_A = dsql.region;
+const REGION_B = dsql.peerRegion;
+const PEER_ENDPOINT = dsql.peerEndpoint;
 
 function chainOrder(entries: Entry[]): Entry[] {
   const byPrev = new Map(entries.map((e) => [e.prevHash, e]));
@@ -58,8 +59,8 @@ describe.skipIf(!PEER_ENDPOINT)(
     const peer = createPool({
       endpoint: PEER_ENDPOINT!,
       region: REGION_B,
-      database: process.env.DSQL_DATABASE,
-      user: process.env.DSQL_USER,
+      database: dsql.database,
+      user: dsql.user,
     });
     const storeA = new PgStore();
     const storeB = new PgStore(peer);
