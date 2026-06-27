@@ -8,4 +8,7 @@ export default defineConfig({
   resolve: {
     alias: { "@": root },
   },
+  test: {
+    setupFiles: ["dotenv/config"],
+  },
 });
