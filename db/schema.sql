@@ -6,12 +6,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   balance_micro   BIGINT NOT NULL DEFAULT 0,
   cap_micro       BIGINT,
   frozen          BOOLEAN NOT NULL DEFAULT false,
+  velocity_limit_micro    BIGINT,
+  velocity_window_seconds BIGINT,
   last_entry_hash TEXT NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
-ALTER TABLE accounts ADD COLUMN IF NOT EXISTS frozen BOOLEAN;
-UPDATE accounts SET frozen = false WHERE frozen IS NULL;
 
 CREATE TABLE IF NOT EXISTS entries (
   id              UUID PRIMARY KEY,
@@ -61,16 +60,13 @@ CREATE TABLE IF NOT EXISTS policies (
   created_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE policies ADD COLUMN IF NOT EXISTS label TEXT;
-ALTER TABLE policies ADD COLUMN IF NOT EXISTS enabled BOOLEAN;
-UPDATE policies SET enabled = true WHERE enabled IS NULL;
-
 CREATE TABLE IF NOT EXISTS agents (
-  id           UUID PRIMARY KEY,
-  account_id   UUID NOT NULL,
-  name         TEXT NOT NULL,
-  api_key_hash TEXT,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+  id              UUID PRIMARY KEY,
+  account_id      UUID NOT NULL,
+  name            TEXT NOT NULL,
+  api_key_hash    TEXT,
+  api_key_preview TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -80,3 +76,10 @@ CREATE TABLE IF NOT EXISTS sessions (
   budget_micro BIGINT,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+CREATE INDEX ASYNC IF NOT EXISTS entries_account_created_idx ON entries (account_id, created_at);
+CREATE INDEX ASYNC IF NOT EXISTS entries_txn_idx ON entries (transaction_id);
+CREATE INDEX ASYNC IF NOT EXISTS entries_created_idx ON entries (created_at);
+CREATE INDEX ASYNC IF NOT EXISTS denials_account_created_idx ON denials (account_id, created_at);
+CREATE INDEX ASYNC IF NOT EXISTS denials_created_idx ON denials (created_at);
+CREATE INDEX ASYNC IF NOT EXISTS agents_api_key_hash_idx ON agents (api_key_hash);

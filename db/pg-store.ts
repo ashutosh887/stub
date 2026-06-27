@@ -32,21 +32,42 @@ export class PgStore implements Store {
   }
 }
 
+const ACCOUNT_COLS = `id, type, parent_id, name, balance_micro, cap_micro, frozen,
+  velocity_limit_micro, velocity_window_seconds, last_entry_hash`;
+
 function makeTx(client: PoolClient): Tx {
   return {
     async getAccount(id) {
       const { rows } = await client.query(
-        `SELECT id, type, parent_id, name, balance_micro, cap_micro, frozen, last_entry_hash
-           FROM accounts WHERE id = $1`,
+        `SELECT ${ACCOUNT_COLS} FROM accounts WHERE id = $1`,
         [id],
       );
       return rows[0] ? toAccount(rows[0]) : null;
+    },
+    async getAncestors(id) {
+      const result: Account[] = [];
+      const seen = new Set<string>([id]);
+      let { rows } = await client.query(`SELECT parent_id FROM accounts WHERE id = $1`, [id]);
+      let parentId = (rows[0]?.parent_id as string | null) ?? null;
+      while (parentId && !seen.has(parentId)) {
+        seen.add(parentId);
+        const parent = await client.query(`SELECT ${ACCOUNT_COLS} FROM accounts WHERE id = $1`, [
+          parentId,
+        ]);
+        if (!parent.rows[0]) break;
+        result.push(toAccount(parent.rows[0]));
+        parentId = (parent.rows[0].parent_id as string | null) ?? null;
+      }
+      return result;
     },
     async updateAccount(id, balanceMicro, lastEntryHash) {
       await client.query(
         `UPDATE accounts SET balance_micro = $2, last_entry_hash = $3 WHERE id = $1`,
         [id, balanceMicro.toString(), lastEntryHash],
       );
+    },
+    async setFrozen(id, frozen) {
+      await client.query(`UPDATE accounts SET frozen = $2 WHERE id = $1`, [id, frozen]);
     },
     async insertEntry(entry: Entry) {
       await client.query(
@@ -147,6 +168,10 @@ function toAccount(row: Record<string, unknown>): Account {
     balanceMicro: BigInt(row.balance_micro as string),
     capMicro: row.cap_micro == null ? null : BigInt(row.cap_micro as string),
     frozen: row.frozen === true,
+    velocityLimitMicro:
+      row.velocity_limit_micro == null ? null : BigInt(row.velocity_limit_micro as string),
+    velocityWindowSeconds:
+      row.velocity_window_seconds == null ? null : Number(row.velocity_window_seconds),
     lastEntryHash: row.last_entry_hash as string,
   };
 }
