@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { query, close } from "@/db/client";
@@ -15,15 +16,13 @@ function statements(sql: string): string[] {
 }
 
 async function main() {
-  const sql = readFileSync(schemaPath, "utf8");
-  const ddl = statements(sql);
+  const ddl = statements(readFileSync(schemaPath, "utf8"));
   console.log(`Applying ${ddl.length} statements to Aurora DSQL...`);
   for (const statement of ddl) {
-    const name = statement.slice(0, 60).replace(/\s+/g, " ");
     await query(statement);
-    console.log(`  ✅ ${name}...`);
+    console.log(`  ✅ ${statement.slice(0, 60).replace(/\s+/g, " ")}...`);
   }
-  console.log("✅ Migration complete.");
+  console.log("✅ Schema applied.");
 }
 
 main()

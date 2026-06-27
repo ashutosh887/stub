@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { query, close } from "@/db/client";
 
 async function main() {

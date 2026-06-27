@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { GENESIS_HASH } from "@/core/hash";
 import { query, close } from "@/db/client";
