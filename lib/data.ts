@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
 import type { AccountType } from "@/core/store";
+import type { LedgerQuery } from "@/core/query";
 
 export const store = new PgStore();
 
@@ -158,12 +159,132 @@ export async function createPolicy(input: PolicyInput): Promise<string> {
   return id;
 }
 
+export interface SpendEventRow {
+  amountMicro: bigint;
+  vendorId: string;
+  atMs: number;
+}
+
+export async function listSpendEvents(accountId: string, limit = 500): Promise<SpendEventRow[]> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT -d.amount_micro AS amount_micro, c.account_id AS vendor_id, d.created_at
+       FROM entries d
+       JOIN entries c ON c.transaction_id = d.transaction_id AND c.kind = 'credit'
+      WHERE d.account_id = $1 AND d.kind = 'debit'
+      ORDER BY d.created_at ASC
+      LIMIT $2`,
+    [accountId, limit],
+  );
+  return rows.map((r) => ({
+    amountMicro: BigInt(r.amount_micro as string),
+    vendorId: r.vendor_id as string,
+    atMs: new Date(r.created_at as string).getTime(),
+  }));
+}
+
 export async function setPolicyEnabled(id: string, enabled: boolean): Promise<void> {
   await query(`UPDATE policies SET enabled = $2 WHERE id = $1`, [id, enabled]);
 }
 
 export async function deletePolicy(id: string): Promise<void> {
   await query(`DELETE FROM policies WHERE id = $1`, [id]);
+}
+
+export interface QueryResultRow {
+  label: string;
+  totalMicro: bigint;
+  count: number;
+}
+
+const SPEND_GROUP: Record<LedgerQuery["groupBy"], string | null> = {
+  none: null,
+  vendor: "va.name",
+  account: "da.name",
+  agent: "COALESCE(d.agent_id, '—')",
+  intent: "COALESCE(d.intent, '—')",
+  reason: null,
+  day: "to_char(date_trunc('day', d.created_at), 'YYYY-MM-DD')",
+};
+
+const DENIAL_GROUP: Record<LedgerQuery["groupBy"], string | null> = {
+  none: null,
+  vendor: null,
+  account: "a.name",
+  agent: "COALESCE(dn.agent_id, '—')",
+  intent: "COALESCE(dn.intent, '—')",
+  reason: "dn.reason",
+  day: "to_char(date_trunc('day', dn.created_at), 'YYYY-MM-DD')",
+};
+
+export async function runLedgerQuery(q: LedgerQuery): Promise<QueryResultRow[]> {
+  const params: unknown[] = [];
+  const p = (value: unknown): string => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+  const like = (term: string): string => p(`%${term}%`);
+
+  const where: string[] = [];
+  let from: string;
+  let groupExpr: string | null;
+  let amountExpr: string;
+
+  if (q.source === "denials") {
+    from = `FROM denials dn
+       JOIN accounts a ON a.id = dn.account_id
+       LEFT JOIN accounts pa ON pa.id = a.parent_id`;
+    amountExpr = "dn.attempted_micro";
+    groupExpr = DENIAL_GROUP[q.groupBy];
+    if (q.account) {
+      const ph = like(q.account);
+      where.push(`(a.name ILIKE ${ph} OR pa.name ILIKE ${ph})`);
+    }
+    if (q.agent) where.push(`dn.agent_id ILIKE ${like(q.agent)}`);
+    if (q.intent) where.push(`dn.intent ILIKE ${like(q.intent)}`);
+    if (q.reason) where.push(`dn.reason ILIKE ${like(q.reason)}`);
+    if (q.since) where.push(`dn.created_at >= ${p(q.since)}::timestamptz`);
+    if (q.until) where.push(`dn.created_at < ${p(q.until)}::timestamptz`);
+  } else {
+    from = `FROM entries d
+       JOIN entries c ON c.transaction_id = d.transaction_id AND c.kind = 'credit'
+       JOIN accounts da ON da.id = d.account_id
+       JOIN accounts va ON va.id = c.account_id
+       LEFT JOIN accounts pa ON pa.id = da.parent_id`;
+    amountExpr = "ABS(d.amount_micro)";
+    groupExpr = SPEND_GROUP[q.groupBy];
+    where.push("d.kind = 'debit'");
+    if (q.account) {
+      const ph = like(q.account);
+      where.push(`(da.name ILIKE ${ph} OR pa.name ILIKE ${ph})`);
+    }
+    if (q.vendor) where.push(`va.name ILIKE ${like(q.vendor)}`);
+    if (q.agent) where.push(`d.agent_id ILIKE ${like(q.agent)}`);
+    if (q.intent) where.push(`d.intent ILIKE ${like(q.intent)}`);
+    if (q.since) where.push(`d.created_at >= ${p(q.since)}::timestamptz`);
+    if (q.until) where.push(`d.created_at < ${p(q.until)}::timestamptz`);
+  }
+
+  const label = groupExpr ?? "'Total'";
+  const orderCol = q.metric === "count" ? "cnt" : "total_micro";
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const groupSql = groupExpr ? `GROUP BY ${groupExpr}` : "";
+  const limitPh = p(q.limit);
+
+  const sql = `SELECT ${label} AS label,
+            COALESCE(SUM(${amountExpr}), 0) AS total_micro,
+            COUNT(*) AS cnt
+       ${from}
+      ${whereSql}
+      ${groupSql}
+      ORDER BY ${orderCol} DESC
+      LIMIT ${limitPh}`;
+
+  const { rows } = await query<Record<string, unknown>>(sql, params);
+  return rows.map((r) => ({
+    label: String(r.label),
+    totalMicro: BigInt(r.total_micro as string),
+    count: Number(r.cnt),
+  }));
 }
 
 export async function listDenials(limit = 20): Promise<DenialRow[]> {
