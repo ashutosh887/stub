@@ -1,24 +1,22 @@
 import { NextResponse } from "next/server";
 import { createPolicy, deletePolicy, listPolicies, setPolicyEnabled } from "@/lib/data";
 import { usdToMicro } from "@/lib/money";
+import { HttpError, readJson, withRoute } from "@/lib/api";
+import { requireText, requireUuid } from "@/lib/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  try {
-    const policies = await listPolicies();
-    return NextResponse.json(
-      policies.map((p) => ({
-        ...p,
-        limitMicro: p.limitMicro?.toString() ?? null,
-        approvalThresholdMicro: p.approvalThresholdMicro?.toString() ?? null,
-      })),
-    );
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
-}
+export const GET = withRoute({ name: "policies", admin: true }, async () => {
+  const policies = await listPolicies();
+  return NextResponse.json(
+    policies.map((p) => ({
+      ...p,
+      limitMicro: p.limitMicro?.toString() ?? null,
+      approvalThresholdMicro: p.approvalThresholdMicro?.toString() ?? null,
+    })),
+  );
+});
 
 interface PolicyBody {
   accountId?: string;
@@ -30,17 +28,10 @@ interface PolicyBody {
   approvalThresholdUsd?: string | number;
 }
 
-export async function POST(request: Request) {
-  let body: PolicyBody;
-  try {
-    body = (await request.json()) as PolicyBody;
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  }
-
-  if (!body.accountId || !body.label) {
-    return NextResponse.json({ error: "accountId and label are required" }, { status: 400 });
-  }
+export const POST = withRoute({ name: "policies", admin: true }, async ({ request }) => {
+  const body = await readJson<PolicyBody>(request);
+  const accountId = requireUuid(body.accountId, "accountId");
+  const label = requireText(body.label, "label", 120);
 
   let limitMicro: bigint | null = null;
   let approvalThresholdMicro: bigint | null = null;
@@ -48,8 +39,8 @@ export async function POST(request: Request) {
     if (body.limitUsd !== undefined && body.limitUsd !== "") limitMicro = usdToMicro(body.limitUsd);
     if (body.approvalThresholdUsd !== undefined && body.approvalThresholdUsd !== "")
       approvalThresholdMicro = usdToMicro(body.approvalThresholdUsd);
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+  } catch {
+    throw new HttpError(400, "limitUsd / approvalThresholdUsd must be valid USD amounts");
   }
 
   const hasRule =
@@ -58,53 +49,32 @@ export async function POST(request: Request) {
     (body.vendorAllow?.length ?? 0) > 0 ||
     (body.vendorBlock?.length ?? 0) > 0;
   if (!hasRule) {
-    return NextResponse.json(
-      { error: "a policy needs at least one constraint (limit, approval, or vendor list)" },
-      { status: 400 },
-    );
+    throw new HttpError(400, "a policy needs at least one constraint (limit, approval, or vendor list)");
   }
 
-  try {
-    const id = await createPolicy({
-      accountId: body.accountId,
-      label: body.label,
-      limitMicro,
-      windowSeconds: body.windowSeconds ?? null,
-      vendorAllow: body.vendorAllow ?? null,
-      vendorBlock: body.vendorBlock ?? null,
-      approvalThresholdMicro,
-    });
-    return NextResponse.json({ id });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
-}
+  const id = await createPolicy({
+    accountId,
+    label,
+    limitMicro,
+    windowSeconds: body.windowSeconds ?? null,
+    vendorAllow: body.vendorAllow ?? null,
+    vendorBlock: body.vendorBlock ?? null,
+    approvalThresholdMicro,
+  });
+  return NextResponse.json({ id });
+});
 
-export async function PATCH(request: Request) {
-  let body: { id?: string; enabled?: boolean };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  }
-  if (!body.id || typeof body.enabled !== "boolean") {
-    return NextResponse.json({ error: "id and enabled are required" }, { status: 400 });
-  }
-  try {
-    await setPolicyEnabled(body.id, body.enabled);
-    return NextResponse.json({ id: body.id, enabled: body.enabled });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
-}
+export const PATCH = withRoute({ name: "policies", admin: true }, async ({ request }) => {
+  const body = await readJson<{ id?: string; enabled?: boolean }>(request);
+  const id = requireUuid(body.id, "id");
+  if (typeof body.enabled !== "boolean") throw new HttpError(400, "enabled is required");
+  await setPolicyEnabled(id, body.enabled);
+  return NextResponse.json({ id, enabled: body.enabled });
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withRoute({ name: "policies", admin: true }, async ({ request }) => {
   const id = new URL(request.url).searchParams.get("id");
-  if (!id) return NextResponse.json({ error: "id query param is required" }, { status: 400 });
-  try {
-    await deletePolicy(id);
-    return NextResponse.json({ id });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
-}
+  const validId = requireUuid(id, "id");
+  await deletePolicy(validId);
+  return NextResponse.json({ id: validId });
+});

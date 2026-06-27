@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { setAllFrozen, setFrozen } from "@/lib/data";
+import { HttpError, readJson, withRoute } from "@/lib/api";
+import { requireUuid } from "@/lib/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,26 +12,16 @@ interface FreezeBody {
   all?: boolean;
 }
 
-export async function POST(request: Request) {
-  let body: FreezeBody;
-  try {
-    body = (await request.json()) as FreezeBody;
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  }
-
+export const POST = withRoute({ name: "freeze", admin: true }, async ({ request }) => {
+  const body = await readJson<FreezeBody>(request);
   const frozen = body.frozen ?? true;
-  try {
-    if (body.all) {
-      await setAllFrozen(frozen);
-      return NextResponse.json({ scope: "all", frozen });
-    }
-    if (!body.accountId) {
-      return NextResponse.json({ error: "accountId or all is required" }, { status: 400 });
-    }
-    await setFrozen(body.accountId, frozen);
-    return NextResponse.json({ scope: "account", accountId: body.accountId, frozen });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
+
+  if (body.all) {
+    await setAllFrozen(frozen);
+    return NextResponse.json({ scope: "all", frozen });
   }
-}
+  if (!body.accountId) throw new HttpError(400, "accountId or all is required");
+  const accountId = requireUuid(body.accountId, "accountId");
+  await setFrozen(accountId, frozen);
+  return NextResponse.json({ scope: "account", accountId, frozen });
+});

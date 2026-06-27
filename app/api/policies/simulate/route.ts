@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { simulatePolicy, type Policy } from "@/core/policy";
 import { listSpendEvents } from "@/lib/data";
 import { microToUsd, usdToMicro } from "@/lib/money";
+import { HttpError, readJson, withRoute } from "@/lib/api";
+import { requireUuid } from "@/lib/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,17 +18,9 @@ interface SimulateBody {
   approvalThresholdUsd?: string | number;
 }
 
-export async function POST(request: Request) {
-  let body: SimulateBody;
-  try {
-    body = (await request.json()) as SimulateBody;
-  } catch {
-    return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
-  }
-
-  if (!body.accountId) {
-    return NextResponse.json({ error: "accountId is required" }, { status: 400 });
-  }
+export const POST = withRoute({ name: "policies/simulate", admin: true }, async ({ request }) => {
+  const body = await readJson<SimulateBody>(request);
+  const accountId = requireUuid(body.accountId, "accountId");
 
   let limitMicro: bigint | null = null;
   let approvalThresholdMicro: bigint | null = null;
@@ -34,13 +28,13 @@ export async function POST(request: Request) {
     if (body.limitUsd !== undefined && body.limitUsd !== "") limitMicro = usdToMicro(body.limitUsd);
     if (body.approvalThresholdUsd !== undefined && body.approvalThresholdUsd !== "")
       approvalThresholdMicro = usdToMicro(body.approvalThresholdUsd);
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 400 });
+  } catch {
+    throw new HttpError(400, "limitUsd / approvalThresholdUsd must be valid USD amounts");
   }
 
   const candidate: Policy = {
     id: "candidate",
-    accountId: body.accountId,
+    accountId,
     label: body.label ?? "candidate",
     enabled: true,
     limitMicro,
@@ -50,17 +44,13 @@ export async function POST(request: Request) {
     approvalThresholdMicro,
   };
 
-  try {
-    const events = await listSpendEvents(body.accountId);
-    const result = await simulatePolicy(candidate, events);
-    return NextResponse.json({
-      evaluated: result.evaluated,
-      blocked: result.blocked,
-      needsApproval: result.needsApproval,
-      savedUsd: microToUsd(result.savedMicro),
-      reasons: result.reasons,
-    });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 500 });
-  }
-}
+  const events = await listSpendEvents(accountId);
+  const result = await simulatePolicy(candidate, events);
+  return NextResponse.json({
+    evaluated: result.evaluated,
+    blocked: result.blocked,
+    needsApproval: result.needsApproval,
+    savedUsd: microToUsd(result.savedMicro),
+    reasons: result.reasons,
+  });
+});
