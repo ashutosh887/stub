@@ -4,6 +4,8 @@ import { query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
 import type { AccountType } from "@/core/store";
 import type { LedgerQuery } from "@/core/query";
+import { type BurnStatus, burnStatus } from "@/core/burn";
+import { generateApiKey, hashApiKey, keysMatch } from "@/core/apikey";
 
 export const store = new PgStore();
 
@@ -15,6 +17,7 @@ export interface AccountRow {
   balanceMicro: bigint;
   capMicro: bigint | null;
   frozen: boolean;
+  burn: BurnStatus;
 }
 
 export interface EntryRow {
@@ -46,15 +49,20 @@ export async function listAccounts(): Promise<AccountRow[]> {
     `SELECT id, type, parent_id, name, balance_micro, cap_micro, frozen
        FROM accounts ORDER BY type, name`,
   );
-  return rows.map((r) => ({
-    id: r.id as string,
-    type: r.type as AccountType,
-    parentId: (r.parent_id as string | null) ?? null,
-    name: r.name as string,
-    balanceMicro: BigInt(r.balance_micro as string),
-    capMicro: r.cap_micro == null ? null : BigInt(r.cap_micro as string),
-    frozen: r.frozen === true,
-  }));
+  return rows.map((r) => {
+    const balanceMicro = BigInt(r.balance_micro as string);
+    const capMicro = r.cap_micro == null ? null : BigInt(r.cap_micro as string);
+    return {
+      id: r.id as string,
+      type: r.type as AccountType,
+      parentId: (r.parent_id as string | null) ?? null,
+      name: r.name as string,
+      balanceMicro,
+      capMicro,
+      frozen: r.frozen === true,
+      burn: burnStatus(capMicro, balanceMicro),
+    };
+  });
 }
 
 export async function setFrozen(accountId: string, frozen: boolean): Promise<void> {
@@ -182,12 +190,96 @@ export async function listSpendEvents(accountId: string, limit = 500): Promise<S
   }));
 }
 
+export interface BurnEventRow {
+  amountMicro: bigint;
+  atMs: number;
+}
+
+export async function listFleetSpend(limit = 2000): Promise<BurnEventRow[]> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT -amount_micro AS amount_micro, created_at
+       FROM entries
+      WHERE kind = 'debit'
+      ORDER BY created_at DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => ({
+    amountMicro: BigInt(r.amount_micro as string),
+    atMs: new Date(r.created_at as string).getTime(),
+  }));
+}
+
 export async function setPolicyEnabled(id: string, enabled: boolean): Promise<void> {
   await query(`UPDATE policies SET enabled = $2 WHERE id = $1`, [id, enabled]);
 }
 
 export async function deletePolicy(id: string): Promise<void> {
   await query(`DELETE FROM policies WHERE id = $1`, [id]);
+}
+
+export interface AgentRow {
+  id: string;
+  accountId: string;
+  accountName: string | null;
+  name: string;
+  keyPreview: string | null;
+  createdAt: string;
+}
+
+export async function listAgents(): Promise<AgentRow[]> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT ag.id, ag.account_id, a.name AS account_name, ag.name,
+            ag.api_key_preview, ag.created_at
+       FROM agents ag
+       LEFT JOIN accounts a ON a.id = ag.account_id
+      ORDER BY ag.created_at DESC`,
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    accountId: r.account_id as string,
+    accountName: (r.account_name as string | null) ?? null,
+    name: r.name as string,
+    keyPreview: (r.api_key_preview as string | null) ?? null,
+    createdAt: new Date(r.created_at as string).toISOString(),
+  }));
+}
+
+export interface CreatedAgent {
+  id: string;
+  apiKey: string;
+  keyPreview: string;
+}
+
+export async function createAgent(name: string, accountId: string): Promise<CreatedAgent> {
+  const id = randomUUID();
+  const key = generateApiKey();
+  await query(
+    `INSERT INTO agents (id, account_id, name, api_key_hash, api_key_preview)
+     VALUES ($1,$2,$3,$4,$5)`,
+    [id, accountId, name, key.hash, key.preview],
+  );
+  return { id, apiKey: key.plaintext, keyPreview: key.preview };
+}
+
+export interface ResolvedAgent {
+  agentId: string;
+  agentName: string;
+  accountId: string;
+}
+
+export async function resolveApiKey(plaintext: string): Promise<ResolvedAgent | null> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT id, name, account_id, api_key_hash FROM agents WHERE api_key_hash = $1`,
+    [hashApiKey(plaintext)],
+  );
+  const row = rows[0];
+  if (!row || !keysMatch(plaintext, row.api_key_hash as string)) return null;
+  return {
+    agentId: row.id as string,
+    agentName: row.name as string,
+    accountId: row.account_id as string,
+  };
 }
 
 export interface QueryResultRow {

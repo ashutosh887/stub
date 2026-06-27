@@ -9,15 +9,15 @@ import {
 } from "@/core/query";
 import { runLedgerQuery } from "@/lib/data";
 import { microToUsd } from "@/lib/money";
+import { openai } from "@/config";
 
-// OpenAI (reads OPENAI_API_KEY from the environment). Cheap default; override with OPENAI_MODEL.
-const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+const MODEL = openai.model;
 
-export const openaiEnabled = Boolean(process.env.OPENAI_API_KEY);
+export const openaiEnabled = openai.enabled;
 
 let client: OpenAI | undefined;
 function getClient(): OpenAI {
-  if (!client) client = new OpenAI();
+  if (!client) client = new OpenAI({ apiKey: openai.apiKey });
   return client;
 }
 
