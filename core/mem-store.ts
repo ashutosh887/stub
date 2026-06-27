@@ -44,7 +44,10 @@ export class MemStore implements Store {
 
   async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const reads = new Map<string, number>();
-    const accountWrites = new Map<string, { balanceMicro: bigint; lastEntryHash: string }>();
+    const accountWrites = new Map<
+      string,
+      { balanceMicro?: bigint; lastEntryHash?: string; frozen?: boolean }
+    >();
     const entryWrites: Entry[] = [];
     const denialWrites: Denial[] = [];
     const idempotencyWrites = new Map<string, string>();
@@ -55,21 +58,40 @@ export class MemStore implements Store {
       return found;
     };
 
+    const readAccount = (id: string): Account | null => {
+      const found = snapshot(id);
+      if (!found) return null;
+      const pending = accountWrites.get(id);
+      const account = clone(found.account);
+      if (pending) {
+        if (pending.balanceMicro !== undefined) account.balanceMicro = pending.balanceMicro;
+        if (pending.lastEntryHash !== undefined) account.lastEntryHash = pending.lastEntryHash;
+        if (pending.frozen !== undefined) account.frozen = pending.frozen;
+      }
+      return account;
+    };
+
     const tx: Tx = {
-      getAccount: async (id) => {
-        const found = snapshot(id);
-        if (!found) return null;
-        const pending = accountWrites.get(id);
-        const account = clone(found.account);
-        if (pending) {
-          account.balanceMicro = pending.balanceMicro;
-          account.lastEntryHash = pending.lastEntryHash;
+      getAccount: async (id) => readAccount(id),
+      getAncestors: async (id) => {
+        const result: Account[] = [];
+        const self = readAccount(id);
+        let parentId = self?.parentId ?? null;
+        while (parentId) {
+          const parent = readAccount(parentId);
+          if (!parent) break;
+          result.push(parent);
+          parentId = parent.parentId;
         }
-        return account;
+        return result;
       },
       updateAccount: async (id, balanceMicro, lastEntryHash) => {
         snapshot(id);
-        accountWrites.set(id, { balanceMicro, lastEntryHash });
+        accountWrites.set(id, { ...accountWrites.get(id), balanceMicro, lastEntryHash });
+      },
+      setFrozen: async (id, frozen) => {
+        snapshot(id);
+        accountWrites.set(id, { ...accountWrites.get(id), frozen });
       },
       insertEntry: async (entry) => {
         entryWrites.push(clone(entry));
@@ -106,8 +128,9 @@ export class MemStore implements Store {
       for (const [id, write] of accountWrites) {
         const current = this.accounts.get(id);
         if (!current) throw new ConflictError("account vanished");
-        current.account.balanceMicro = write.balanceMicro;
-        current.account.lastEntryHash = write.lastEntryHash;
+        if (write.balanceMicro !== undefined) current.account.balanceMicro = write.balanceMicro;
+        if (write.lastEntryHash !== undefined) current.account.lastEntryHash = write.lastEntryHash;
+        if (write.frozen !== undefined) current.account.frozen = write.frozen;
         current.version += 1;
       }
       for (const entry of entryWrites) this.entries.push(entry);

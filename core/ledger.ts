@@ -31,6 +31,8 @@ export interface SpendOptions {
 
 const DEFAULT_MAX_RETRIES = 50;
 
+type SettleOutcome = Omit<SpendResult, "conflicts" | "attempts">;
+
 export async function spend(
   store: Store,
   request: SpendRequest,
@@ -58,10 +60,7 @@ export async function spend(
   }
 }
 
-async function settle(
-  tx: Tx,
-  request: SpendRequest,
-): Promise<Omit<SpendResult, "conflicts" | "attempts">> {
+async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
   if (request.idempotencyKey) {
     const existing = await tx.getIdempotent(request.idempotencyKey);
     if (existing) return { status: "duplicate", transactionId: existing };
@@ -73,20 +72,25 @@ async function settle(
   if (!vendor) throw new Error(`unknown vendor account: ${request.vendorAccountId}`);
 
   const transactionId = randomUUID();
-
-  if (budget.frozen) {
+  const deny = async (reason: string): Promise<SettleOutcome> => {
     await tx.insertDenial({
       id: randomUUID(),
       accountId: budget.id,
       attemptedMicro: request.amountMicro,
-      reason: "account_frozen",
+      reason,
       agentId: request.agentId ?? null,
       sessionId: request.sessionId ?? null,
       intent: request.intent ?? null,
       receipt: request.receipt ?? null,
     });
-    return { status: "denied", transactionId, reason: "account_frozen" };
-  }
+    return { status: "denied", transactionId, reason };
+  };
+
+  const ancestors = await tx.getAncestors(budget.id);
+  const chain = [budget, ...ancestors];
+
+  const frozen = chain.find((a) => a.frozen);
+  if (frozen) return deny("account_frozen");
 
   const policies = await tx.getPolicies(budget.id);
   if (policies.length > 0) {
@@ -96,33 +100,23 @@ async function settle(
       spentInWindow: (windowSeconds) => tx.spentInWindow(budget.id, windowSeconds),
     });
     if (verdict.decision !== "allow") {
-      await tx.insertDenial({
-        id: randomUUID(),
-        accountId: budget.id,
-        attemptedMicro: request.amountMicro,
-        reason: verdict.reason,
-        agentId: request.agentId ?? null,
-        sessionId: request.sessionId ?? null,
-        intent: request.intent ?? null,
-        receipt: request.receipt ?? null,
-      });
-      const status = verdict.decision === "needs_approval" ? "needs_approval" : "denied";
-      return { status, transactionId, reason: verdict.reason };
+      const outcome = await deny(verdict.reason);
+      if (verdict.decision === "needs_approval") return { ...outcome, status: "needs_approval" };
+      return outcome;
     }
   }
 
-  if (request.amountMicro > budget.balanceMicro) {
-    await tx.insertDenial({
-      id: randomUUID(),
-      accountId: budget.id,
-      attemptedMicro: request.amountMicro,
-      reason: "cap_exceeded",
-      agentId: request.agentId ?? null,
-      sessionId: request.sessionId ?? null,
-      intent: request.intent ?? null,
-      receipt: request.receipt ?? null,
-    });
-    return { status: "denied", transactionId, reason: "cap_exceeded" };
+  if (budget.velocityLimitMicro != null && budget.velocityWindowSeconds != null) {
+    const recent = await tx.spentInWindow(budget.id, budget.velocityWindowSeconds);
+    if (recent + request.amountMicro > budget.velocityLimitMicro) {
+      await tx.setFrozen(budget.id, true);
+      return deny("velocity_tripped");
+    }
+  }
+
+  const binding = chain.find((a) => request.amountMicro > a.balanceMicro);
+  if (binding) {
+    return deny(binding.id === budget.id ? "cap_exceeded" : `${binding.type}_cap_exceeded`);
   }
 
   const debit = buildEntry({
@@ -144,6 +138,10 @@ async function settle(
   await tx.insertEntry(credit);
   await tx.updateAccount(budget.id, budget.balanceMicro - request.amountMicro, debit.hash);
   await tx.updateAccount(vendor.id, vendor.balanceMicro + request.amountMicro, credit.hash);
+
+  for (const ancestor of ancestors) {
+    await tx.updateAccount(ancestor.id, ancestor.balanceMicro - request.amountMicro, ancestor.lastEntryHash);
+  }
 
   if (request.idempotencyKey) {
     await tx.putIdempotent(request.idempotencyKey, transactionId);

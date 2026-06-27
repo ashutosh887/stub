@@ -10,6 +10,8 @@ export interface Account {
   balanceMicro: bigint;
   capMicro: bigint | null;
   frozen?: boolean;
+  velocityLimitMicro?: bigint | null;
+  velocityWindowSeconds?: number | null;
   lastEntryHash: string;
 }
 
@@ -43,7 +45,9 @@ export interface Denial {
 
 export interface Tx {
   getAccount(id: string): Promise<Account | null>;
+  getAncestors(id: string): Promise<Account[]>;
   updateAccount(id: string, balanceMicro: bigint, lastEntryHash: string): Promise<void>;
+  setFrozen(id: string, frozen: boolean): Promise<void>;
   insertEntry(entry: Entry): Promise<void>;
   insertDenial(denial: Denial): Promise<void>;
   getIdempotent(key: string): Promise<string | null>;
