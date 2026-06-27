@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { evaluatePolicies, type Policy } from "@/core/policy";
+import { evaluatePolicies, simulatePolicy, type Policy, type SpendEvent } from "@/core/policy";
 
 const USD = 1_000_000n;
 
@@ -60,5 +60,27 @@ describe("policy engine", () => {
       policy({ limitMicro: 1n * USD }),
     ];
     expect((await evaluatePolicies(policies, ctx(5n * USD))).decision).toBe("deny");
+  });
+});
+
+describe("policy simulator", () => {
+  const events: SpendEvent[] = [
+    { amountMicro: 2n * USD, vendorId: "v1", atMs: 1000 },
+    { amountMicro: 3n * USD, vendorId: "v2", atMs: 2000 },
+    { amountMicro: 1n * USD, vendorId: "v1", atMs: 3000 },
+  ];
+
+  it("counts what a per-transaction cap would have blocked and saved", async () => {
+    const res = await simulatePolicy(policy({ limitMicro: 2n * USD }), events);
+    expect(res.evaluated).toBe(3);
+    expect(res.blocked).toBe(1);
+    expect(res.savedMicro).toBe(3n * USD);
+    expect(res.reasons.per_txn_limit).toBe(1);
+  });
+
+  it("replays a window cap counterfactually, ignoring would-be-blocked spend", async () => {
+    const res = await simulatePolicy(policy({ limitMicro: 4n * USD, windowSeconds: 86400 }), events);
+    expect(res.blocked).toBe(1);
+    expect(res.savedMicro).toBe(3n * USD);
   });
 });
