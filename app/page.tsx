@@ -1,10 +1,23 @@
-import { listAccounts, listDenials, listEntries, listPolicies } from "../lib/data";
+import {
+  listAccounts,
+  listAgents,
+  listDenials,
+  listEntries,
+  listFleetSpend,
+  listPolicies,
+} from "../lib/data";
 import { formatUsd, microToUsd } from "../lib/money";
+import { forecast } from "../core/forecast";
 import { SpendSimulator } from "../components/spend-simulator";
 import { FreezeToggle, KillSwitch } from "../components/freeze-controls";
 import { LiveRefresh } from "../components/live-refresh";
 import { PolicyEditor, type PolicyView } from "../components/policy-editor";
 import { NlQuery } from "../components/nl-query";
+import { AgentRegistry } from "../components/agent-registry";
+import { AdminLogin } from "../components/admin-login";
+import { cookies } from "next/headers";
+import { security } from "../config";
+import { ADMIN_COOKIE } from "../lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,7 +31,10 @@ const TYPE_LABEL: Record<string, string> = {
 
 const REASON_LABEL: Record<string, string> = {
   cap_exceeded: "Over budget",
+  team_cap_exceeded: "Over team budget",
+  org_cap_exceeded: "Over org budget",
   account_frozen: "Account frozen",
+  velocity_tripped: "Velocity breaker (auto-frozen)",
   per_txn_limit: "Over per-transaction cap",
   window_limit: "Over rolling-window cap",
   vendor_blocked: "Vendor blocked",
@@ -26,12 +42,26 @@ const REASON_LABEL: Record<string, string> = {
   needs_approval: "Needs human approval",
 };
 
+const BURN_TONE: Record<string, string> = {
+  ok: "text-fg-mute",
+  notice: "text-fg-dim",
+  warn: "text-warn",
+  critical: "text-deny",
+};
+
 export default async function Dashboard() {
-  const [accounts, entries, denials, policies] = await Promise.all([
+  if (security.authEnabled) {
+    const jar = await cookies();
+    if (jar.get(ADMIN_COOKIE)?.value !== security.adminToken) return <AdminLogin />;
+  }
+
+  const [accounts, entries, denials, policies, fleetSpend, agents] = await Promise.all([
     listAccounts(),
     listEntries(40),
     listDenials(20),
     listPolicies(),
+    listFleetSpend(),
+    listAgents(),
   ]);
 
   const policyViews: PolicyView[] = policies.map((p) => ({
@@ -54,6 +84,14 @@ export default async function Dashboard() {
     .reduce((sum, a) => sum + a.balanceMicro, 0n);
   const remaining = cap - spent;
   const pctSpent = cap > 0n ? Number((spent * 1000n) / cap) / 10 : 0;
+
+  const burn = forecast({ balanceMicro: remaining, events: fleetSpend, nowMs: Date.now() });
+  const runway =
+    burn.daysToDepletion == null
+      ? "—"
+      : burn.daysToDepletion >= 1
+        ? `${burn.daysToDepletion.toFixed(burn.daysToDepletion < 10 ? 1 : 0)}d`
+        : `${Math.max(1, Math.round(burn.daysToDepletion * 24))}h`;
 
   const budgets = accounts
     .filter((a) => a.type === "org" || a.type === "team" || a.type === "agent")
@@ -117,6 +155,11 @@ export default async function Dashboard() {
         <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
           <Stat label="Committed" value={formatUsd(spent)} />
           <Stat label="Burn" value={`${pctSpent.toFixed(1)}%`} />
+          <Stat
+            label="Runway"
+            value={runway}
+            tone={burn.daysToDepletion != null && burn.daysToDepletion < 2 ? "deny" : "default"}
+          />
           <Stat label="Ledger entries" value={String(entries.length)} />
           <Stat label="Breaches blocked" value={String(denials.length)} tone={denials.length ? "deny" : "default"} />
         </div>
@@ -143,15 +186,38 @@ export default async function Dashboard() {
                   {grouped[type].map((a) => (
                     <div
                       key={a.id}
-                      className={`flex items-center justify-between rounded-lg border bg-surface-2 px-3 py-2.5 ${
+                      className={`rounded-lg border bg-surface-2 px-3 py-2.5 ${
                         a.frozen ? "border-deny-dim" : "border-line"
                       }`}
                     >
-                      <span className="text-sm text-fg">{a.name}</span>
-                      <div className="flex items-center gap-3">
-                        <span className="tabular text-sm text-fg-dim">{formatUsd(a.balanceMicro)}</span>
-                        {type !== "vendor" && <FreezeToggle accountId={a.id} frozen={a.frozen} />}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-fg">{a.name}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="tabular text-sm text-fg-dim">{formatUsd(a.balanceMicro)}</span>
+                          {type !== "vendor" && <FreezeToggle accountId={a.id} frozen={a.frozen} />}
+                        </div>
                       </div>
+                      {type !== "vendor" && a.capMicro != null && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink">
+                            <div
+                              className="h-full rounded-full transition-[width] duration-500"
+                              style={{
+                                width: `${a.burn.pct}%`,
+                                backgroundColor:
+                                  a.burn.state === "critical"
+                                    ? "var(--color-deny)"
+                                    : a.burn.state === "warn"
+                                      ? "var(--color-warn)"
+                                      : "var(--color-commit)",
+                              }}
+                            />
+                          </div>
+                          <span className={`tabular text-[11px] ${BURN_TONE[a.burn.state]}`}>
+                            {a.burn.pct}%
+                          </span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -168,6 +234,26 @@ export default async function Dashboard() {
           </div>
         </section>
       </div>
+
+      <section className="mt-6 rounded-xl border border-line bg-surface p-6">
+        <SectionTitle>Agents</SectionTitle>
+        <p className="mt-1 text-sm text-fg-dim">
+          Know your agents — a real-time registry. Issue a scoped key; spends made with it are
+          pinned to that agent&apos;s budget.
+        </p>
+        <div className="mt-4">
+          <AgentRegistry
+            agents={agents.map((a) => ({
+              id: a.id,
+              name: a.name,
+              accountName: a.accountName,
+              keyPreview: a.keyPreview,
+              createdAt: a.createdAt,
+            }))}
+            budgets={budgets}
+          />
+        </div>
+      </section>
 
       <section className="mt-6 rounded-xl border border-line bg-surface p-6">
         <SectionTitle>Policies</SectionTitle>
