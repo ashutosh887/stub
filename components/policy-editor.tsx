@@ -9,6 +9,14 @@ interface AccountOption {
   type: string;
 }
 
+interface SimResult {
+  evaluated: number;
+  blocked: number;
+  needsApproval: number;
+  savedUsd: string;
+  reasons: Record<string, number>;
+}
+
 export interface PolicyView {
   id: string;
   accountId: string;
@@ -55,8 +63,21 @@ export function PolicyEditor({
   const [approvalUsd, setApprovalUsd] = useState("");
   const [vendorMode, setVendorMode] = useState<"none" | "allow" | "block">("none");
   const [vendorIds, setVendorIds] = useState<string[]>([]);
+  const [sim, setSim] = useState<SimResult | null>(null);
 
   const vendorName = (id: string) => vendors.find((v) => v.id === id)?.name ?? id;
+
+  function buildBody(): Record<string, unknown> {
+    const body: Record<string, unknown> = { accountId, label: label.trim() || "Policy" };
+    if (capUsd.trim()) {
+      body.limitUsd = capUsd.trim();
+      if (windowSeconds > 0) body.windowSeconds = windowSeconds;
+    }
+    if (approvalUsd.trim()) body.approvalThresholdUsd = approvalUsd.trim();
+    if (vendorMode === "allow" && vendorIds.length) body.vendorAllow = vendorIds;
+    if (vendorMode === "block" && vendorIds.length) body.vendorBlock = vendorIds;
+    return body;
+  }
 
   function reset() {
     setLabel("");
@@ -65,6 +86,7 @@ export function PolicyEditor({
     setApprovalUsd("");
     setVendorMode("none");
     setVendorIds([]);
+    setSim(null);
   }
 
   function refresh() {
@@ -75,19 +97,10 @@ export function PolicyEditor({
     setBusy(true);
     setError(null);
     try {
-      const body: Record<string, unknown> = { accountId, label: label.trim() || "Policy" };
-      if (capUsd.trim()) {
-        body.limitUsd = capUsd.trim();
-        if (windowSeconds > 0) body.windowSeconds = windowSeconds;
-      }
-      if (approvalUsd.trim()) body.approvalThresholdUsd = approvalUsd.trim();
-      if (vendorMode === "allow" && vendorIds.length) body.vendorAllow = vendorIds;
-      if (vendorMode === "block" && vendorIds.length) body.vendorBlock = vendorIds;
-
       const res = await fetch("/api/policies", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(buildBody()),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -97,6 +110,29 @@ export function PolicyEditor({
       reset();
       setOpen(false);
       refresh();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function dryRun() {
+    setBusy(true);
+    setError(null);
+    setSim(null);
+    try {
+      const res = await fetch("/api/policies/simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(buildBody()),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "simulation failed");
+        return;
+      }
+      setSim(data as SimResult);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -123,8 +159,7 @@ export function PolicyEditor({
       <div className="flex flex-col divide-y divide-line">
         {policies.length === 0 && (
           <div className="py-6 text-center text-sm text-fg-mute">
-            No policies yet. Spend is gated only by the account balance. Add a rule to enforce
-            per-transaction caps, rolling-window ceilings, vendor lists, or approval thresholds.
+            No policies yet. Add a rule to cap spending, limit vendors, or require approvals.
           </div>
         )}
         {policies.map((p) => (
@@ -254,6 +289,13 @@ export function PolicyEditor({
               {busy ? "Saving…" : "Save policy"}
             </button>
             <button
+              onClick={dryRun}
+              disabled={busy || !accountId}
+              className="rounded-md border border-line bg-ink px-4 py-2 text-sm text-fg transition-colors hover:border-line-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
+            >
+              Dry-run against history
+            </button>
+            <button
               onClick={() => {
                 setOpen(false);
                 setError(null);
@@ -264,6 +306,26 @@ export function PolicyEditor({
               Cancel
             </button>
           </div>
+
+          {sim && (
+            <div className="rise mt-3 rounded-md border border-line bg-ink px-3 py-2.5 text-sm">
+              {sim.evaluated === 0 ? (
+                <span className="text-fg-dim">No spend history yet for this account to replay.</span>
+              ) : (
+                <span className="text-fg-dim">
+                  Replayed {sim.evaluated} past spend{sim.evaluated === 1 ? "" : "s"} —{" "}
+                  <span className="text-deny">{sim.blocked} blocked</span>
+                  {sim.needsApproval > 0 && (
+                    <>
+                      , <span className="text-warn">{sim.needsApproval} held for approval</span>
+                    </>
+                  )}
+                  , would have saved{" "}
+                  <span className="tabular text-commit">${sim.savedUsd}</span>.
+                </span>
+              )}
+            </div>
+          )}
           {error && (
             <div className="rise mt-3 rounded-md border border-deny-dim bg-deny-dim/20 px-3 py-2 text-sm text-deny">
               {error}

@@ -4,6 +4,7 @@ import { SpendSimulator } from "../components/spend-simulator";
 import { FreezeToggle, KillSwitch } from "../components/freeze-controls";
 import { LiveRefresh } from "../components/live-refresh";
 import { PolicyEditor, type PolicyView } from "../components/policy-editor";
+import { NlQuery } from "../components/nl-query";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -121,6 +122,14 @@ export default async function Dashboard() {
         </div>
       </section>
 
+      <section className="mt-6 rounded-xl border border-line bg-surface p-6">
+        <SectionTitle>Ask</SectionTitle>
+        <p className="mt-1 text-sm text-fg-dim">Ask about your spending in plain English.</p>
+        <div className="mt-4">
+          <NlQuery />
+        </div>
+      </section>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
         <section className="rounded-xl border border-line bg-surface p-6">
           <SectionTitle>Accounts</SectionTitle>
@@ -153,9 +162,7 @@ export default async function Dashboard() {
 
         <section className="rounded-xl border border-line bg-surface p-6">
           <SectionTitle>Simulate spend</SectionTitle>
-          <p className="mt-1 text-sm text-fg-dim">
-            Route a spend through the policy gate. Over-cap requests are denied and logged.
-          </p>
+          <p className="mt-1 text-sm text-fg-dim">Try a spend against your budget and policies.</p>
           <div className="mt-4">
             <SpendSimulator budgets={budgets} vendors={vendors} />
           </div>
@@ -163,10 +170,9 @@ export default async function Dashboard() {
       </div>
 
       <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-        <SectionTitle>Policies · the spend gate</SectionTitle>
+        <SectionTitle>Policies</SectionTitle>
         <p className="mt-1 text-sm text-fg-dim">
-          Layered ceilings evaluated on every spend, inside the same transaction as the ledger
-          write. A flat balance can&apos;t tell 50×$0.01 from 1×$2.40 — these can.
+          Rules applied to every spend — caps, time windows, vendor rules, and approvals.
         </p>
         <div className="mt-4">
           <PolicyEditor policies={policyViews} budgets={budgets} vendors={vendors} />
@@ -175,9 +181,9 @@ export default async function Dashboard() {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <section className="rounded-xl border border-line bg-surface p-6">
-          <SectionTitle>Ledger · committed, hash-chained</SectionTitle>
+          <SectionTitle>Ledger</SectionTitle>
           <div className="mt-4 flex flex-col divide-y divide-line">
-            {entries.length === 0 && <Empty>No entries yet. Authorize a spend to populate the ledger.</Empty>}
+            {entries.length === 0 && <Empty>No spend yet.</Empty>}
             {entries.map((e) => (
               <div key={e.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">
@@ -198,9 +204,9 @@ export default async function Dashboard() {
         </section>
 
         <section className="rounded-xl border border-line bg-surface p-6">
-          <SectionTitle>Denials · overspend blocked</SectionTitle>
+          <SectionTitle>Denials</SectionTitle>
           <div className="mt-4 flex flex-col divide-y divide-line">
-            {denials.length === 0 && <Empty>No denials. Every spend so far stayed within budget.</Empty>}
+            {denials.length === 0 && <Empty>No denials yet.</Empty>}
             {denials.map((d) => (
               <div key={d.id} className="flex items-center justify-between gap-3 py-2.5">
                 <div className="min-w-0">

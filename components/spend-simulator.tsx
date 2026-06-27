@@ -132,7 +132,7 @@ export function SpendSimulator({
           <span className="font-medium uppercase tracking-wide">{outcome.status}</span>
           {outcome.reason ? ` · ${outcome.reason}` : ""}
           {outcome.conflicts > 0
-            ? ` · resolved ${outcome.conflicts} OCC conflict${outcome.conflicts > 1 ? "s" : ""}`
+            ? ` · resolved ${outcome.conflicts} write conflict${outcome.conflicts > 1 ? "s" : ""}`
             : ""}
         </div>
       )}
