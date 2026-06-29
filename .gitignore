@@ -9,14 +9,6 @@ dist/
 .vercel
 .env*
 
-# internal planning / reference docs — keep local, do not publish
-BLOG.md
+# internal planning / reference docs — local only, never committed
+docs/
 CLAUDE.md
-DECISIONS.md
-DEMO.md
-DEPLOY.md
-Learning.md
-PITCH.md
-PLAN.md
-SUBMISSION.md
-TODO.md

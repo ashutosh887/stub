@@ -155,4 +155,7 @@ if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market d
 
 ## Deployment
 
-See [`DEPLOY.md`](./DEPLOY.md) for deploying to Vercel against a live Aurora DSQL cluster.
+Runs as a standard Next.js app on Vercel. The API routes connect to Aurora DSQL via the AWS
+credential chain, so the deployment needs `DSQL_ENDPOINT`, `DSQL_REGION`, `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, and `OPENAI_API_KEY` set as environment variables (with `DSQL_POOL_MAX=1`
+for serverless).
