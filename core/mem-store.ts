@@ -3,6 +3,8 @@ import {
   type Account,
   type Denial,
   type Entry,
+  type Reservation,
+  type ReservationPatch,
   type Store,
   type Tx,
   ConflictError,
@@ -13,12 +15,31 @@ interface Versioned {
   version: number;
 }
 
+interface VersionedReservation {
+  reservation: Reservation;
+  version: number;
+}
+
 export class MemStore implements Store {
   private accounts = new Map<string, Versioned>();
   readonly entries: Entry[] = [];
   readonly denials: Denial[] = [];
   private idempotency = new Map<string, string>();
   private policies = new Map<string, Policy[]>();
+  private reservations = new Map<string, VersionedReservation>();
+
+  getReservation(id: string): Reservation | null {
+    const found = this.reservations.get(id);
+    return found ? clone(found.reservation) : null;
+  }
+
+  heldReservationCount(): number {
+    let n = 0;
+    for (const { reservation } of this.reservations.values()) {
+      if (reservation.status === "held") n += 1;
+    }
+    return n;
+  }
 
   private commitLock: Promise<void> = Promise.resolve();
   private barrier: Barrier | null = null;
@@ -51,6 +72,8 @@ export class MemStore implements Store {
     const entryWrites: Entry[] = [];
     const denialWrites: Denial[] = [];
     const idempotencyWrites = new Map<string, string>();
+    const reservationReads = new Map<string, number>();
+    const reservationWrites = new Map<string, Reservation>();
 
     const snapshot = (id: string): Versioned | undefined => {
       const found = this.accounts.get(id);
@@ -111,6 +134,32 @@ export class MemStore implements Store {
         }
         return total;
       },
+      getReservation: async (id) => {
+        const pending = reservationWrites.get(id);
+        if (pending) return clone(pending);
+        const found = this.reservations.get(id);
+        if (!found) return null;
+        if (!reservationReads.has(id)) reservationReads.set(id, found.version);
+        return clone(found.reservation);
+      },
+      insertReservation: async (reservation) => {
+        reservationWrites.set(reservation.id, clone(reservation));
+      },
+      updateReservation: async (id, patch) => {
+        let current = reservationWrites.get(id);
+        if (!current) {
+          const found = this.reservations.get(id);
+          if (found) {
+            if (!reservationReads.has(id)) reservationReads.set(id, found.version);
+            current = clone(found.reservation);
+          }
+        }
+        if (!current) throw new Error(`unknown reservation: ${id}`);
+        const updated: Reservation = { ...current, status: patch.status };
+        if (patch.settledMicro !== undefined) updated.settledMicro = patch.settledMicro;
+        if (patch.transactionId !== undefined) updated.transactionId = patch.transactionId;
+        reservationWrites.set(id, updated);
+      },
     };
 
     const result = await fn(tx);
@@ -120,6 +169,10 @@ export class MemStore implements Store {
     return this.commit(() => {
       for (const [id, version] of reads) {
         const current = this.accounts.get(id);
+        if (!current || current.version !== version) throw new ConflictError();
+      }
+      for (const [id, version] of reservationReads) {
+        const current = this.reservations.get(id);
         if (!current || current.version !== version) throw new ConflictError();
       }
       for (const [key] of idempotencyWrites) {
@@ -132,6 +185,10 @@ export class MemStore implements Store {
         if (write.lastEntryHash !== undefined) current.account.lastEntryHash = write.lastEntryHash;
         if (write.frozen !== undefined) current.account.frozen = write.frozen;
         current.version += 1;
+      }
+      for (const [id, reservation] of reservationWrites) {
+        const existing = this.reservations.get(id);
+        this.reservations.set(id, { reservation, version: (existing?.version ?? -1) + 1 });
       }
       for (const entry of entryWrites) this.entries.push(entry);
       for (const denial of denialWrites) this.denials.push(denial);

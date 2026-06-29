@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS entries (
   session_id      TEXT,
   user_id         TEXT,
   intent          TEXT,
+  cost_center     TEXT,
   receipt         JSONB,
   prev_hash       TEXT NOT NULL,
   hash            TEXT NOT NULL,
@@ -36,8 +37,27 @@ CREATE TABLE IF NOT EXISTS denials (
   agent_id        TEXT,
   session_id      TEXT,
   intent          TEXT,
+  cost_center     TEXT,
   receipt         JSONB,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS reservations (
+  id                UUID PRIMARY KEY,
+  budget_account_id UUID NOT NULL,
+  vendor_account_id UUID NOT NULL,
+  held_micro        BIGINT NOT NULL,
+  settled_micro     BIGINT,
+  status            TEXT NOT NULL DEFAULT 'held',
+  transaction_id    UUID,
+  agent_id          TEXT,
+  session_id        TEXT,
+  user_id           TEXT,
+  intent            TEXT,
+  cost_center       TEXT,
+  receipt           JSONB,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  settled_at        TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS idempotency_keys (
@@ -84,9 +104,15 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS cost_center TEXT;
+ALTER TABLE denials ADD COLUMN IF NOT EXISTS cost_center TEXT;
+
 CREATE INDEX ASYNC IF NOT EXISTS entries_account_created_idx ON entries (account_id, created_at);
 CREATE INDEX ASYNC IF NOT EXISTS entries_txn_idx ON entries (transaction_id);
 CREATE INDEX ASYNC IF NOT EXISTS entries_created_idx ON entries (created_at);
 CREATE INDEX ASYNC IF NOT EXISTS denials_account_created_idx ON denials (account_id, created_at);
 CREATE INDEX ASYNC IF NOT EXISTS denials_created_idx ON denials (created_at);
 CREATE INDEX ASYNC IF NOT EXISTS agents_api_key_hash_idx ON agents (api_key_hash);
+CREATE INDEX ASYNC IF NOT EXISTS reservations_status_idx ON reservations (status, created_at);
+CREATE INDEX ASYNC IF NOT EXISTS reservations_budget_idx ON reservations (budget_account_id);
+CREATE INDEX ASYNC IF NOT EXISTS entries_cost_center_idx ON entries (cost_center);

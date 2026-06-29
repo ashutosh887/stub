@@ -27,6 +27,7 @@ export function verifyChain(entries: Entry[]): ChainProblem[] {
       sessionId: entry.sessionId,
       userId: entry.userId,
       intent: entry.intent,
+      costCenter: entry.costCenter,
       receipt: entry.receipt,
     });
     if (recomputed !== entry.hash) {

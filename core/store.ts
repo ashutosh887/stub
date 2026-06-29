@@ -27,6 +27,7 @@ export interface Entry {
   sessionId: string | null;
   userId: string | null;
   intent: string | null;
+  costCenter: string | null;
   receipt: unknown;
   prevHash: string;
   hash: string;
@@ -40,7 +41,32 @@ export interface Denial {
   agentId: string | null;
   sessionId: string | null;
   intent: string | null;
+  costCenter: string | null;
   receipt: unknown;
+}
+
+export type ReservationStatus = "held" | "settled" | "released";
+
+export interface Reservation {
+  id: string;
+  budgetAccountId: string;
+  vendorAccountId: string;
+  heldMicro: bigint;
+  settledMicro: bigint | null;
+  status: ReservationStatus;
+  transactionId: string | null;
+  agentId: string | null;
+  sessionId: string | null;
+  userId: string | null;
+  intent: string | null;
+  costCenter: string | null;
+  receipt: unknown;
+}
+
+export interface ReservationPatch {
+  status: ReservationStatus;
+  settledMicro?: bigint | null;
+  transactionId?: string | null;
 }
 
 export interface Tx {
@@ -54,6 +80,9 @@ export interface Tx {
   putIdempotent(key: string, transactionId: string): Promise<void>;
   getPolicies(accountId: string): Promise<Policy[]>;
   spentInWindow(accountId: string, windowSeconds: number): Promise<bigint>;
+  getReservation(id: string): Promise<Reservation | null>;
+  insertReservation(reservation: Reservation): Promise<void>;
+  updateReservation(id: string, patch: ReservationPatch): Promise<void>;
 }
 
 export interface Store {

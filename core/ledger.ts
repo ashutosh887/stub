@@ -12,6 +12,7 @@ export interface SpendRequest {
   sessionId?: string;
   userId?: string;
   intent?: string;
+  costCenter?: string;
   receipt?: unknown;
   approve?: boolean;
 }
@@ -30,9 +31,36 @@ export interface SpendOptions {
   maxRetries?: number;
 }
 
-const DEFAULT_MAX_RETRIES = 50;
+export const DEFAULT_MAX_RETRIES = 50;
 
 type SettleOutcome = Omit<SpendResult, "conflicts" | "attempts">;
+
+export interface OccResult<T> {
+  result: T;
+  conflicts: number;
+  attempts: number;
+}
+
+export async function runOcc<T>(
+  store: Store,
+  fn: (tx: Tx) => Promise<T>,
+  maxRetries: number = DEFAULT_MAX_RETRIES,
+): Promise<OccResult<T>> {
+  let conflicts = 0;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const result = await store.transaction(fn);
+      return { result, conflicts, attempts: attempt };
+    } catch (err) {
+      if (isConflict(err) && attempt <= maxRetries) {
+        conflicts += 1;
+        await backoff(attempt);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 export async function spend(
   store: Store,
@@ -43,22 +71,12 @@ export async function spend(
     throw new Error("amountMicro must be positive");
   }
 
-  const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
-  let conflicts = 0;
-
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      const outcome = await store.transaction((tx) => settle(tx, request));
-      return { ...outcome, conflicts, attempts: attempt };
-    } catch (err) {
-      if (isConflict(err) && attempt <= maxRetries) {
-        conflicts += 1;
-        await backoff(attempt);
-        continue;
-      }
-      throw err;
-    }
-  }
+  const { result, conflicts, attempts } = await runOcc(
+    store,
+    (tx) => settle(tx, request),
+    options.maxRetries ?? DEFAULT_MAX_RETRIES,
+  );
+  return { ...result, conflicts, attempts };
 }
 
 async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
@@ -82,6 +100,7 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
       agentId: request.agentId ?? null,
       sessionId: request.sessionId ?? null,
       intent: request.intent ?? null,
+      costCenter: request.costCenter ?? null,
       receipt: request.receipt ?? null,
     });
     return { status: "denied", transactionId, reason };
@@ -151,12 +170,21 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
   return { status: "committed", transactionId };
 }
 
-function buildEntry(args: {
+export interface EntryAttribution {
+  agentId?: string | null;
+  sessionId?: string | null;
+  userId?: string | null;
+  intent?: string | null;
+  costCenter?: string | null;
+  receipt?: unknown;
+}
+
+export function buildEntry(args: {
   transactionId: string;
   account: { id: string; lastEntryHash: string };
   kind: "debit" | "credit";
   amountMicro: bigint;
-  request: SpendRequest;
+  request: EntryAttribution;
 }): Entry {
   const id = randomUUID();
   const prevHash = args.account.lastEntryHash || GENESIS_HASH;
@@ -170,12 +198,13 @@ function buildEntry(args: {
     sessionId: args.request.sessionId ?? null,
     userId: args.request.userId ?? null,
     intent: args.request.intent ?? null,
+    costCenter: args.request.costCenter ?? null,
     receipt: args.request.receipt ?? null,
   };
   return { ...fields, prevHash, hash: hashEntry(prevHash, fields) };
 }
 
-async function backoff(attempt: number): Promise<void> {
+export async function backoff(attempt: number): Promise<void> {
   const jitter = Math.min(attempt * 2, 25);
   await new Promise((resolve) => setTimeout(resolve, jitter));
 }

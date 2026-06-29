@@ -33,7 +33,7 @@ function chainOrder(entries: Entry[]): Entry[] {
 async function loadEntries(accountId: string): Promise<Entry[]> {
   const { rows } = await query<Record<string, unknown>>(
     `SELECT id, transaction_id, account_id, kind, amount_micro,
-            agent_id, session_id, user_id, intent, receipt, prev_hash, hash
+            agent_id, session_id, user_id, intent, cost_center, receipt, prev_hash, hash
        FROM entries WHERE account_id = $1`,
     [accountId],
   );
@@ -47,6 +47,7 @@ async function loadEntries(accountId: string): Promise<Entry[]> {
     sessionId: (r.session_id as string | null) ?? null,
     userId: (r.user_id as string | null) ?? null,
     intent: (r.intent as string | null) ?? null,
+    costCenter: (r.cost_center as string | null) ?? null,
     receipt: r.receipt ?? null,
     prevHash: r.prev_hash as string,
     hash: r.hash as string,
