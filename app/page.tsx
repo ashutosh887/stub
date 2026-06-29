@@ -14,13 +14,13 @@ export default function Home() {
       <SiteNav current="home" />
 
       <header className="relative overflow-hidden border-b border-line hero-veil">
-        <div className="pointer-events-none absolute inset-0 grid-veil opacity-60" />
+        <div className="pointer-events-none absolute inset-0 ledger-paper opacity-70" />
         <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-28">
           <div>
-            <span className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-fg-dim">
-              <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-              Double-entry ledger on Amazon Aurora DSQL
-            </span>
+            <div className="rise flex items-center justify-between border-b border-line pb-3 font-mono text-[11px] uppercase tracking-[0.22em] text-fg-mute">
+              <span>General Ledger</span>
+              <span className="text-fg-dim">Amazon Aurora DSQL</span>
+            </div>
 
             <h1 className="rise rise-2 mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight text-fg sm:text-6xl">
               One budget your
@@ -216,7 +216,7 @@ export default function Home() {
       <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-fg-mute sm:flex-row">
         <span className="font-display text-base text-fg-dim">Stub</span>
         <span>
-          One budget your agents can&apos;t break. Built with v0 and Vercel on Amazon Aurora DSQL.
+          One budget your agents can&apos;t break. Built on Amazon Aurora DSQL, Next.js, and Vercel.
         </span>
         <div className="flex items-center gap-5">
           <a
