@@ -18,6 +18,16 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/sdk-v')
+        working-directory: sdk
+        run: |
+          tag="${GITHUB_REF_NAME#sdk-v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag sdk-v$tag does not match sdk/package.json version $pkg"
+            exit 1
+          fi
       - name: Build and publish
         working-directory: sdk
         run: |
