@@ -16,6 +16,7 @@ import { NlQuery } from "@/components/nl-query";
 import { AgentRegistry } from "@/components/agent-registry";
 import { AdminLogin } from "@/components/admin-login";
 import { SiteNav } from "@/components/site-nav";
+import { StartHere } from "@/components/start-here";
 import { cookies } from "next/headers";
 import { security } from "@/config";
 import { ADMIN_COOKIE } from "@/lib/api";
@@ -115,8 +116,13 @@ export default async function Dashboard() {
       <main className="mx-auto max-w-6xl px-6 py-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-              Mission control
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
+                Mission control
+              </span>
+              <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-fg-mute">
+                Demo workspace
+              </span>
             </div>
             <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-fg">
               {org?.name ?? "Your fleet"}
@@ -124,6 +130,10 @@ export default async function Dashboard() {
           </div>
           <LiveRefresh />
         </header>
+
+        <div className="mt-6">
+          <StartHere />
+        </div>
 
         <section className="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
           <div className="flex flex-wrap items-baseline justify-between gap-4 p-6">

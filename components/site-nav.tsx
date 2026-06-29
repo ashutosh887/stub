@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
 
-export function SiteNav({ current }: { current?: "home" | "dashboard" }) {
+export function SiteNav({ current }: { current?: "home" | "how" | "dashboard" }) {
   return (
     <nav className="sticky top-0 z-40 border-b border-line bg-ink/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
@@ -16,6 +16,9 @@ export function SiteNav({ current }: { current?: "home" | "dashboard" }) {
         <div className="flex items-center gap-1 text-sm">
           <NavLink href="/" active={current === "home"}>
             Product
+          </NavLink>
+          <NavLink href="/how-it-works" active={current === "how"}>
+            How it works
           </NavLink>
           <NavLink href="/dashboard" active={current === "dashboard"}>
             Dashboard
