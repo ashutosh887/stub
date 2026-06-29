@@ -30,6 +30,8 @@ export interface EntryRow {
   agentId: string | null;
   intent: string | null;
   hash: string;
+  prevHash: string;
+  receipt: unknown;
   createdAt: string;
 }
 
@@ -76,7 +78,8 @@ export async function setAllFrozen(frozen: boolean): Promise<void> {
 export async function listEntries(limit = 50): Promise<EntryRow[]> {
   const { rows } = await query<Record<string, unknown>>(
     `SELECT e.id, e.transaction_id, e.account_id, a.name AS account_name,
-            e.kind, e.amount_micro, e.agent_id, e.intent, e.hash, e.created_at
+            e.kind, e.amount_micro, e.agent_id, e.intent, e.hash, e.prev_hash,
+            e.receipt, e.created_at
        FROM entries e
        JOIN accounts a ON a.id = e.account_id
       ORDER BY e.created_at DESC
@@ -93,6 +96,8 @@ export async function listEntries(limit = 50): Promise<EntryRow[]> {
     agentId: (r.agent_id as string | null) ?? null,
     intent: (r.intent as string | null) ?? null,
     hash: r.hash as string,
+    prevHash: (r.prev_hash as string | null) ?? "",
+    receipt: (r.receipt as unknown) ?? null,
     createdAt: new Date(r.created_at as string).toISOString(),
   }));
 }
