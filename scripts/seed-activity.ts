@@ -38,6 +38,14 @@ async function main() {
       amountMicro: usd(amount),
       intent,
       agentId: budget.name,
+      receipt: {
+        rail: "x402",
+        merchant: `x402://${vendor.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+        vendor: vendor.name,
+        amountUsd: amount.toFixed(2),
+        intent,
+        proof: "0x" + Math.abs(Math.round(amount * 1e8)).toString(16).padStart(12, "0"),
+      },
     });
     if (r.status === "committed") committed += 1;
     else denied += 1;

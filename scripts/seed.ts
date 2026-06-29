@@ -74,6 +74,13 @@ async function main() {
     );
     console.log(`  ✅ ${a.type.padEnd(7)} ${a.name}`);
   }
+  await query(
+    `INSERT INTO policies (id, account_id, label, enabled, scope, approval_threshold_micro)
+     VALUES ($1,$2,$3,true,'approval',$4)`,
+    [randomUUID(), coder.id, "Approve over $10", (10n * USD).toString()],
+  );
+  console.log("  ✅ policy   coding-agent: human approval required over $10");
+
   console.log(`✅ Seeded ${accounts.length} accounts ($500 org budget).`);
   console.log(`   research-agent has a $1.50/hr velocity breaker (auto-freezes on runaway spend).`);
 }

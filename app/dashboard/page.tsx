@@ -17,6 +17,8 @@ import { AgentRegistry } from "@/components/agent-registry";
 import { AdminLogin } from "@/components/admin-login";
 import { SiteNav } from "@/components/site-nav";
 import { StartHere } from "@/components/start-here";
+import { StressTest } from "@/components/stress-test";
+import { LedgerFeed } from "@/components/ledger-feed";
 import { cookies } from "next/headers";
 import { security } from "@/config";
 import { ADMIN_COOKIE } from "@/lib/api";
@@ -110,6 +112,21 @@ export default async function Dashboard() {
 
   const anyActive = accounts.some((a) => a.type !== "vendor" && !a.frozen);
 
+  const feedEntries = entries.map((e) => ({
+    id: e.id,
+    intent: e.intent ?? "spend",
+    accountName: e.accountName,
+    kind: e.kind,
+    amountLabel: `${e.kind === "debit" ? "−" : "+"}${formatUsd(
+      e.amountMicro < 0n ? -e.amountMicro : e.amountMicro,
+    )}`,
+    hash: e.hash,
+    prevHash: e.prevHash,
+    agentId: e.agentId,
+    createdAt: e.createdAt,
+    receipt: e.receipt,
+  }));
+
   return (
     <>
       <SiteNav current="dashboard" />
@@ -184,6 +201,10 @@ export default async function Dashboard() {
             />
           </div>
         </section>
+
+        <div className="mt-6">
+          <StressTest />
+        </div>
 
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <SectionTitle>Ask your ledger</SectionTitle>
@@ -297,33 +318,18 @@ export default async function Dashboard() {
           <section className="rounded-2xl border border-line bg-surface p-6">
             <div className="flex items-center justify-between">
               <SectionTitle>Ledger</SectionTitle>
-              <span className="text-[11px] uppercase tracking-[0.18em] text-fg-mute">
-                debit · credit
-              </span>
+              <a
+                href="/api/export"
+                className="rounded-md border border-line px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-fg-mute transition-colors hover:border-line-bright hover:text-fg"
+              >
+                Export CSV ↓
+              </a>
             </div>
-            <div className="mt-4 flex flex-col divide-y divide-line">
-              {entries.length === 0 && <Empty>No spend recorded yet. Run a simulated spend.</Empty>}
-              {entries.map((e) => (
-                <div key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm text-fg">
-                      {e.intent ?? "spend"}{" "}
-                      <span className="text-fg-mute">→ {e.accountName}</span>
-                    </div>
-                    <div className="tabular truncate text-xs text-fg-mute">
-                      {e.hash.slice(0, 16)}…
-                    </div>
-                  </div>
-                  <span
-                    className={`tabular shrink-0 text-sm ${
-                      e.kind === "debit" ? "text-deny" : "text-commit"
-                    }`}
-                  >
-                    {e.kind === "debit" ? "−" : "+"}
-                    {formatUsd(e.amountMicro < 0n ? -e.amountMicro : e.amountMicro)}
-                  </span>
-                </div>
-              ))}
+            <p className="mt-1 text-xs text-fg-mute">
+              Click any entry for its payment receipt and hash-chain link.
+            </p>
+            <div className="mt-3">
+              <LedgerFeed entries={feedEntries} />
             </div>
           </section>
 
