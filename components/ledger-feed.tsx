@@ -57,7 +57,7 @@ export function LedgerFeed({ entries }: { entries: FeedEntry[] }) {
             {open && (
               <div className="rise space-y-3 pb-4 pl-1 text-xs">
                 <div className="grid grid-cols-2 gap-2">
-                  <Detail label="Agent" value={e.agentId ?? "—"} />
+                  <Detail label="Agent" value={e.agentId ?? "none"} />
                   <Detail label="Recorded" value={new Date(e.createdAt).toLocaleString()} />
                 </div>
                 <div className="rounded-lg border border-line bg-ink p-3">

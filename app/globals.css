@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Ledger terminal — deep cool ink, refined surfaces, one gold brand accent.
+  /* Ledger terminal: deep cool ink, refined surfaces, one gold brand accent.
      Green/red are reserved strictly for credit/debit + status, muted on purpose. */
   --color-ink: #07090d;
   --color-surface: #0e131b;
@@ -42,7 +42,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* tabular figures — money is always mono + tabular */
+/* tabular figures: money is always mono + tabular */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
@@ -54,7 +54,7 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* signature: the double-entry rule — a hairline that splits debit | credit */
+/* signature: the double-entry rule, a hairline that splits debit | credit */
 .ledger-rule {
   background-image: linear-gradient(
     to bottom,

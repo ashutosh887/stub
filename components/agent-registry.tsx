@@ -105,7 +105,7 @@ export function AgentRegistry({
       {newKey && (
         <div className="rounded-lg border border-commit-dim bg-commit-dim/10 px-3 py-2.5">
           <div className="text-xs text-fg-dim">
-            Copy this key now — it won&apos;t be shown again.
+            Copy this key now. It won&apos;t be shown again.
           </div>
           <div className="mt-1.5 flex items-center gap-2">
             <code className="tabular flex-1 truncate rounded bg-ink px-2 py-1 text-xs text-fg">
@@ -129,7 +129,7 @@ export function AgentRegistry({
           <div key={a.id} className="flex items-center justify-between gap-3 py-2.5">
             <div className="min-w-0">
               <div className="truncate text-sm text-fg">{a.name}</div>
-              <div className="truncate text-xs text-fg-mute">{a.accountName ?? "—"}</div>
+              <div className="truncate text-xs text-fg-mute">{a.accountName ?? "no account"}</div>
             </div>
             <code className="tabular shrink-0 text-xs text-fg-mute">
               {a.keyPreview ? `stub_sk_…${a.keyPreview}` : "no key"}

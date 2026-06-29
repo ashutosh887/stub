@@ -34,7 +34,7 @@ function vendor(): Account {
 describe("invariant: a near-empty budget cannot be overspent under concurrency", () => {
   it("commits exactly what fits, denies the rest, never goes negative", async () => {
     const cap = 1n * USD; // $1.00
-    const price = 300_000n; // $0.30 → at most 3 spends fit
+    const price = 300_000n; // $0.30, so at most 3 spends fit
     const writers = 10;
     const affordable = Number(cap / price); // 3
 
@@ -42,7 +42,7 @@ describe("invariant: a near-empty budget cannot be overspent under concurrency",
     store.seedAccount(budget(cap));
     store.seedAccount(vendor());
 
-    // Force every writer to take its snapshot before any of them commit — this is the
+    // Force every writer to take its snapshot before any of them commit: this is the
     // cross-region race the demo is built on. Without OCC, all 10 would read "$1.00 left"
     // and overspend to -$2.00 (DynamoDB last-writer-wins). With it, the losers get 40001.
     store.arm(writers);
@@ -73,7 +73,7 @@ describe("invariant: a near-empty budget cannot be overspent under concurrency",
     expect(finalBudget.balanceMicro).toBeLessThanOrEqual(cap); // never exceeds cap
     expect(finalVendor.balanceMicro).toBe(price * BigInt(affordable));
 
-    // OCC actually fired — the invariant was enforced by conflicts, not luck.
+    // OCC actually fired: the invariant was enforced by conflicts, not luck.
     const totalConflicts = results.reduce((sum, r) => sum + r.conflicts, 0);
     expect(totalConflicts).toBeGreaterThan(0);
 

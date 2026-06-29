@@ -39,7 +39,7 @@ export const QUERY_TOOL = {
     "Query the Stub spend ledger to answer a question about agent spending or denials. " +
     "Spend reads committed double-entry transactions; denials reads blocked spend attempts. " +
     "Set filters, a grouping dimension, and a metric. The account filter matches a spending " +
-    "account by name OR its parent team — so 'marketing' matches Marketing's agents too.",
+    "account by name OR its parent team, so 'marketing' matches Marketing's agents too.",
   input_schema: {
     type: "object" as const,
     additionalProperties: false,

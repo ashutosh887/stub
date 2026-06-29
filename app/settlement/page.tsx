@@ -40,9 +40,9 @@ export default async function SettlementPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-dim">
             Agent costs are estimated, not known up front. Stub holds the estimate against the cap,
-            then books the real cost when it lands and refunds the difference — and a retried
-            settlement can never double-charge the vendor, because the reservation can be settled
-            exactly once under the database&apos;s concurrency control.
+            then books the real cost when it lands and refunds the difference. A retried settlement
+            can never double-charge the vendor, because the reservation can be settled exactly once
+            under the database&apos;s concurrency control.
           </p>
         </header>
 
@@ -50,12 +50,12 @@ export default async function SettlementPage() {
           <Step
             n="01"
             head="Reserve"
-            body="The estimated cost is held against the budget hierarchy in one transaction. The cap is enforced now — held funds can't be spent twice."
+            body="The estimated cost is held against the budget hierarchy in one transaction. The cap is enforced now, so held funds can't be spent twice."
           />
           <Step
             n="02"
             head="Pay"
-            body="Your agent makes the real paid call. The actual cost comes back — often lower than the estimate."
+            body="Your agent makes the real paid call. The actual cost comes back, often lower than the estimate."
           />
           <Step
             n="03"

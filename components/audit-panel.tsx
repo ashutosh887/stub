@@ -97,7 +97,7 @@ export function AuditPanel({ initial }: { initial: Report }) {
         </h2>
         <p className="mt-1.5 text-sm leading-relaxed text-fg-dim">
           Take a real committed entry, alter its amount by $1.00 in a throwaway copy, and re-run the
-          verifier. The live ledger is never touched — this only demonstrates that any edited row
+          verifier. The live ledger is never touched; this only demonstrates that any edited row
           breaks the chain.
         </p>
         <button

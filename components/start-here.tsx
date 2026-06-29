@@ -9,7 +9,7 @@ export function StartHere() {
             New here? Try it in 60 seconds.
           </h2>
           <p className="mt-1 text-sm text-fg-dim">
-            Live sample data on a real Aurora DSQL cluster — nothing spends real money.
+            Live sample data on a real Aurora DSQL cluster, and nothing spends real money.
           </p>
         </div>
         <Link href="/how-it-works" className="text-sm text-brand hover:underline">
@@ -20,7 +20,7 @@ export function StartHere() {
         <Step
           n="1"
           head="Run a spend"
-          body="Authorize a small amount below — it commits to the ledger instantly."
+          body="Authorize a small amount below and it commits to the ledger instantly."
         />
         <Step
           n="2"

@@ -136,7 +136,7 @@ function describeError(err: unknown): Error {
   const message = err instanceof Error ? err.message : String(err);
   const status = (err as { status?: number } | null)?.status;
   if (status === 401 || /api key|incorrect.*key|unauthor/i.test(message)) {
-    return new Error(`OpenAI rejected the key — check OPENAI_API_KEY. (${message})`);
+    return new Error(`OpenAI rejected the key. Check OPENAI_API_KEY. (${message})`);
   }
   if (status === 404 || /model.*(not found|does not exist)/i.test(message)) {
     return new Error(

@@ -51,7 +51,7 @@ function seed(balance: bigint): MemStore {
   return store;
 }
 
-describe("settlement: reserve → settle holds funds then books actual cost", () => {
+describe("settlement: reserve then settle holds funds then books actual cost", () => {
   it("holds the estimate on reserve and refunds the difference on settle", async () => {
     const store = seed(10n * USD);
     const reserved = await reserve(store, {
@@ -68,7 +68,7 @@ describe("settlement: reserve → settle holds funds then books actual cost", ()
     expect(store.getAccount("vendor")!.balanceMicro).toBe(0n);
     expect(store.entries).toHaveLength(0);
 
-    // Actual cost came in lower — settle books $2.50 and refunds $1.50.
+    // Actual cost came in lower: settle books $2.50 and refunds $1.50.
     const settled = await settle(store, reserved.reservationId, { actualMicro: 2_500_000n });
     expect(settled.status).toBe("settled");
     expect(settled.settledMicro).toBe(2_500_000n);
@@ -137,7 +137,7 @@ describe("settlement: reserve → settle holds funds then books actual cost", ()
     expect(store.getAccount("budget")!.balanceMicro).toBe(7n * USD);
     expect(store.entries).toHaveLength(2);
 
-    // OCC actually fired — exactly-once was enforced by conflicts, not ordering luck.
+    // OCC actually fired: exactly-once was enforced by conflicts, not ordering luck.
     const conflicts = results.reduce((sum, r) => sum + r.conflicts, 0);
     expect(conflicts).toBeGreaterThan(0);
   });

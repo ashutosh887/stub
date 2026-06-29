@@ -95,7 +95,7 @@ export default async function Dashboard() {
   const burn = forecast({ balanceMicro: remaining, events: fleetSpend, nowMs: Date.now() });
   const runway =
     burn.daysToDepletion == null
-      ? "—"
+      ? "n/a"
       : burn.daysToDepletion >= 1
         ? `${burn.daysToDepletion.toFixed(burn.daysToDepletion < 10 ? 1 : 0)}d`
         : `${Math.max(1, Math.round(burn.daysToDepletion * 24))}h`;
@@ -219,7 +219,7 @@ export default async function Dashboard() {
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <SectionTitle>Ask your ledger</SectionTitle>
           <p className="mt-1 text-sm text-fg-dim">
-            Plain-English questions over the ledger — answered without writing SQL.
+            Plain-English questions over the ledger, answered without writing SQL.
           </p>
           <div className="mt-4">
             <NlQuery />
@@ -317,7 +317,7 @@ export default async function Dashboard() {
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <SectionTitle>Policies</SectionTitle>
           <p className="mt-1 text-sm text-fg-dim">
-            Rules applied to every spend — caps, rolling windows, vendor rules, and approvals.
+            Rules applied to every spend: caps, rolling windows, vendor rules, and approvals.
           </p>
           <div className="mt-4">
             <PolicyEditor policies={policyViews} budgets={budgets} vendors={vendors} />

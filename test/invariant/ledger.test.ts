@@ -78,7 +78,7 @@ describe("ledger: single spend correctness", () => {
     expect(first.status).toBe("committed");
     expect(second.status).toBe("duplicate");
     expect(second.transactionId).toBe(first.transactionId);
-    expect(store.entries).toHaveLength(2); // not 4 — charged once
+    expect(store.entries).toHaveLength(2); // not 4: charged once
     expect(store.getAccount("budget")!.balanceMicro).toBe(8n * USD);
   });
 

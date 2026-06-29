@@ -29,7 +29,7 @@ export default function Home() {
 
             <p className="rise rise-3 mt-6 max-w-xl text-lg leading-relaxed text-fg-dim">
               Stub is the general ledger for agent spend. Set one company-wide budget across your
-              whole fleet — and a spend that would breach it{" "}
+              whole fleet, and a spend that would breach it{" "}
               <span className="text-fg">fails the database transaction</span>, not your nerves.
             </p>
 
@@ -65,7 +65,7 @@ export default function Home() {
         <div className="grid gap-6 md:grid-cols-3">
           <Card
             head="Per-session limits, no fleet budget"
-            body="Agent wallets cap each session. Across a fleet, no single budget holds — every session stays in bounds while the total quietly runs over."
+            body="Agent wallets cap each session. Across a fleet, no single budget holds: every session stays in bounds while the total quietly runs over."
           />
           <Card
             head="Retries can double-pay"
@@ -80,19 +80,19 @@ export default function Home() {
 
       <Section
         eyebrow="How the budget holds"
-        title="The database is the guardrail — not application luck."
+        title="The database is the guardrail, not application luck."
         muted
       >
         <ol className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
           <Step
             n="01"
             head="Every spend is checked in one transaction"
-            body="Policies, the budget hierarchy (org → team → agent), and velocity limits are evaluated inside a single ACID transaction — before any money moves."
+            body="Policies, the budget hierarchy (org → team → agent), and velocity limits are evaluated inside a single ACID transaction, before any money moves."
           />
           <Step
             n="02"
             head="A breach loses its commit"
-            body="Under concurrent cross-region writes, Aurora DSQL's optimistic concurrency control returns a serialization failure — SQLSTATE 40001. The overspend never commits."
+            body="Under concurrent cross-region writes, Aurora DSQL's optimistic concurrency control returns a serialization failure: SQLSTATE 40001. The overspend never commits."
           />
           <Step
             n="03"
@@ -107,11 +107,11 @@ export default function Home() {
           <p className="text-lg leading-relaxed text-fg-dim">
             Correctness here <span className="text-fg">is</span> the database&apos;s consistency
             model. The load-bearing property is{" "}
-            <span className="text-fg">active-active, multi-region strong consistency</span> — a
+            <span className="text-fg">active-active, multi-region strong consistency</span>. A
             writer in us-east-1 and a writer in us-east-2 hitting the same balance resolve to one
             consistent outcome. No other AWS database offers it: Aurora PostgreSQL Global is
-            single-writer, and DynamoDB global tables are eventually consistent — last-writer-wins,
-            which means silent overspend during replication.
+            single-writer, and DynamoDB global tables are eventually consistent (last-writer-wins,
+            which means silent overspend during replication).
           </p>
           <div className="rounded-2xl border border-line bg-surface p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">
@@ -156,7 +156,7 @@ export default function Home() {
           <Feature head="Kill switch" body="Freeze one agent or the entire fleet instantly." />
           <Feature
             head="Ask your ledger"
-            body="Plain-English questions answered over the ledger — never raw SQL."
+            body="Plain-English questions answered over the ledger, never raw SQL."
           />
           <Feature
             head="3-line SDK"

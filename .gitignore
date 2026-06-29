@@ -9,5 +9,5 @@ dist/
 .vercel
 .env*
 
-# internal planning / reference docs — local only, never committed
+# internal planning / reference docs: local only, never committed
 docs/

@@ -46,7 +46,7 @@ export function StressTest() {
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-fg-dim">
             Fire 12 agents at one <span className="text-fg">$1.00</span> budget at the same instant,
-            each trying to spend $0.25. Only four can fit. Watch the database hold the line — the
+            each trying to spend $0.25. Only four can fit. Watch the database hold the line: the
             rest collide on Aurora DSQL&apos;s concurrency control and lose with{" "}
             <span className="tabular text-fg">40001</span>.
           </p>
@@ -79,7 +79,7 @@ export function StressTest() {
             label="Final balance"
             value={`$${result.finalBalanceUsd.toFixed(2)}`}
             tone={result.neverNegative ? "default" : "deny"}
-            sub={result.neverNegative ? "never went negative" : "NEGATIVE — bug"}
+            sub={result.neverNegative ? "never went negative" : "NEGATIVE: bug"}
           />
         </div>
       )}

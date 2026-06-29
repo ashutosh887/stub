@@ -22,7 +22,7 @@ async function main() {
   const dataApi = byName("Data API (x402)");
   const llm = byName("LLM tokens");
   if (!research || !coding || !dataApi || !llm) {
-    throw new Error("accounts missing — run `npm run seed` first");
+    throw new Error("accounts missing: run `npm run seed` first");
   }
 
   let committed = 0;

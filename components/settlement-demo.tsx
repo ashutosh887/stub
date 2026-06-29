@@ -65,7 +65,7 @@ export function SettlementDemo({
         setHeld({ reservationId: data.reservationId, heldUsd: estimateUsd });
         setNote({
           tone: "warn",
-          text: `Held $${estimateUsd} — funds are reserved, nothing booked yet.`,
+          text: `Held $${estimateUsd}: funds are reserved, nothing booked yet.`,
         });
       } else {
         setNote({

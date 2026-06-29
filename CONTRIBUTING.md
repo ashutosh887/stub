@@ -12,14 +12,14 @@ cp .env.example .env  # set DSQL_* (and optionally OPENAI_API_KEY)
 
 ## Standards
 
-- **Formatting** — [Prettier](https://prettier.io). Run `npm run format`; CI and the pre-commit hook
+- **Formatting**: [Prettier](https://prettier.io). Run `npm run format`; CI and the pre-commit hook
   run `npm run format:check`.
-- **Linting** — [ESLint](https://eslint.org) with `eslint-config-next`. Run `npm run lint`
+- **Linting**: [ESLint](https://eslint.org) with `eslint-config-next`. Run `npm run lint`
   (`npm run lint:fix` to autofix).
-- **Types** — strict TypeScript. Run `npm run typecheck`.
-- **Code style** — clean, self-explanatory code with no comments by default. Imports use the `@/*`
+- **Types**: strict TypeScript. Run `npm run typecheck`.
+- **Code style**: clean, self-explanatory code with no comments by default. Imports use the `@/*`
   alias (the tsconfig root); no `../../`.
-- **Commits** — [Conventional Commits](https://www.conventionalcommits.org)
+- **Commits**: [Conventional Commits](https://www.conventionalcommits.org)
   (`feat:`, `fix:`, `chore:`, `docs:`, …), enforced by commitlint on the `commit-msg` hook.
 
 ## Git hooks

@@ -17,7 +17,7 @@ interface AccountDto {
 async function getAccounts(): Promise<AccountDto[]> {
   const res = await fetch(`${baseUrl}/api/accounts`).catch(() => null);
   if (!res || !res.ok) {
-    throw new Error(`could not reach Stub at ${baseUrl} — is \`npm run dev\` running?`);
+    throw new Error(`could not reach Stub at ${baseUrl}. Is \`npm run dev\` running?`);
   }
   return (await res.json()).accounts as AccountDto[];
 }
@@ -38,7 +38,7 @@ async function main() {
   const budget = accounts.find((a) => a.type === "agent");
   const vendor = accounts.find((a) => a.type === "vendor");
   if (!budget || !vendor)
-    throw new Error("need one agent account and one vendor — run `npm run seed`");
+    throw new Error("need one agent account and one vendor: run `npm run seed`");
 
   console.log(`\n  Agent budget: ${budget.name} (${budget.balanceDisplay})`);
   console.log(`  Vendor:       ${vendor.name}`);
@@ -59,7 +59,7 @@ async function main() {
     } catch (err) {
       if (err instanceof BudgetDeniedError) {
         denied += 1;
-        console.log(`  #${String(i).padStart(2)}  ⛔ blocked — ${err.result.reason}`);
+        console.log(`  #${String(i).padStart(2)}  ⛔ blocked: ${err.result.reason}`);
       } else {
         throw err;
       }
@@ -72,14 +72,14 @@ async function main() {
   } catch (err) {
     if (err instanceof BudgetDeniedError) {
       denied += 1;
-      console.log(`  #!!  ⛔ $100k spend blocked — ${err.result.reason}`);
+      console.log(`  #!!  ⛔ $100k spend blocked: ${err.result.reason}`);
     } else {
       throw err;
     }
   }
 
   console.log(`\n  ${committed} committed · ${denied} blocked by the gate.`);
-  console.log("  The agent never overspent — the ledger refused.\n");
+  console.log("  The agent never overspent. The ledger refused.\n");
 }
 
 main().catch((err) => {

@@ -2,12 +2,12 @@
 
 > **One budget your agents can't break.**
 
-A drop-in budget gate for AI agents that spend real money — paid APIs, x402 micropayments, and LLM
+A drop-in budget gate for AI agents that spend real money: paid APIs, x402 micropayments, and LLM
 tokens. Put one enforceable budget in front of your whole fleet and keep an exact, double-entry
 record of what every agent spent.
 
 The hard part it solves: a naive retry around an irreversible payment double-charges. `trystub` uses
-a **reserve → pay → settle** flow, so the payment fires exactly once — even under concurrent writers,
+a **reserve → pay → settle** flow, so the payment fires exactly once, even under concurrent writers,
 conflict retries, or a crash mid-flight.
 
 ```bash
@@ -55,11 +55,11 @@ for the actual amount and refunds the difference. If the reservation is denied i
 ## API
 
 - `new StubClient({ apiKey?, baseUrl?, fetch? })`
-- `stub.guard(input): Promise<boolean>` — true only if the spend committed
-- `stub.spend(input): Promise<SpendResult>` — single-shot debit
-- `stub.reserve(input): Promise<ReserveResult>` — hold funds against the cap
-- `stub.settle(reservationId, actualUsd?): Promise<SettleResult>` — book the real cost
-- `stub.release(reservationId): Promise<ReleaseResult>` — return a hold
+- `stub.guard(input): Promise<boolean>`: true only if the spend committed
+- `stub.spend(input): Promise<SpendResult>`: single-shot debit
+- `stub.reserve(input): Promise<ReserveResult>`: hold funds against the cap
+- `stub.settle(reservationId, actualUsd?): Promise<SettleResult>`: book the real cost
+- `stub.release(reservationId): Promise<ReleaseResult>`: return a hold
 
 `input` accepts `{ vendorAccountId, amountUsd, intent?, costCenter?, idempotencyKey?, budgetAccountId?, receipt? }`.
 A scoped API key pins spends to one budget account; without one, pass `budgetAccountId` and

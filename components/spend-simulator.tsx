@@ -141,7 +141,7 @@ export function SpendSimulator({
         >
           {outcome.status === "needs_approval" ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span>Over the approval threshold — a human must sign off.</span>
+              <span>Over the approval threshold. A human must sign off.</span>
               <button
                 onClick={() => authorize(true)}
                 disabled={busy}

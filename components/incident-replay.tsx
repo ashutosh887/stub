@@ -76,7 +76,7 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
           <span className="text-brand">Context · </span>
           {scenario?.headline} Stub caps {scenario?.calls} runaway calls against a{" "}
           <span className="tabular text-fg">${scenario?.budgetUsd.toFixed(2)}</span> budget on the
-          live Aurora DSQL cluster — only what fits commits, the rest collide on OCC and lose with{" "}
+          live Aurora DSQL cluster: only what fits commits, the rest collide on OCC and lose with{" "}
           <span className="tabular text-fg">40001</span>.
         </p>
         <button
@@ -121,7 +121,7 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
                 ${result.finalBalanceUsd.toFixed(2)}
               </div>
               <div className="text-[11px] text-fg-mute">
-                {result.neverNegative ? "never went negative" : "NEGATIVE — bug"}
+                {result.neverNegative ? "never went negative" : "NEGATIVE: bug"}
               </div>
             </div>
           </div>

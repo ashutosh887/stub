@@ -12,12 +12,12 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Stub — the general ledger for agent spend",
+  title: "Stub: the general ledger for agent spend",
   description:
     "One budget your agents can't break. A strongly-consistent, double-entry spend ledger on Amazon Aurora DSQL.",
   metadataBase: new URL("https://trystub.vercel.app"),
   openGraph: {
-    title: "Stub — the general ledger for agent spend",
+    title: "Stub: the general ledger for agent spend",
     description: "One budget your agents can't break. Built on Amazon Aurora DSQL.",
     url: "https://trystub.vercel.app",
     siteName: "Stub",

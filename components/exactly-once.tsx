@@ -52,7 +52,7 @@ export function ExactlyOnce() {
           </h2>
           <p className="mt-2 text-sm leading-relaxed text-fg-dim">
             A naive retry around an irreversible payment double-charges: every OCC conflict re-sends
-            the money. Stub reserves, pays once behind an idempotency key, then settles — so retries
+            the money. Stub reserves, pays once behind an idempotency key, then settles, so retries
             replay only the ledger. Run both side by side under {report?.writers ?? 16} concurrent
             writers with crashes injected after payment.
           </p>

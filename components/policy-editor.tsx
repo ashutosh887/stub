@@ -318,7 +318,7 @@ export function PolicyEditor({
                 </span>
               ) : (
                 <span className="text-fg-dim">
-                  Replayed {sim.evaluated} past spend{sim.evaluated === 1 ? "" : "s"} —{" "}
+                  Replayed {sim.evaluated} past spend{sim.evaluated === 1 ? "" : "s"}:{" "}
                   <span className="text-deny">{sim.blocked} blocked</span>
                   {sim.needsApproval > 0 && (
                     <>

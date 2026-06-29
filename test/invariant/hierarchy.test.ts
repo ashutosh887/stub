@@ -17,7 +17,7 @@ function acct(over: Partial<Account> & Pick<Account, "id" | "type">): Account {
   };
 }
 
-// org → team → agent. The agent has room but the team is the tightest ceiling.
+// org → team → agent: the agent has room but the team is the tightest ceiling.
 function seedTree(store: MemStore, opts: { org: bigint; team: bigint; agent: bigint }) {
   store.seedAccount(acct({ id: "org", type: "org", balanceMicro: opts.org, capMicro: opts.org }));
   store.seedAccount(
@@ -143,7 +143,7 @@ describe("velocity circuit-breaker: runaway spend auto-freezes the account", () 
     expect(tripped.status).toBe("denied");
     expect(tripped.reason).toBe("velocity_tripped");
 
-    // The breaker froze the account — even an affordable spend is now denied.
+    // The breaker froze the account, so even an affordable spend is now denied.
     expect(store.getAccount("agent")!.frozen).toBe(true);
     const after = await spendOnce();
     expect(after.status).toBe("denied");

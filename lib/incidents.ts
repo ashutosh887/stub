@@ -24,7 +24,7 @@ export const SCENARIOS: Scenario[] = [
     id: "cfn-loop",
     title: "The retry storm",
     story:
-      "An infra agent hits an error and retries by spinning up a fresh paid resource each time — a loop that never converges.",
+      "An infra agent hits an error and retries by spinning up a fresh paid resource each time, a loop that never converges.",
     headline: "A real agent ran up a $6,531 cloud bill this way, re-provisioning on every failure.",
     budgetUsd: 2.0,
     perCallUsd: 0.5,

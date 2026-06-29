@@ -25,8 +25,8 @@ export default async function IncidentPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-dim">
             Real fleets have burned hundreds to thousands of dollars overnight when an agent fell
-            into a loop. Pick a documented runaway pattern and unleash it against a Stub budget —
-            watch the cap hold while the overspend is refused, transaction by transaction.
+            into a loop. Pick a documented runaway pattern and unleash it against a Stub budget,
+            then watch the cap hold while the overspend is refused, transaction by transaction.
           </p>
         </header>
 
@@ -35,7 +35,7 @@ export default async function IncidentPage() {
         </div>
 
         <p className="mt-8 max-w-2xl text-xs leading-relaxed text-fg-mute">
-          Each replay runs in throwaway accounts on the real cluster and self-cleans — your ledger
+          Each replay runs in throwaway accounts on the real cluster and self-cleans, so your ledger
           is never touched. The blocked dollars are what Stub refused in this run; the headline
           figures are real incidents this pattern has caused in the wild.
         </p>

@@ -43,7 +43,7 @@ async function main() {
     process.exit(0);
   }
 
-  console.error("❌ Unexpected result — invariants did not separate as expected.");
+  console.error("❌ Unexpected result: invariants did not separate as expected.");
   process.exit(1);
 }
 

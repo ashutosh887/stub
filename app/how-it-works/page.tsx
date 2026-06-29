@@ -29,7 +29,7 @@ export default function HowItWorks() {
         <Concept
           n="01"
           title="One budget, the whole fleet"
-          body="You set a single company-wide budget and split it into teams and agents. A spend is bound by the tightest cap along that chain — agent, then team, then org — and all of it is checked inside one database transaction before any money moves."
+          body="You set a single company-wide budget and split it into teams and agents. A spend is bound by the tightest cap along that chain (agent, then team, then org), and all of it is checked inside one database transaction before any money moves."
         />
         <Concept
           n="02"
@@ -39,7 +39,7 @@ export default function HowItWorks() {
         <Concept
           n="03"
           title="A breach fails the transaction"
-          body="When two agents race the same dollars across regions, Amazon Aurora DSQL's optimistic concurrency control lets one commit and returns a serialization error (SQLSTATE 40001) to the other. Stub retries against the fresh balance or records a denial. The balance never goes negative — there's no window where an overspend is briefly real."
+          body="When two agents race the same dollars across regions, Amazon Aurora DSQL's optimistic concurrency control lets one commit and returns a serialization error (SQLSTATE 40001) to the other. Stub retries against the fresh balance or records a denial. The balance never goes negative. There's no window where an overspend is briefly real."
         />
         <Concept
           n="04"
@@ -49,7 +49,7 @@ export default function HowItWorks() {
         <Concept
           n="05"
           title="Ask the ledger in plain English"
-          body="“How much did Marketing's agents spend on data APIs?” The model fills a constrained, parameterized query over the ledger and answers — it never writes raw SQL against your data."
+          body="“How much did Marketing's agents spend on data APIs?” The model fills a constrained, parameterized query over the ledger and answers. It never writes raw SQL against your data."
         />
 
         <section className="mt-14 rounded-2xl border border-line bg-surface p-7">
@@ -62,7 +62,7 @@ export default function HowItWorks() {
             <TryStep
               n="1"
               head="Run a spend"
-              body="In “Simulate a spend,” authorize a small amount — it commits and appears in the ledger instantly."
+              body="In “Simulate a spend,” authorize a small amount; it commits and appears in the ledger instantly."
             />
             <TryStep
               n="2"
