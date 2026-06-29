@@ -270,17 +270,17 @@ function LedgerSignature() {
         </div>
 
         <div className="tabular mt-4 truncate border-t border-line pt-3 text-[11px] text-fg-mute">
-          hash 9f2a…c41b · prev 6b18…ee03 · intent &quot;fetch market data&quot;
+          intent &quot;fetch market data&quot;, hash 9f2a…c41b chained to 6b18…ee03
         </div>
       </div>
 
       <div className="mt-3 flex items-center justify-between rounded-xl border border-deny-dim bg-surface px-5 py-3">
         <div>
           <div className="text-sm text-fg">coding-agent → LLM tokens</div>
-          <div className="text-[11px] text-deny">cap exceeded · serialization failure</div>
+          <div className="text-[11px] text-deny">cap exceeded, serialization failure</div>
         </div>
         <span className="tabular rounded-md border border-deny-dim px-2 py-1 text-xs text-deny">
-          40001 · rejected
+          40001 rejected
         </span>
       </div>
     </div>

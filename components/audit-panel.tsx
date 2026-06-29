@@ -135,7 +135,7 @@ export function AuditPanel({ initial }: { initial: Report }) {
                     key={i}
                     className="tabular rounded-md border border-deny-dim px-2 py-1 text-[11px] text-deny"
                   >
-                    {p.kind} · {p.entryId.slice(0, 8)}…
+                    {p.kind} {p.entryId.slice(0, 8)}…
                   </span>
                 ))}
               </div>

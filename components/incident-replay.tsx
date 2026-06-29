@@ -65,7 +65,7 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
             <div className="text-sm font-semibold text-fg">{s.title}</div>
             <p className="mt-1.5 text-xs leading-relaxed text-fg-dim">{s.story}</p>
             <div className="tabular mt-3 text-[11px] text-fg-mute">
-              ${s.budgetUsd.toFixed(2)} cap · ${s.perCallUsd.toFixed(2)}/call · {s.calls} calls
+              ${s.budgetUsd.toFixed(2)} cap, ${s.perCallUsd.toFixed(2)}/call, {s.calls} calls
             </div>
           </button>
         ))}

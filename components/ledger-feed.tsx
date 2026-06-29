@@ -42,7 +42,7 @@ export function LedgerFeed({ entries }: { entries: FeedEntry[] }) {
                   {e.intent} <span className="text-fg-mute">→ {e.accountName}</span>
                 </div>
                 <div className="tabular truncate text-xs text-fg-mute">
-                  {e.hash.slice(0, 16)}… · {open ? "hide" : "details"}
+                  {e.hash.slice(0, 16)}… {open ? "hide" : "details"}
                 </div>
               </div>
               <span
