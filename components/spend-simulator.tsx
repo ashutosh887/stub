@@ -35,10 +35,10 @@ export function SpendSimulator({
 
   const busy = submitting || pending;
 
-  async function authorize() {
+  async function authorize(approve = false) {
     setSubmitting(true);
     setError(null);
-    setOutcome(null);
+    if (!approve) setOutcome(null);
     try {
       const res = await fetch("/api/spend", {
         method: "POST",
@@ -49,6 +49,7 @@ export function SpendSimulator({
           amountUsd,
           intent,
           agentId: "research-agent",
+          approve,
         }),
       });
       const data = (await res.json()) as Outcome & { error?: string };
@@ -112,7 +113,7 @@ export function SpendSimulator({
       </div>
 
       <button
-        onClick={authorize}
+        onClick={() => authorize()}
         disabled={busy || !budgetAccountId || !vendorAccountId}
         className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-40"
       >
@@ -126,14 +127,29 @@ export function SpendSimulator({
               ? "border-commit-dim bg-commit-dim/20 text-commit"
               : outcome.status === "denied"
                 ? "border-deny-dim bg-deny-dim/20 text-deny"
-                : "border-line bg-surface-2 text-fg-dim"
+                : "border-warn/40 bg-warn/10 text-warn"
           }`}
         >
-          <span className="font-medium uppercase tracking-wide">{outcome.status}</span>
-          {outcome.reason ? ` · ${outcome.reason}` : ""}
-          {outcome.conflicts > 0
-            ? ` · resolved ${outcome.conflicts} write conflict${outcome.conflicts > 1 ? "s" : ""}`
-            : ""}
+          {outcome.status === "needs_approval" ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>Over the approval threshold — a human must sign off.</span>
+              <button
+                onClick={() => authorize(true)}
+                disabled={busy}
+                className="rounded-md border border-warn/50 px-3 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-50"
+              >
+                {busy ? "Approving…" : "Approve & authorize"}
+              </button>
+            </div>
+          ) : (
+            <>
+              <span className="font-medium uppercase tracking-wide">{outcome.status}</span>
+              {outcome.reason ? ` · ${outcome.reason}` : ""}
+              {outcome.conflicts > 0
+                ? ` · resolved ${outcome.conflicts} write conflict${outcome.conflicts > 1 ? "s" : ""}`
+                : ""}
+            </>
+          )}
         </div>
       )}
       {error && (

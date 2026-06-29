@@ -19,6 +19,7 @@ interface SpendBody {
   userId?: string;
   intent?: string;
   receipt?: unknown;
+  approve?: boolean;
 }
 
 export const POST = withRoute({ name: "spend" }, async ({ request, requestId }) => {
@@ -54,6 +55,7 @@ export const POST = withRoute({ name: "spend" }, async ({ request, requestId }) 
       userId: body.userId,
       intent: body.intent,
       receipt: body.receipt,
+      approve: body.approve === true,
     },
     { maxRetries: limits.occMaxRetries },
   );

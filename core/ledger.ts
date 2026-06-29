@@ -13,6 +13,7 @@ export interface SpendRequest {
   userId?: string;
   intent?: string;
   receipt?: unknown;
+  approve?: boolean;
 }
 
 export type SpendStatus = "committed" | "denied" | "duplicate" | "needs_approval";
@@ -99,7 +100,7 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
       vendorId: vendor.id,
       spentInWindow: (windowSeconds) => tx.spentInWindow(budget.id, windowSeconds),
     });
-    if (verdict.decision !== "allow") {
+    if (verdict.decision !== "allow" && !(verdict.decision === "needs_approval" && request.approve)) {
       const outcome = await deny(verdict.reason);
       if (verdict.decision === "needs_approval") return { ...outcome, status: "needs_approval" };
       return outcome;
