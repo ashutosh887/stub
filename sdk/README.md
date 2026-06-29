@@ -1,12 +1,14 @@
 # trystub
 
-A drop-in budget gate for autonomous AI agents that spend real money — paid APIs, x402
-micropayments, LLM tokens. It puts one enforceable budget in front of a fleet of agents and
-keeps an exact, double-entry record of what each one spent.
+> **One budget your agents can't break.**
 
-The hard part it solves: a naive retry around an irreversible payment double-charges. `trystub`
-uses a **reserve → pay → settle** flow so the payment fires exactly once, even under concurrent
-writers, conflict retries, or a crash mid-flight.
+A drop-in budget gate for AI agents that spend real money — paid APIs, x402 micropayments, and LLM
+tokens. Put one enforceable budget in front of your whole fleet and keep an exact, double-entry
+record of what every agent spent.
+
+The hard part it solves: a naive retry around an irreversible payment double-charges. `trystub` uses
+a **reserve → pay → settle** flow, so the payment fires exactly once — even under concurrent writers,
+conflict retries, or a crash mid-flight.
 
 ```bash
 npm install trystub
@@ -20,7 +22,7 @@ import { StubClient } from "trystub";
 const stub = new StubClient({ apiKey: process.env.STUB_API_KEY, baseUrl: process.env.STUB_URL });
 
 if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market data" })) {
-  await doThePaidThing(); // runs only after the budget gate commits the spend
+  await doThePaidThing();
 }
 ```
 
@@ -41,7 +43,7 @@ const data = await payThroughStub(stub, vendorAccountId, {
   costCenter: "Marketing",
   pay: async () => {
     const res = await fetchPaidResource();
-    return { result: res.body, actualUsd: res.chargedUsd }; // settle at the real cost
+    return { result: res.body, actualUsd: res.chargedUsd };
   },
 });
 ```
@@ -62,6 +64,11 @@ for the actual amount and refunds the difference. If the reservation is denied i
 `input` accepts `{ vendorAccountId, amountUsd, intent?, costCenter?, idempotencyKey?, budgetAccountId?, receipt? }`.
 A scoped API key pins spends to one budget account; without one, pass `budgetAccountId` and
 authenticate as an admin.
+
+## Links
+
+- Live console: [trystub.vercel.app](https://trystub.vercel.app)
+- Source: [github.com/ashutosh887/stub](https://github.com/ashutosh887/stub)
 
 ## License
 
