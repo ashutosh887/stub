@@ -14,7 +14,7 @@ export default function Home() {
       <SiteNav current="home" />
 
       <header className="relative overflow-hidden border-b border-line hero-veil">
-        <div className="pointer-events-none absolute inset-0 ledger-paper opacity-70" />
+        <div className="pointer-events-none absolute inset-0 grid-veil opacity-60" />
         <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-28">
           <div>
             <div className="rise flex items-center justify-between border-b border-line pb-3 font-mono text-[11px] uppercase tracking-[0.22em] text-fg-mute">

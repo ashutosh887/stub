@@ -81,27 +81,6 @@ body {
   mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
 }
 
-/* ruled ledger paper: horizontal rules + one gold column rule, like an accounting book */
-.ledger-paper {
-  background-image:
-    linear-gradient(90deg, rgba(228, 179, 99, 0.14) 1px, transparent 1px),
-    repeating-linear-gradient(
-      to bottom,
-      transparent 0,
-      transparent 43px,
-      var(--color-line) 43px,
-      var(--color-line) 44px
-    );
-  background-size:
-    100% 100%,
-    100% 44px;
-  background-position:
-    72px 0,
-    0 0;
-  -webkit-mask-image: radial-gradient(80% 75% at 30% 0%, #000 35%, transparent 82%);
-  mask-image: radial-gradient(80% 75% at 30% 0%, #000 35%, transparent 82%);
-}
-
 @media (prefers-reduced-motion: no-preference) {
   .rise {
     animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
