@@ -2,7 +2,9 @@
   "name": "stub",
   "version": "0.0.0",
   "private": true,
-  "description": "The spend control plane for AI agents.",
+  "description": "The general ledger for agent spend.",
+  "homepage": "https://trystub.vercel.app",
+  "repository": { "type": "git", "url": "https://github.com/ashutosh887/stub.git" },
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -11,6 +13,7 @@
     "check:db": "tsx scripts/check-connection.ts",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
+    "seed:activity": "tsx scripts/seed-activity.ts",
     "demo:agent": "tsx scripts/demo-agent.ts",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm run test:invariant",
