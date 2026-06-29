@@ -37,7 +37,7 @@ function account(
 }
 
 async function main() {
-  const org = account("org", "Acme AI Co", 500n * USD, 500n * USD, null);
+  const org = account("org", "Northwind AI", 500n * USD, 500n * USD, null);
   const marketing = account("team", "Marketing", 200n * USD, 200n * USD, org.id);
   const engineering = account("team", "Engineering", 300n * USD, 300n * USD, org.id);
   const researcher = account("agent", "research-agent", 50n * USD, 50n * USD, marketing.id, {

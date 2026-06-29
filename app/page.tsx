@@ -52,7 +52,7 @@ export default function Home() {
             <dl className="rise rise-4 mt-10 flex gap-8 border-t border-line pt-6">
               <Metric value="$0" label="overspend window" />
               <Metric value="2" label="AWS regions, one budget" />
-              <Metric value="40001" label="the conflict that saves you" />
+              <Metric value="40001" label="the error that blocks overspend" />
             </dl>
           </div>
 
@@ -61,20 +61,20 @@ export default function Home() {
         </div>
       </header>
 
-      {/* The moment */}
-      <Section eyebrow="The problem" title="At 2:13am, a fleet spent thousands no one could explain.">
+      {/* The problem */}
+      <Section eyebrow="The problem" title="Agents can spend now. Nothing governs the whole fleet.">
         <div className="grid gap-6 md:grid-cols-3">
           <Card
-            head="Limits stop at the session"
-            body="Agent wallets cap spend per session. Run fifty agents and nothing enforces one budget across the fleet — every session is green while the company bleeds."
+            head="Per-session limits, no fleet budget"
+            body="Agent wallets cap each session. Across a fleet, no single budget holds — every session stays in bounds while the total quietly runs over."
           />
           <Card
-            head="Retries pay twice"
-            body="When two agents race the same dollar, a naive retry can re-fire an irreversible payment. The ledger says one charge; the merchant got two."
+            head="Retries can double-pay"
+            body="A failed transaction that retries can re-send an already-irreversible payment. The ledger shows one charge; the vendor was paid twice."
           />
           <Card
-            head="No one can answer the CFO"
-            body="How much did our agents spend, and on exactly what? Without an audit-grade ledger, the honest answer is a shrug and a grep through logs."
+            head="No system of record"
+            body="When finance asks how much agents spent, and on what, application logs aren't an answer. There's nothing to reconcile or audit against."
           />
         </div>
       </Section>
