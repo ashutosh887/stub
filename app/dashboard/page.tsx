@@ -16,8 +16,10 @@ import { NlQuery } from "@/components/nl-query";
 import { AgentRegistry } from "@/components/agent-registry";
 import { AdminLogin } from "@/components/admin-login";
 import { SiteNav } from "@/components/site-nav";
+import { AppTabs } from "@/components/app-tabs";
 import { StartHere } from "@/components/start-here";
 import { StressTest } from "@/components/stress-test";
+import { ExactlyOnce } from "@/components/exactly-once";
 import { LedgerFeed } from "@/components/ledger-feed";
 import { cookies } from "next/headers";
 import { security } from "@/config";
@@ -130,6 +132,7 @@ export default async function Dashboard() {
   return (
     <>
       <SiteNav current="dashboard" />
+      <AppTabs current="overview" />
       <main className="mx-auto max-w-6xl px-6 py-8">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -204,6 +207,10 @@ export default async function Dashboard() {
 
         <div className="mt-6">
           <StressTest />
+        </div>
+
+        <div className="mt-6">
+          <ExactlyOnce />
         </div>
 
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">

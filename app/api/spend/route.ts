@@ -18,6 +18,7 @@ interface SpendBody {
   sessionId?: string;
   userId?: string;
   intent?: string;
+  costCenter?: string;
   receipt?: unknown;
   approve?: boolean;
 }
@@ -54,6 +55,7 @@ export const POST = withRoute({ name: "spend" }, async ({ request, requestId }) 
       sessionId: body.sessionId,
       userId: body.userId,
       intent: body.intent,
+      costCenter: body.costCenter,
       receipt: body.receipt,
       approve: body.approve === true,
     },

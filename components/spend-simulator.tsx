@@ -30,6 +30,7 @@ export function SpendSimulator({
   const [vendorAccountId, setVendorAccountId] = useState(vendors[0]?.id ?? "");
   const [amountUsd, setAmountUsd] = useState("2.40");
   const [intent, setIntent] = useState("data API call");
+  const [costCenter, setCostCenter] = useState("Marketing");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +49,7 @@ export function SpendSimulator({
           vendorAccountId,
           amountUsd,
           intent,
+          costCenter,
           agentId: "research-agent",
           approve,
         }),
@@ -107,6 +109,13 @@ export function SpendSimulator({
           <input
             value={intent}
             onChange={(e) => setIntent(e.target.value)}
+            className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+          />
+        </Field>
+        <Field label="Cost center">
+          <input
+            value={costCenter}
+            onChange={(e) => setCostCenter(e.target.value)}
             className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
           />
         </Field>

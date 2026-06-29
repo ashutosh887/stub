@@ -133,9 +133,12 @@ export default function Home() {
       <Section eyebrow="What you get" title="A treasury console for the agent economy." muted>
         <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
           <Feature head="Hierarchical budgets" body="Org → team → agent caps, enforced together in one transaction." />
+          <Feature head="Exactly-once settlement" body="Reserve, pay once, settle the real cost. A retry around an irreversible payment can't double-charge." />
           <Feature head="Policy engine" body="Per-transaction and rolling-window caps, vendor rules, approval thresholds." />
-          <Feature head="Kill switch" body="Freeze one agent or the entire fleet instantly." />
+          <Feature head="Cost attribution" body="Tag every spend to a team, customer, or feature and answer chargeback questions cloud bills can't." />
+          <Feature head="Tamper-evident audit" body="Hash-chained entries that detect any altered row, exportable as accounting journal lines." />
           <Feature head="Velocity breaker" body="Runaway spend trips a limit and auto-freezes the account." />
+          <Feature head="Kill switch" body="Freeze one agent or the entire fleet instantly." />
           <Feature head="Ask your ledger" body="Plain-English questions answered over the ledger — never raw SQL." />
           <Feature head="3-line SDK" body="Drop the budget gate in front of any paid call. Money moves only after it commits." />
         </div>
@@ -149,15 +152,23 @@ export default function Home() {
               See the cap hold, live.
             </h2>
             <p className="mt-2 text-fg-dim">
-              Run a spend, trip a limit, watch the ledger answer in plain English.
+              Replay a runaway agent and watch the overspend get refused, transaction by transaction.
             </p>
           </div>
-          <Link
-            href="/dashboard"
-            className="shrink-0 rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
-          >
-            Open the dashboard
-          </Link>
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <Link
+              href="/incident"
+              className="rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
+            >
+              Replay an incident
+            </Link>
+            <Link
+              href="/dashboard"
+              className="rounded-lg border border-line-bright px-6 py-3 text-sm font-medium text-fg-dim transition-colors hover:text-fg"
+            >
+              Open the dashboard
+            </Link>
+          </div>
         </div>
       </section>
 
