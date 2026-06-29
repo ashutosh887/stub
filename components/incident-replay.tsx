@@ -74,7 +74,7 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
         <div className="max-w-xl">
           <p className="text-xs leading-relaxed text-fg-dim">
-            <span className="text-brand">Context · </span>
+            <span className="text-brand">Context: </span>
             {scenario?.headline} Stub caps {scenario?.calls} runaway calls against a{" "}
             <span className="tabular text-fg">${scenario?.budgetUsd.toFixed(2)}</span> budget on the
             live Aurora DSQL cluster: only what fits commits, the rest collide on OCC and lose with{" "}
@@ -96,7 +96,7 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
           disabled={busy}
           className="shrink-0 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50"
         >
-          {busy ? "Unleashing the agent…" : "Run the incident"}
+          {busy ? "Running…" : "Run the incident"}
         </button>
       </div>
 
@@ -117,7 +117,7 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
                 ${result.blockedUsd.toFixed(2)}
               </div>
               <div className="mt-0.5 text-xs text-fg-mute">
-                runaway tried ${result.attemptedUsd.toFixed(2)} · Stub allowed only $
+                runaway tried ${result.attemptedUsd.toFixed(2)}, Stub allowed only $
                 {result.committedUsd.toFixed(2)}
               </div>
             </div>

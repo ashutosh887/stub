@@ -70,7 +70,7 @@ export function SettlementDemo({
       } else {
         setNote({
           tone: "deny",
-          text: `Reservation ${data.status}${data.reason ? ` · ${data.reason}` : ""}.`,
+          text: `Reservation ${data.status}${data.reason ? `: ${data.reason}` : ""}.`,
         });
       }
       refresh();
@@ -87,13 +87,13 @@ export function SettlementDemo({
         const refund = (Number(held.heldUsd) - Number(actualUsd)).toFixed(2);
         setNote({
           tone: "commit",
-          text: `Booked $${actualUsd} · refunded $${refund} of the hold. Vendor paid exactly once.`,
+          text: `Booked $${actualUsd}, refunded $${refund} of the hold. Vendor paid exactly once.`,
         });
         setHeld(null);
       } else {
         setNote({
           tone: "deny",
-          text: `Settle ${data.status}${data.reason ? ` · ${data.reason}` : ""}.`,
+          text: `Settle ${data.status}${data.reason ? `: ${data.reason}` : ""}.`,
         });
       }
       refresh();
@@ -115,7 +115,7 @@ export function SettlementDemo({
       } else {
         setNote({
           tone: "deny",
-          text: `Release ${data.status}${data.reason ? ` · ${data.reason}` : ""}.`,
+          text: `Release ${data.status}${data.reason ? `: ${data.reason}` : ""}.`,
         });
       }
       refresh();
@@ -195,7 +195,7 @@ export function SettlementDemo({
         <div className="flex flex-col gap-3 rounded-lg border border-warn/40 bg-warn/5 p-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-warn">
-              Held · ${held.heldUsd}
+              Held ${held.heldUsd}
             </span>
             <span className="tabular text-[11px] text-fg-mute">
               {held.reservationId.slice(0, 8)}…

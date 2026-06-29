@@ -25,8 +25,8 @@ export default async function IncidentPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-dim">
             Real fleets have burned hundreds to thousands of dollars overnight when an agent fell
-            into a loop. Pick a documented runaway pattern and unleash it against a Stub budget,
-            then watch the cap hold while the overspend is refused, transaction by transaction.
+            into a loop. Pick a documented runaway pattern and run it against a Stub budget, then
+            watch the cap hold while the overspend is refused, transaction by transaction.
           </p>
         </header>
 

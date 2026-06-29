@@ -169,7 +169,7 @@ export function PolicyEditor({
                 <span className={`text-sm ${p.enabled ? "text-fg" : "text-fg-mute line-through"}`}>
                   {p.label || "Policy"}
                 </span>
-                <span className="text-xs text-fg-mute">· {p.accountName}</span>
+                <span className="text-xs text-fg-mute">({p.accountName})</span>
               </div>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {p.limitUsd && (

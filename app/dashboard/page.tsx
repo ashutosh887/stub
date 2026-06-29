@@ -139,7 +139,7 @@ export default async function Dashboard() {
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-                Mission control
+                Fleet overview
               </span>
               <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-fg-mute">
                 Demo workspace
@@ -163,7 +163,7 @@ export default async function Dashboard() {
                 Org guardrail
               </div>
               <div className="mt-1 text-sm text-fg-dim">
-                Company-wide budget · cannot be overspent
+                Company-wide budget that cannot be overspent
               </div>
             </div>
             <div className="flex items-center gap-5">

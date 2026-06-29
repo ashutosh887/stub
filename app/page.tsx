@@ -19,7 +19,7 @@ export default function Home() {
           <div>
             <span className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-fg-dim">
               <span className="h-1.5 w-1.5 rounded-full bg-brand" />
-              Amazon Aurora DSQL · double-entry
+              Double-entry ledger on Amazon Aurora DSQL
             </span>
 
             <h1 className="rise rise-2 mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight text-fg sm:text-6xl">
@@ -31,7 +31,8 @@ export default function Home() {
             <p className="rise rise-3 mt-6 max-w-xl text-lg leading-relaxed text-fg-dim">
               Stub is the general ledger for agent spend. Set one company-wide budget across your
               whole fleet, and a spend that would breach it{" "}
-              <span className="text-fg">fails the database transaction</span>, not your nerves.
+              <span className="text-fg">fails the database transaction</span> before any money
+              moves.
             </p>
 
             <div className="rise rise-4 mt-8 flex flex-wrap items-center gap-3">
@@ -99,7 +100,7 @@ export default function Home() {
 
       <Section
         eyebrow="How the budget holds"
-        title="The database is the guardrail, not application luck."
+        title="The database is the guardrail, not application locking."
         muted
       >
         <ol className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
@@ -146,7 +147,7 @@ export default function Home() {
         </div>
       </Section>
 
-      <Section eyebrow="What you get" title="A treasury console for the agent economy." muted>
+      <Section eyebrow="What you get" title="Everything you need to govern agent spend." muted>
         <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
           <Feature
             head="Hierarchical budgets"
@@ -214,7 +215,9 @@ export default function Home() {
 
       <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-fg-mute sm:flex-row">
         <span className="font-display text-base text-fg-dim">Stub</span>
-        <span>One budget your agents can&apos;t break. Built on Amazon Aurora DSQL.</span>
+        <span>
+          One budget your agents can&apos;t break. Built with v0 and Vercel on Amazon Aurora DSQL.
+        </span>
         <div className="flex items-center gap-5">
           <a
             href={NPM_URL}
@@ -253,15 +256,13 @@ function LedgerSignature() {
         <div className="relative mt-4 grid grid-cols-2 gap-4">
           <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ledger-rule" />
           <div>
-            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">
-              Debit · budget
-            </div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">Budget debit</div>
             <div className="mt-1 text-sm text-fg">research-agent</div>
             <div className="tabular mt-2 text-xl text-deny">−$0.04</div>
           </div>
           <div className="pl-4 text-right">
             <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">
-              Credit · vendor
+              Vendor credit
             </div>
             <div className="mt-1 text-sm text-fg">Data API (x402)</div>
             <div className="tabular mt-2 text-xl text-commit">+$0.04</div>
