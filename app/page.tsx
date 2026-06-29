@@ -216,7 +216,7 @@ export default function Home() {
       <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-fg-mute sm:flex-row">
         <span className="font-display text-base text-fg-dim">Stub</span>
         <span>
-          One budget your agents can&apos;t break. Built on Amazon Aurora DSQL, Next.js, and Vercel.
+          One budget your agents can&apos;t break. Built with v0 and Vercel on Amazon Aurora DSQL.
         </span>
         <div className="flex items-center gap-5">
           <a

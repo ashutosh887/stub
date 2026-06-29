@@ -101,7 +101,7 @@ if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market d
         </section>
 
         <div className="mt-12 border-t border-line pt-6 text-sm text-fg-mute">
-          Built on Amazon Aurora DSQL, Next.js, and Vercel.{" "}
+          Built with v0 and Vercel, on Amazon Aurora DSQL and Next.js.{" "}
           <a
             href="https://github.com/ashutosh887/stub"
             target="_blank"
