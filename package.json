@@ -1,10 +1,13 @@
 {
   "name": "stub",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "The general ledger for agent spend.",
   "homepage": "https://trystub.vercel.app",
-  "repository": { "type": "git", "url": "https://github.com/ashutosh887/stub.git" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ashutosh887/stub.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -17,10 +20,24 @@
     "demo:agent": "tsx scripts/demo-agent.ts",
     "harness": "tsx scripts/harness.ts",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run typecheck && npm run test:invariant",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "npm run lint && npm run typecheck && npm run test:invariant",
     "test": "vitest run test/invariant",
     "test:invariant": "vitest run test/invariant",
-    "test:live": "vitest run test/live"
+    "test:live": "vitest run test/live",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,mjs,cjs,json,md,css,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@aws-sdk/dsql-signer": "^3.1075.0",
@@ -33,12 +50,20 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.1.0",
+    "@commitlint/config-conventional": "^21.1.0",
     "@tailwindcss/postcss": "^4.3.1",
     "@types/node": "^26.0.1",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "dotenv": "^17.4.2",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "^16.2.9",
+    "eslint-config-prettier": "^10.1.8",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8",
+    "prettier": "^3.9.1",
     "tailwindcss": "^4.3.1",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
