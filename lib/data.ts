@@ -2,10 +2,11 @@ import "server-only";
 import { randomUUID, createHash } from "node:crypto";
 import { query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
-import type { AccountType } from "@/core/store";
+import type { AccountType, Entry, ReservationStatus } from "@/core/store";
 import type { LedgerQuery } from "@/core/query";
 import { type BurnStatus, burnStatus } from "@/core/burn";
 import { generateApiKey, hashApiKey, keysMatch } from "@/core/apikey";
+import { type ChainProblem, verifyChain } from "@/core/audit";
 
 export const store = new PgStore();
 
@@ -29,6 +30,7 @@ export interface EntryRow {
   amountMicro: bigint;
   agentId: string | null;
   intent: string | null;
+  costCenter: string | null;
   hash: string;
   prevHash: string;
   receipt: unknown;
@@ -78,7 +80,7 @@ export async function setAllFrozen(frozen: boolean): Promise<void> {
 export async function listEntries(limit = 50): Promise<EntryRow[]> {
   const { rows } = await query<Record<string, unknown>>(
     `SELECT e.id, e.transaction_id, e.account_id, a.name AS account_name,
-            e.kind, e.amount_micro, e.agent_id, e.intent, e.hash, e.prev_hash,
+            e.kind, e.amount_micro, e.agent_id, e.intent, e.cost_center, e.hash, e.prev_hash,
             e.receipt, e.created_at
        FROM entries e
        JOIN accounts a ON a.id = e.account_id
@@ -95,6 +97,7 @@ export async function listEntries(limit = 50): Promise<EntryRow[]> {
     amountMicro: BigInt(r.amount_micro as string),
     agentId: (r.agent_id as string | null) ?? null,
     intent: (r.intent as string | null) ?? null,
+    costCenter: (r.cost_center as string | null) ?? null,
     hash: r.hash as string,
     prevHash: (r.prev_hash as string | null) ?? "",
     receipt: (r.receipt as unknown) ?? null,
@@ -299,6 +302,7 @@ const SPEND_GROUP: Record<LedgerQuery["groupBy"], string | null> = {
   account: "da.name",
   agent: "COALESCE(d.agent_id, '—')",
   intent: "COALESCE(d.intent, '—')",
+  costCenter: "COALESCE(d.cost_center, '—')",
   reason: null,
   day: "to_char(date_trunc('day', d.created_at), 'YYYY-MM-DD')",
 };
@@ -309,6 +313,7 @@ const DENIAL_GROUP: Record<LedgerQuery["groupBy"], string | null> = {
   account: "a.name",
   agent: "COALESCE(dn.agent_id, '—')",
   intent: "COALESCE(dn.intent, '—')",
+  costCenter: "COALESCE(dn.cost_center, '—')",
   reason: "dn.reason",
   day: "to_char(date_trunc('day', dn.created_at), 'YYYY-MM-DD')",
 };
@@ -436,6 +441,222 @@ export async function listDenials(limit = 20): Promise<DenialRow[]> {
     attemptedMicro: BigInt(r.attempted_micro as string),
     reason: r.reason as string,
     agentId: (r.agent_id as string | null) ?? null,
+    intent: (r.intent as string | null) ?? null,
+    createdAt: new Date(r.created_at as string).toISOString(),
+  }));
+}
+
+export type AttributionDimension = "costCenter" | "team" | "agent" | "vendor";
+
+export interface AttributionRow {
+  label: string;
+  totalMicro: bigint;
+  count: number;
+  pct: number;
+}
+
+const ATTRIBUTION_GROUP: Record<AttributionDimension, string> = {
+  costCenter: "COALESCE(d.cost_center, 'Unattributed')",
+  team: "COALESCE(pa.name, da.name)",
+  agent: "da.name",
+  vendor: "va.name",
+};
+
+export async function listAttribution(
+  dimension: AttributionDimension,
+): Promise<AttributionRow[]> {
+  const groupExpr = ATTRIBUTION_GROUP[dimension];
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT ${groupExpr} AS label,
+            COALESCE(SUM(ABS(d.amount_micro)), 0) AS total_micro,
+            COUNT(*) AS cnt
+       FROM entries d
+       JOIN entries c ON c.transaction_id = d.transaction_id AND c.kind = 'credit'
+       JOIN accounts da ON da.id = d.account_id
+       JOIN accounts va ON va.id = c.account_id
+       LEFT JOIN accounts pa ON pa.id = da.parent_id
+      WHERE d.kind = 'debit'
+      GROUP BY ${groupExpr}
+      ORDER BY total_micro DESC`,
+  );
+  const parsed = rows.map((r) => ({
+    label: String(r.label),
+    totalMicro: BigInt(r.total_micro as string),
+    count: Number(r.cnt),
+  }));
+  const total = parsed.reduce((sum, r) => sum + r.totalMicro, 0n);
+  return parsed.map((r) => ({
+    ...r,
+    pct: total > 0n ? Math.round(Number((r.totalMicro * 1000n) / total)) / 10 : 0,
+  }));
+}
+
+export interface JournalLine {
+  recordedAt: string;
+  transactionId: string;
+  account: string;
+  costCenter: string;
+  debitUsd: string;
+  creditUsd: string;
+  memo: string;
+}
+
+export async function listJournalLines(limit = 5000): Promise<JournalLine[]> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT e.transaction_id, a.name AS account_name, e.kind, e.amount_micro,
+            e.cost_center, e.intent, e.created_at
+       FROM entries e
+       JOIN accounts a ON a.id = e.account_id
+      ORDER BY e.created_at ASC, e.kind DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => {
+    const micro = BigInt(r.amount_micro as string);
+    const abs = micro < 0n ? -micro : micro;
+    const usd = (Number(abs) / 1_000_000).toFixed(6);
+    const isDebit = (r.kind as string) === "debit";
+    return {
+      recordedAt: new Date(r.created_at as string).toISOString(),
+      transactionId: r.transaction_id as string,
+      account: r.account_name as string,
+      costCenter: (r.cost_center as string | null) ?? "Unattributed",
+      debitUsd: isDebit ? usd : "0.000000",
+      creditUsd: isDebit ? "0.000000" : usd,
+      memo: (r.intent as string | null) ?? "agent spend",
+    };
+  });
+}
+
+export interface AccountChain {
+  accountId: string;
+  accountName: string;
+  entryCount: number;
+  head: string;
+}
+
+export interface AuditReport {
+  ok: boolean;
+  entryCount: number;
+  accountCount: number;
+  problems: ChainProblem[];
+  chains: AccountChain[];
+}
+
+async function loadAllEntries(): Promise<Array<Entry & { accountName: string }>> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT e.id, e.transaction_id, e.account_id, a.name AS account_name, e.kind,
+            e.amount_micro, e.agent_id, e.session_id, e.user_id, e.intent, e.cost_center,
+            e.receipt, e.prev_hash, e.hash
+       FROM entries e
+       JOIN accounts a ON a.id = e.account_id
+      ORDER BY e.account_id, e.created_at ASC, e.kind DESC`,
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    transactionId: r.transaction_id as string,
+    accountId: r.account_id as string,
+    accountName: r.account_name as string,
+    kind: r.kind as "debit" | "credit",
+    amountMicro: BigInt(r.amount_micro as string),
+    agentId: (r.agent_id as string | null) ?? null,
+    sessionId: (r.session_id as string | null) ?? null,
+    userId: (r.user_id as string | null) ?? null,
+    intent: (r.intent as string | null) ?? null,
+    costCenter: (r.cost_center as string | null) ?? null,
+    receipt: (r.receipt as unknown) ?? null,
+    prevHash: (r.prev_hash as string | null) ?? "",
+    hash: r.hash as string,
+  }));
+}
+
+export async function auditReport(): Promise<AuditReport> {
+  const entries = await loadAllEntries();
+  const problems = verifyChain(entries);
+  const byAccount = new Map<string, AccountChain>();
+  for (const e of entries) {
+    const existing = byAccount.get(e.accountId);
+    if (existing) {
+      existing.entryCount += 1;
+      existing.head = e.hash;
+    } else {
+      byAccount.set(e.accountId, {
+        accountId: e.accountId,
+        accountName: e.accountName,
+        entryCount: 1,
+        head: e.hash,
+      });
+    }
+  }
+  return {
+    ok: problems.length === 0,
+    entryCount: entries.length,
+    accountCount: byAccount.size,
+    problems,
+    chains: [...byAccount.values()].sort((a, b) => a.accountName.localeCompare(b.accountName)),
+  };
+}
+
+export interface TamperDemo {
+  detected: boolean;
+  entryId: string | null;
+  accountName: string | null;
+  originalUsd: string;
+  alteredUsd: string;
+  problems: ChainProblem[];
+}
+
+export async function tamperDemo(): Promise<TamperDemo> {
+  const entries = await loadAllEntries();
+  const target = entries.find((e) => e.kind === "debit");
+  if (!target) {
+    return { detected: false, entryId: null, accountName: null, originalUsd: "0", alteredUsd: "0", problems: [] };
+  }
+  const original = target.amountMicro;
+  const altered = entries.map((e) =>
+    e.id === target.id ? { ...e, amountMicro: e.amountMicro - 1_000_000n } : e,
+  );
+  const problems = verifyChain(altered);
+  const fmt = (m: bigint) => (Number(m < 0n ? -m : m) / 1_000_000).toFixed(2);
+  return {
+    detected: problems.length > 0,
+    entryId: target.id,
+    accountName: target.accountName,
+    originalUsd: fmt(original),
+    alteredUsd: fmt(original - 1_000_000n),
+    problems,
+  };
+}
+
+export interface ReservationRow {
+  id: string;
+  budgetName: string;
+  vendorName: string;
+  heldMicro: bigint;
+  settledMicro: bigint | null;
+  status: ReservationStatus;
+  intent: string | null;
+  createdAt: string;
+}
+
+export async function listReservations(limit = 20): Promise<ReservationRow[]> {
+  const { rows } = await query<Record<string, unknown>>(
+    `SELECT r.id, b.name AS budget_name, v.name AS vendor_name, r.held_micro,
+            r.settled_micro, r.status, r.intent, r.created_at
+       FROM reservations r
+       JOIN accounts b ON b.id = r.budget_account_id
+       JOIN accounts v ON v.id = r.vendor_account_id
+      ORDER BY r.created_at DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return rows.map((r) => ({
+    id: r.id as string,
+    budgetName: r.budget_name as string,
+    vendorName: r.vendor_name as string,
+    heldMicro: BigInt(r.held_micro as string),
+    settledMicro: r.settled_micro == null ? null : BigInt(r.settled_micro as string),
+    status: r.status as ReservationStatus,
     intent: (r.intent as string | null) ?? null,
     createdAt: new Date(r.created_at as string).toISOString(),
   }));

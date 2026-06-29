@@ -1,5 +1,13 @@
 export type QuerySource = "spend" | "denials";
-export type GroupBy = "none" | "vendor" | "account" | "agent" | "intent" | "reason" | "day";
+export type GroupBy =
+  | "none"
+  | "vendor"
+  | "account"
+  | "agent"
+  | "intent"
+  | "costCenter"
+  | "reason"
+  | "day";
 export type Metric = "total" | "count";
 
 export interface LedgerQuery {
@@ -20,7 +28,16 @@ export const DEFAULT_LIMIT = 10;
 export const MAX_LIMIT = 100;
 
 const SOURCES: QuerySource[] = ["spend", "denials"];
-const GROUP_BYS: GroupBy[] = ["none", "vendor", "account", "agent", "intent", "reason", "day"];
+const GROUP_BYS: GroupBy[] = [
+  "none",
+  "vendor",
+  "account",
+  "agent",
+  "intent",
+  "costCenter",
+  "reason",
+  "day",
+];
 const METRICS: Metric[] = ["total", "count"];
 
 export const QUERY_TOOL = {
@@ -70,7 +87,9 @@ export const QUERY_TOOL = {
       groupBy: {
         type: "string",
         enum: GROUP_BYS,
-        description: "Dimension to break the result down by. 'none' returns a single total.",
+        description:
+          "Dimension to break the result down by. 'none' returns a single total. 'costCenter' " +
+          "breaks spend down by chargeback cost center (team / customer / feature).",
       },
       metric: {
         type: "string",
@@ -129,6 +148,7 @@ const GROUP_PHRASE: Record<GroupBy, string> = {
   account: " by account",
   agent: " by agent",
   intent: " by intent",
+  costCenter: " by cost center",
   reason: " by reason",
   day: " by day",
 };
@@ -193,6 +213,8 @@ export function parseQuestion(question: string, nowMs: number): LedgerQuery {
   let groupBy: GroupBy = "none";
   if (/by reason|reasons|\bwhy\b/.test(q)) groupBy = "reason";
   else if (/by day|per day|daily|by date|each day/.test(q)) groupBy = "day";
+  else if (/cost cent|chargeback|charge back|showback|show back|by customer|by feature|per customer|per feature/.test(q))
+    groupBy = "costCenter";
   else if (/by intent|per intent|each intent/.test(q)) groupBy = "intent";
   else if (/by vendor|per vendor|each vendor|top vendor|vendors\b/.test(q)) groupBy = "vendor";
   else if (/which agent|by agent|per agent|each agent|top agent/.test(q)) groupBy = "agent";

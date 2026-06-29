@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PgStore } from "@/db/pg-store";
 import { spend } from "@/core/ledger";
+import { reserve, settle, release } from "@/core/settlement";
 import { query, close } from "@/db/client";
 
 // Generates realistic ledger activity by running real spends through the core
@@ -31,12 +32,13 @@ async function main() {
   let committed = 0;
   let denied = 0;
 
-  async function run(budget: Row, vendor: Row, amount: number, intent: string) {
+  async function run(budget: Row, vendor: Row, amount: number, intent: string, costCenter: string) {
     const r = await spend(store, {
       budgetAccountId: budget.id,
       vendorAccountId: vendor.id,
       amountMicro: usd(amount),
       intent,
+      costCenter,
       agentId: budget.name,
       receipt: {
         rail: "x402",
@@ -52,40 +54,61 @@ async function main() {
     return r;
   }
 
-  // Marketing · research-agent → Data API (kept under the $1.50/hr velocity breaker)
-  const dataSpends: [number, string][] = [
-    [0.04, "fetch market data"],
-    [0.2, "scrape SEC filings"],
-    [0.04, "enrich lead list"],
-    [0.12, "competitor pricing pull"],
-    [0.08, "news sentiment fetch"],
-    [0.16, "company firmographics"],
+  // research-agent → Data API, attributed across cost centers (kept under the velocity breaker)
+  const dataSpends: [number, string, string][] = [
+    [0.04, "fetch market data", "Marketing"],
+    [0.2, "scrape SEC filings", "Customer: Acme"],
+    [0.04, "enrich lead list", "Marketing"],
+    [0.12, "competitor pricing pull", "Feature: Pricing"],
+    [0.08, "news sentiment fetch", "Customer: Acme"],
+    [0.16, "company firmographics", "Marketing"],
   ];
-  for (const [amt, intent] of dataSpends) await run(research, dataApi, amt, intent);
+  for (const [amt, intent, cc] of dataSpends) await run(research, dataApi, amt, intent, cc);
 
-  // Engineering · coding-agent → LLM tokens
-  const llmSpends: [number, string][] = [
-    [4.5, "generate API client"],
-    [2.1, "write unit tests"],
-    [6.8, "refactor billing module"],
-    [1.4, "explain stack trace"],
-    [3.25, "draft DB migration"],
-    [0.9, "summarize code review"],
-    [2.6, "generate type stubs"],
-    [1.75, "write integration test"],
+  // coding-agent → LLM tokens, attributed across cost centers
+  const llmSpends: [number, string, string][] = [
+    [4.5, "generate API client", "Feature: Search"],
+    [2.1, "write unit tests", "Engineering"],
+    [6.8, "refactor billing module", "Feature: Billing"],
+    [1.4, "explain stack trace", "Engineering"],
+    [3.25, "draft DB migration", "Feature: Billing"],
+    [0.9, "summarize code review", "Engineering"],
+    [2.6, "generate type stubs", "Feature: Search"],
+    [1.75, "write integration test", "Engineering"],
   ];
-  for (const [amt, intent] of llmSpends) await run(coding, llm, amt, intent);
+  for (const [amt, intent, cc] of llmSpends) await run(coding, llm, amt, intent, cc);
 
   // A denial: over the agent's cap (no state change — just a recorded denial)
-  await run(coding, llm, 500, "bulk fine-tune run");
+  await run(coding, llm, 500, "bulk fine-tune run", "Engineering");
 
   // A second denial with a different reason: spend against a momentarily frozen account
   await query("UPDATE accounts SET frozen = true WHERE id = $1", [coding.id]);
-  await run(coding, llm, 5, "nightly batch job");
+  await run(coding, llm, 5, "nightly batch job", "Engineering");
   await query("UPDATE accounts SET frozen = false WHERE id = $1", [coding.id]);
 
-  console.log(`\n  ${committed} committed · ${denied} denied`);
-  console.log("  Ledger now has real double-entry history + denials.\n");
+  // A settled reservation (estimate held, real cost lower → refund) and a released one.
+  const held = await reserve(store, {
+    budgetAccountId: research.id,
+    vendorAccountId: dataApi.id,
+    amountMicro: usd(0.3),
+    intent: "batch enrichment (estimated)",
+    costCenter: "Marketing",
+    agentId: research.name,
+  });
+  if (held.status === "reserved") await settle(store, held.reservationId, { actualMicro: usd(0.18) });
+
+  const cancelled = await reserve(store, {
+    budgetAccountId: research.id,
+    vendorAccountId: dataApi.id,
+    amountMicro: usd(0.25),
+    intent: "speculative fetch (cancelled)",
+    costCenter: "Marketing",
+    agentId: research.name,
+  });
+  if (cancelled.status === "reserved") await release(store, cancelled.reservationId);
+
+  console.log(`\n  ${committed} committed · ${denied} denied · 2 reservations (1 settled, 1 released)`);
+  console.log("  Ledger now has attributed double-entry history, denials, and reservations.\n");
 }
 
 main()

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
 import { limits, security } from "@/config";
 import { log } from "@/lib/log";
@@ -53,6 +54,12 @@ export function isAdmin(request: Request): boolean {
   if (!security.authEnabled) return true;
   const provided = bearer(request) ?? cookie(request, ADMIN_COOKIE);
   return provided != null && provided === security.adminToken;
+}
+
+export async function adminPageAllowed(): Promise<boolean> {
+  if (!security.authEnabled) return true;
+  const jar = await cookies();
+  return jar.get(ADMIN_COOKIE)?.value === security.adminToken;
 }
 
 function respond(body: unknown, status: number, requestId: string): NextResponse {
