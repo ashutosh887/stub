@@ -6,3 +6,17 @@ dist/
 .DS_Store
 .next/
 *.tsbuildinfo
+.vercel
+.env*
+
+# internal planning / reference docs — keep local, do not publish
+BLOG.md
+CLAUDE.md
+DECISIONS.md
+DEMO.md
+DEPLOY.md
+Learning.md
+PITCH.md
+PLAN.md
+SUBMISSION.md
+TODO.md
