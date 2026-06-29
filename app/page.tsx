@@ -4,6 +4,7 @@ import { SiteNav } from "@/components/site-nav";
 export const dynamic = "force-static";
 
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
+const NPM_URL = "https://www.npmjs.com/package/trystub";
 
 export default function Home() {
   return (
@@ -194,9 +195,14 @@ export default function Home() {
       <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-fg-mute sm:flex-row">
         <span className="font-display text-base text-fg-dim">Stub</span>
         <span>One budget your agents can&apos;t break. Built on Amazon Aurora DSQL.</span>
-        <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="hover:text-fg">
-          GitHub ↗
-        </a>
+        <div className="flex items-center gap-4">
+          <a href={NPM_URL} target="_blank" rel="noreferrer" className="hover:text-fg">
+            npm ↗
+          </a>
+          <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="hover:text-fg">
+            GitHub ↗
+          </a>
+        </div>
       </footer>
     </>
   );

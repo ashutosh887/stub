@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
+const NPM_URL = "https://www.npmjs.com/package/trystub";
 
 export function SiteNav({ current }: { current?: "home" | "how" | "dashboard" }) {
   return (
@@ -23,6 +24,14 @@ export function SiteNav({ current }: { current?: "home" | "how" | "dashboard" })
           <NavLink href="/dashboard" active={current === "dashboard"}>
             Dashboard
           </NavLink>
+          <a
+            href={NPM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="hidden rounded-md px-3 py-1.5 text-fg-dim transition-colors hover:text-fg sm:inline-block"
+          >
+            npm
+          </a>
           <a
             href={GITHUB_URL}
             target="_blank"
