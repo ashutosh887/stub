@@ -43,6 +43,7 @@ Agent (x402 / AgentCore adapter)
 ```
 
 ### Data model (deliberate double-entry)
+
 - `accounts` — budget accounts (org → team → agent → vendor), each with a balance, hard cap, and
   optional velocity limit. A spend binds to the **tightest cap up the hierarchy** and rolls every
   ancestor's balance up in the same transaction.
@@ -62,6 +63,7 @@ Agent (x402 / AgentCore adapter)
   counts), so repeats are free but any new spend yields a fresh answer.
 
 ### DSQL features
+
 - **GA (the core depends only on these):** strong consistency, OCC / snapshot isolation, ACID
   transactions, identity columns/sequences, JSON type + compression (receipt column), Node.js
   connector with automatic IAM token generation (don't hand-roll IAM tokens).
@@ -70,8 +72,9 @@ Agent (x402 / AgentCore adapter)
   mockable, testnet only — never mainnet USDC).
 
 ### DSQL constraints to respect
+
 No foreign keys, no triggers, ~3,000-row transaction cap, 1MB row-size limit, PostgreSQL-16
-*subset*, OCC requires app-level retry on `40001`, IAM tokens refreshed automatically by the
+_subset_, OCC requires app-level retry on `40001`, IAM tokens refreshed automatically by the
 connector, multi-region clusters restricted to one geographic grouping. Cluster: us-east-1 +
 us-east-2 with a us-west-2 witness.
 
@@ -84,6 +87,7 @@ is no org-wide, cross-agent, cross-region budget governance and no audit-grade l
 layer — the system of record across the whole fleet.
 
 ## Conventions & guardrails for development
+
 - Build the core first (double-entry ledger + OCC overspend prevention on **GA** DSQL features);
   preview features (CDC, AgentCore) are layered and degradable.
 - Prove the overspend invariant with a concurrency test.
@@ -94,6 +98,7 @@ layer — the system of record across the whole fleet.
   (tsconfig root) — no `../../`.
 
 ## Product surfaces
+
 - **Budget & policy:** hierarchy + inheritance (org→team→agent→session), soft/hard caps, threshold
   alerts (50/80/100%), time windows, vendor allow/blocklists, human-in-the-loop approval over $X,
   global + per-agent kill-switch, rate limiting.
@@ -107,6 +112,7 @@ layer — the system of record across the whole fleet.
   webhook alerts, agent identity + scoped API keys, RBAC, multi-tenancy.
 
 ## Repo layout
+
 - `core/` — **pure, dependency-free domain**: `ledger.ts` (store-agnostic `spend()` + `runOcc`/
   `buildEntry` helpers + the hierarchy walk + velocity breaker), `settlement.ts` (reserve/settle/
   release, exactly-once), `payment.ts` (gateway interface + counting mock), `harness.ts` (naive-vs-
@@ -118,7 +124,7 @@ layer — the system of record across the whole fleet.
   `CREATE INDEX ASYNC`; applied by `npm run migrate`). Swap this dir, the core is untouched.
 - `sdk/` — the **drop-in SDK** (`index.ts` `StubClient` with `guard`/`spend`/`reserve`/`settle`/
   `release`) + thin mockable x402/AgentCore adapter (`x402.ts` `payThroughStub`, reserve→pay→settle).
-  Dependency-free; **published to npm as `stub-ledger`** (own `package.json`/`tsconfig.json`, built
+  Dependency-free; **published to npm as `trystub`** (own `package.json`/`tsconfig.json`, built
   to `dist/`, shipped by the `Publish SDK` workflow on a `sdk-v*` tag).
 - `config/` — single source of truth for env-driven values (`index.ts`): `dsql`, `openai`, `app`,
   `demo`, `limits`, plus `requiredEnv` (lazy). `core/` and `sdk/` stay config-free.
@@ -132,7 +138,10 @@ layer — the system of record across the whole fleet.
   invariant + live proofs. `docs/` — local-only planning notes (gitignored).
 
 ## Commands
+
 - Dev: `npm run dev` · Build: `npm run build` · Typecheck: `npm run typecheck`
+- Lint/format: `npm run lint` · `npm run format` · `npm run verify` (lint + typecheck + invariant).
+  Husky hooks run lint-staged on pre-commit and commitlint on commit-msg (Conventional Commits).
 - DB: `npm run check:db` · `npm run migrate` · `npm run seed` · `npm run seed:activity`
 - Demo agent (needs `npm run dev`): `npm run demo:agent`
 - Offline invariant gate (in-memory OCC, no cluster): `npm test` / `npm run test:invariant`
@@ -143,14 +152,16 @@ layer — the system of record across the whole fleet.
   `DSQL_ENDPOINT_PEER`, self-cleans.
 
 ## Natural-language query
+
 "Ask your ledger" turns a plain-English question into a constrained, **parameterized** query over
 `entries`/`denials` — the question side never produces raw SQL. `core/query.ts` `LedgerQuery` +
 `runLedgerQuery` (`lib/data.ts`) + `summarize`.
+
 - **Primary engine: OpenAI** (`lib/ai.ts`, official `openai` SDK, function-calling; `gpt-4o-mini`
   by default via `OPENAI_MODEL`; reads `OPENAI_API_KEY`).
 - **Fallback: a deterministic parser** — `parseQuestion()` in `core/query.ts`, pure/offline, so the
   box always answers. Response carries `engine: "openai" | "parser" | "cache"`.
 - **Cache:** answers are cached in DSQL keyed on question + ledger fingerprint (see `query_cache`).
-- The account filter matches a team *or its agents* (so "Marketing" catches research-agent).
+- The account filter matches a team _or its agents_ (so "Marketing" catches research-agent).
 - `groupBy` includes `costCenter` so the box can answer chargeback/showback questions ("spend by
   cost center", "by customer") over the same parameterized query path.

@@ -18,7 +18,7 @@ autonomous AI agents and the money they spend — x402 micropayments, paid APIs,
 enforces one company-wide budget that **cannot be overspent** and produces an immutable, queryable
 audit trail. The gate that refuses an overspend is one feature of the ledger — not the product.
 
-Think **Ramp / Brex for the agent economy**: as agents move from reading to *spending* real money,
+Think **Ramp / Brex for the agent economy**: as agents move from reading to _spending_ real money,
 every company running them needs org-wide budget enforcement and audit-grade books.
 
 ## The problem
@@ -31,7 +31,7 @@ agents spend, and on exactly what?**
 
 This is not hypothetical. A single agent stuck in a loop has run up four- and five-figure bills
 overnight; one documented storm reached hundreds of thousands of API calls before an account was
-suspended. Monitoring and alerts report the overspend *after* it happens — they can't refuse it.
+suspended. Monitoring and alerts report the overspend _after_ it happens — they can't refuse it.
 Stub refuses it before the transaction commits, and keeps books finance can reconcile.
 
 That gap is Stub.
@@ -51,11 +51,11 @@ shared row and the loser conflicts. This is why the invariant holds across regio
 
 ### The non-obvious part: exactly-once around an irreversible payment
 
-A naive retry around OCC has a sharp edge. If the payment is sent *inside* the retried transaction,
+A naive retry around OCC has a sharp edge. If the payment is sent _inside_ the retried transaction,
 a serialization conflict re-runs the block and **pays again** — real money, gone twice. Stub splits
 the flow the way card networks do: **reserve → pay → settle**. The estimate is held against the cap
 in one transaction; the irreversible payment fires exactly once, guarded by an idempotency key,
-*outside* the transaction; then a second transaction settles the actual cost and refunds the
+_outside_ the transaction; then a second transaction settles the actual cost and refunds the
 difference. OCC retries only ever replay the ledger, never the payment. A crash between pay and
 settle is reclaimed by an idempotent sweeper — settle and sweep contend on the hold row, OCC picks
 one winner, the other is a no-op.
@@ -86,7 +86,7 @@ The invariants are demonstrated, not just claimed:
 
 ## Why Aurora DSQL
 
-Budget-enforcement correctness *is* the database's consistency model. The load-bearing property is
+Budget-enforcement correctness _is_ the database's consistency model. The load-bearing property is
 **active-active, multi-region strong consistency** — a writer in `us-east-1` and a writer in
 `us-east-2` hitting the same balance resolve to one consistent outcome. No other AWS database
 offers it: Aurora PostgreSQL Global is single-writer, and DynamoDB global tables are eventually
@@ -95,19 +95,19 @@ safety feature breaks.
 
 ## Architecture
 
-| Layer       | Choice                                                              |
-| ----------- | ------------------------------------------------------------------ |
-| Database    | **Amazon Aurora DSQL** — strong consistency + OCC (load-bearing)   |
-| Driver      | `pg` over the Aurora DSQL Node connector (automatic IAM tokens)    |
-| API         | Next.js App Router route handlers (Node runtime)                   |
-| Frontend    | Next.js + Tailwind                                                 |
-| Deploy      | Vercel                                                             |
-| NL query    | OpenAI function-calling, with a deterministic offline parser fallback |
-| SDK         | `stub-ledger` on npm — dependency-free `fetch` client                |
+| Layer    | Choice                                                                |
+| -------- | --------------------------------------------------------------------- |
+| Database | **Amazon Aurora DSQL** — strong consistency + OCC (load-bearing)      |
+| Driver   | `pg` over the Aurora DSQL Node connector (automatic IAM tokens)       |
+| API      | Next.js App Router route handlers (Node runtime)                      |
+| Frontend | Next.js + Tailwind                                                    |
+| Deploy   | Vercel                                                                |
+| NL query | OpenAI function-calling, with a deterministic offline parser fallback |
+| SDK      | `trystub` on npm — dependency-free `fetch` client                     |
 
 ```mermaid
 flowchart LR
-  A[Agent fleet<br/>x402 / AgentCore] -->|stub-ledger SDK| B[Stub API<br/>Next.js on Vercel]
+  A[Agent fleet<br/>x402 / AgentCore] -->|trystub SDK| B[Stub API<br/>Next.js on Vercel]
   B --> C{policy · hierarchy<br/>velocity · idempotency}
   C -->|reserve / spend| D[(Amazon Aurora DSQL<br/>us-east-1 + us-east-2<br/>strong consistency · OCC)]
   D -->|40001| C
@@ -121,7 +121,7 @@ The codebase keeps the domain pure and the database swappable:
 ```
 core/   pure, dependency-free domain — ledger, settlement, harness, policy, hash chain, query
 db/     the Aurora DSQL adapter — connection pool, Store implementation, schema.sql
-sdk/    the drop-in client (published to npm as stub-ledger) + x402 / AgentCore adapter
+sdk/    the drop-in client (published to npm as trystub) + x402 / AgentCore adapter
 app/    Next.js console — dashboard · incident · settlement · audit · attribution + API routes
 config/ single source of truth for env      scripts/  migrate · seed · harness · demo-agent
 test/   invariant suite (overspend, exactly-once, hash chain) + live cross-region proof
@@ -195,28 +195,28 @@ npm run test:live           # live cross-region overspend proof (requires DSQL_E
 
 ## SDK
 
-Published to npm as [`stub-ledger`](https://www.npmjs.com/package/stub-ledger) — dependency-free,
+Published to npm as [`trystub`](https://www.npmjs.com/package/trystub) — dependency-free,
 works anywhere `fetch` exists.
 
 ```bash
-npm install stub-ledger
+npm install trystub
 ```
 
 ```ts
-import { StubClient } from "stub-ledger";
+import { StubClient } from "trystub";
 
 const stub = new StubClient({ apiKey: process.env.STUB_API_KEY });
 
 if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market data" })) {
-  await doThePaidThing(); // runs only if the budget gate committed the spend
+  await doThePaidThing();
 }
 ```
 
 When the payment is irreversible, reserve first, pay once, then settle the real cost:
 
 ```ts
-import { StubClient } from "stub-ledger";
-import { payThroughStub } from "stub-ledger/x402";
+import { StubClient } from "trystub";
+import { payThroughStub } from "trystub/x402";
 
 const data = await payThroughStub(stub, vendorAccountId, {
   status: 402,
@@ -239,5 +239,24 @@ for serverless). The cluster is multi-region — `us-east-1` + `us-east-2` with 
 witness — which is what makes the cross-region overspend proof real rather than simulated.
 
 The SDK publishes itself: push a `sdk-v*` tag (with an `NPM_TOKEN` repo secret set) and the
-`Publish SDK` workflow builds and ships `stub-ledger` to npm. To publish manually:
+`Publish SDK` workflow builds and ships `trystub` to npm. To publish manually:
 `cd sdk && npm publish --access public`.
+
+## Development
+
+```bash
+npm run lint            # ESLint (eslint-config-next)
+npm run format          # Prettier write
+npm run typecheck       # strict TypeScript
+npm run verify          # lint + typecheck + offline invariant suite
+```
+
+Code is formatted with Prettier and linted with ESLint, and the repo installs
+[Husky](https://typicode.github.io/husky) git hooks on `npm install`: a **pre-commit** hook runs
+lint-staged (ESLint `--fix` + Prettier on staged files) and a **commit-msg** hook enforces
+[Conventional Commits](https://www.conventionalcommits.org). See
+[CONTRIBUTING.md](./CONTRIBUTING.md) for the full standards.
+
+## License
+
+MIT © Ashutosh Jha — see [LICENSE](./LICENSE).
