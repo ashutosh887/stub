@@ -1,0 +1,68 @@
+# stub-ledger
+
+A drop-in budget gate for autonomous AI agents that spend real money — paid APIs, x402
+micropayments, LLM tokens. It puts one enforceable budget in front of a fleet of agents and
+keeps an exact, double-entry record of what each one spent.
+
+The hard part it solves: a naive retry around an irreversible payment double-charges. `stub-ledger`
+uses a **reserve → pay → settle** flow so the payment fires exactly once, even under concurrent
+writers, conflict retries, or a crash mid-flight.
+
+```bash
+npm install stub-ledger
+```
+
+## Three lines in front of a paid call
+
+```ts
+import { StubClient } from "stub-ledger";
+
+const stub = new StubClient({ apiKey: process.env.STUB_API_KEY, baseUrl: process.env.STUB_URL });
+
+if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market data" })) {
+  await doThePaidThing(); // runs only after the budget gate commits the spend
+}
+```
+
+## Exactly-once around an irreversible payment
+
+When the payment itself can't be taken back, reserve first, pay once, then settle the real cost:
+
+```ts
+import { StubClient } from "stub-ledger";
+import { payThroughStub } from "stub-ledger/x402";
+
+const stub = new StubClient({ apiKey: process.env.STUB_API_KEY, baseUrl: process.env.STUB_URL });
+
+const data = await payThroughStub(stub, vendorAccountId, {
+  status: 402,
+  priceUsd: 0.04,
+  intent: "fetch market data",
+  costCenter: "Marketing",
+  pay: async () => {
+    const res = await fetchPaidResource();
+    return { result: res.body, actualUsd: res.chargedUsd }; // settle at the real cost
+  },
+});
+```
+
+`payThroughStub` reserves the estimate against the budget, runs `pay()` exactly once, then settles
+for the actual amount and refunds the difference. If the reservation is denied it throws
+`BudgetDeniedError` and never pays; if `pay()` throws, the hold is released.
+
+## API
+
+- `new StubClient({ apiKey?, baseUrl?, fetch? })`
+- `stub.guard(input): Promise<boolean>` — true only if the spend committed
+- `stub.spend(input): Promise<SpendResult>` — single-shot debit
+- `stub.reserve(input): Promise<ReserveResult>` — hold funds against the cap
+- `stub.settle(reservationId, actualUsd?): Promise<SettleResult>` — book the real cost
+- `stub.release(reservationId): Promise<ReleaseResult>` — return a hold
+
+`input` accepts `{ vendorAccountId, amountUsd, intent?, costCenter?, idempotencyKey?, budgetAccountId?, receipt? }`.
+A scoped API key pins spends to one budget account; without one, pass `budgetAccountId` and
+authenticate as an admin.
+
+## License
+
+MIT

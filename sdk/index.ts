@@ -1,9 +1,13 @@
 export type SpendStatus = "committed" | "denied" | "duplicate" | "needs_approval";
+export type ReserveStatus = "reserved" | "denied" | "duplicate" | "needs_approval";
+export type SettleStatus = "settled" | "duplicate" | "not_found" | "invalid";
+export type ReleaseStatus = "released" | "duplicate" | "not_found" | "invalid";
 
 export interface SpendInput {
   vendorAccountId: string;
   amountUsd: number | string;
   intent?: string;
+  costCenter?: string;
   idempotencyKey?: string;
   budgetAccountId?: string;
   receipt?: unknown;
@@ -15,6 +19,30 @@ export interface SpendResult {
   reason?: string;
   conflicts: number;
   attempts: number;
+}
+
+export interface ReserveResult {
+  status: ReserveStatus;
+  reservationId: string;
+  reason?: string;
+  conflicts: number;
+  attempts: number;
+}
+
+export interface SettleResult {
+  status: SettleStatus;
+  reservationId: string;
+  transactionId: string | null;
+  settledMicro: string | number;
+  refundMicro: string | number;
+  reason?: string;
+}
+
+export interface ReleaseResult {
+  status: ReleaseStatus;
+  reservationId: string;
+  refundMicro: string | number;
+  reason?: string;
 }
 
 export interface StubClientOptions {
@@ -46,32 +74,39 @@ export class StubClient {
     this.doFetch = f.bind(globalThis);
   }
 
-  async spend(input: SpendInput): Promise<SpendResult> {
+  private async post<T>(path: string, body: unknown): Promise<T> {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (this.apiKey) headers.authorization = `Bearer ${this.apiKey}`;
-
-    const res = await this.doFetch(`${this.baseUrl}/api/spend`, {
+    const res = await this.doFetch(`${this.baseUrl}${path}`, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        vendorAccountId: input.vendorAccountId,
-        amountUsd: input.amountUsd,
-        intent: input.intent,
-        idempotencyKey: input.idempotencyKey,
-        budgetAccountId: input.budgetAccountId,
-        receipt: input.receipt,
-      }),
+      body: JSON.stringify(body),
     });
-
-    const data = (await res.json()) as SpendResult & { error?: string };
-    if (res.status !== 200 && res.status !== 402) {
-      throw new StubError(data.error ?? `spend failed (${res.status})`, res.status);
+    const data = (await res.json()) as T & { error?: string };
+    if (res.status >= 500 || res.status === 401 || res.status === 400) {
+      throw new StubError(data.error ?? `${path} failed (${res.status})`, res.status);
     }
     return data;
+  }
+
+  spend(input: SpendInput): Promise<SpendResult> {
+    return this.post<SpendResult>("/api/spend", input);
   }
 
   async guard(input: SpendInput): Promise<boolean> {
     const result = await this.spend(input);
     return result.status === "committed";
+  }
+
+  reserve(input: SpendInput): Promise<ReserveResult> {
+    return this.post<ReserveResult>("/api/reserve", input);
+  }
+
+  settle(reservationId: string, actualUsd?: number | string): Promise<SettleResult> {
+    return this.post<SettleResult>("/api/settle", { reservationId, actualUsd });
+  }
+
+  release(reservationId: string): Promise<ReleaseResult> {
+    return this.post<ReleaseResult>("/api/release", { reservationId });
   }
 }

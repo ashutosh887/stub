@@ -1,8 +1,8 @@
-import type { SpendResult, StubClient } from "./index";
+import type { ReserveResult, StubClient } from "./index";
 
 export class BudgetDeniedError extends Error {
   constructor(
-    readonly result: SpendResult,
+    readonly result: ReserveResult,
     readonly vendorAccountId: string,
   ) {
     super(`budget gate denied spend (${result.reason ?? "denied"})`);
@@ -14,8 +14,9 @@ export interface PaymentRequired {
   status: 402;
   priceUsd: number | string;
   intent?: string;
+  costCenter?: string;
   receipt?: unknown;
-  pay: () => Promise<unknown>;
+  pay: () => Promise<{ result: unknown; actualUsd?: number | string }>;
 }
 
 export interface PaymentSettled {
@@ -32,16 +33,27 @@ export async function payThroughStub(
 ): Promise<unknown> {
   if (exchange.status === 200) return exchange.result;
 
-  const result = await stub.spend({
+  const reserved = await stub.reserve({
     vendorAccountId,
     amountUsd: exchange.priceUsd,
     intent: exchange.intent,
+    costCenter: exchange.costCenter,
     receipt: exchange.receipt,
   });
-  if (result.status !== "committed") {
-    throw new BudgetDeniedError(result, vendorAccountId);
+  if (reserved.status !== "reserved") {
+    throw new BudgetDeniedError(reserved, vendorAccountId);
   }
-  return exchange.pay();
+
+  let paid: { result: unknown; actualUsd?: number | string };
+  try {
+    paid = await exchange.pay();
+  } catch (err) {
+    await stub.release(reserved.reservationId).catch(() => {});
+    throw err;
+  }
+
+  await stub.settle(reserved.reservationId, paid.actualUsd);
+  return paid.result;
 }
 
 export function mockX402Resource(priceUsd: number | string, body: unknown): () => PaidExchange {
@@ -50,6 +62,6 @@ export function mockX402Resource(priceUsd: number | string, body: unknown): () =
     priceUsd,
     intent: "x402 micropayment",
     receipt: { rail: "x402", network: "base-sepolia", priceUsd },
-    pay: async () => body,
+    pay: async () => ({ result: body, actualUsd: priceUsd }),
   });
 }
