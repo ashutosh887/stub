@@ -48,8 +48,13 @@ Agent (x402 / AgentCore adapter)
   ancestor's balance up in the same transaction.
 - `entries` — **immutable** double-entry lines; the append-only audit log. Every spend = atomic
   debit of a budget + credit of a vendor in one ACID transaction. Includes a JSON receipt column,
-  attribution columns (user, intent, timestamp, agent, session), and a **hash chain** (prev-hash)
-  for tamper-evidence.
+  attribution columns (user, intent, timestamp, agent, session, **cost_center** for chargeback),
+  and a **hash chain** (prev-hash) for tamper-evidence.
+- `reservations` — the reserve→pay→settle state machine (`held → settled | released`). A hold
+  decrements the balance up the hierarchy in one txn (enforcing the cap at reserve time); settle
+  books the actual cost + refunds the difference; both settle and release are **exactly-once** via
+  the reservation row under OCC. The irreversible payment fires once, outside the txn, keyed on the
+  reservation. A crashed hold is reclaimed by an idempotent sweeper.
 - `policies` — layered ceilings (per-transaction · rolling window · cumulative), vendor
   allow/blocklists, approval thresholds — evaluated against each spend at runtime.
 - `agents` / `sessions` — identity, session budgets, scoped API keys (SHA-256 hashed).
@@ -102,20 +107,27 @@ layer — the system of record across the whole fleet.
   webhook alerts, agent identity + scoped API keys, RBAC, multi-tenancy.
 
 ## Repo layout
-- `core/` — **pure, dependency-free domain**: `ledger.ts` (store-agnostic `spend()` with the
-  hierarchy walk + velocity breaker), `store.ts` (`Store`/`Tx` interface), `mem-store.ts` (in-memory
-  OCC model for offline tests), `policy.ts`, `query.ts`, `hash.ts`, `burn.ts`, `forecast.ts`,
+- `core/` — **pure, dependency-free domain**: `ledger.ts` (store-agnostic `spend()` + `runOcc`/
+  `buildEntry` helpers + the hierarchy walk + velocity breaker), `settlement.ts` (reserve/settle/
+  release, exactly-once), `payment.ts` (gateway interface + counting mock), `harness.ts` (naive-vs-
+  Stub exactly-once proof), `store.ts` (`Store`/`Tx` interface), `mem-store.ts` (in-memory OCC model
+  for offline tests), `policy.ts`, `query.ts`, `audit.ts`, `hash.ts`, `burn.ts`, `forecast.ts`,
   `apikey.ts`. No `pg`/AWS imports here.
 - `db/` — the **Aurora DSQL adapter**: `client.ts` (`createPool`/`getPool`), `pg-store.ts` (`Store`
   impl over DSQL), `schema.sql` (single source of truth — idempotent; secondary indexes use
   `CREATE INDEX ASYNC`; applied by `npm run migrate`). Swap this dir, the core is untouched.
-- `sdk/` — the **3-line drop-in SDK** (`index.ts` `StubClient`) + thin mockable x402/AgentCore
-  adapter (`x402.ts` `payThroughStub`). Dependency-free.
+- `sdk/` — the **drop-in SDK** (`index.ts` `StubClient` with `guard`/`spend`/`reserve`/`settle`/
+  `release`) + thin mockable x402/AgentCore adapter (`x402.ts` `payThroughStub`, reserve→pay→settle).
+  Dependency-free; **published to npm as `stub-ledger`** (own `package.json`/`tsconfig.json`, built
+  to `dist/`, shipped by the `Publish SDK` workflow on a `sdk-v*` tag).
 - `config/` — single source of truth for env-driven values (`index.ts`): `dsql`, `openai`, `app`,
   `demo`, `limits`, plus `requiredEnv` (lazy). `core/` and `sdk/` stay config-free.
-- `app/` `components/` `lib/` — Next.js (App Router) dashboard + API routes + server helpers. Every
-  route runs through `lib/api.ts` `withRoute` (request id, sanitized errors, admin auth, rate limit).
-  Auth is open when `ADMIN_TOKEN` is unset, enforced when set.
+- `app/` `components/` `lib/` — Next.js (App Router) multipage console + API routes + server helpers.
+  Pages: `/dashboard` (overview), `/incident` (replay), `/settlement` (reserve→pay→settle),
+  `/audit` (chain verification + journal export), `/attribution` (chargeback/showback) — all share
+  the `AppTabs` sub-nav. Every route runs through `lib/api.ts` `withRoute` (request id, sanitized
+  errors, admin auth, rate limit); page-level gating via `adminPageAllowed`. Auth is open when
+  `ADMIN_TOKEN` is unset, enforced when set.
 - `scripts/` — operational commands (migrate/seed/seed:activity/check/demo-agent). `test/` —
   invariant + live proofs. `docs/` — local-only planning notes (gitignored).
 
@@ -124,6 +136,7 @@ layer — the system of record across the whole fleet.
 - DB: `npm run check:db` · `npm run migrate` · `npm run seed` · `npm run seed:activity`
 - Demo agent (needs `npm run dev`): `npm run demo:agent`
 - Offline invariant gate (in-memory OCC, no cluster): `npm test` / `npm run test:invariant`
+- **Exactly-once harness** (naive double-pay vs Stub, prints pass/fail): `npm run harness`
 - **Live cross-region overspend proof:** `npm run test:live` (`test/live/cross-region.test.ts`) —
   6 agents across two regions race one near-empty budget on the real cluster → exactly what fits
   commits, the rest deny with real OCC `40001`s, balance never negative. Auto-skips without
@@ -139,3 +152,5 @@ layer — the system of record across the whole fleet.
   box always answers. Response carries `engine: "openai" | "parser" | "cache"`.
 - **Cache:** answers are cached in DSQL keyed on question + ledger fingerprint (see `query_cache`).
 - The account filter matches a team *or its agents* (so "Marketing" catches research-agent).
+- `groupBy` includes `costCenter` so the box can answer chargeback/showback questions ("spend by
+  cost center", "by customer") over the same parameterized query path.
