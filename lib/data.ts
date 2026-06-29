@@ -1,5 +1,5 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
 import type { AccountType } from "@/core/store";
@@ -382,6 +382,41 @@ export async function runLedgerQuery(q: LedgerQuery): Promise<QueryResultRow[]> 
     totalMicro: BigInt(r.total_micro as string),
     count: Number(r.cnt),
   }));
+}
+
+export async function ledgerFingerprint(): Promise<string> {
+  const { rows } = await query<{ e: string; d: string }>(
+    `SELECT (SELECT count(*) FROM entries) AS e, (SELECT count(*) FROM denials) AS d`,
+  );
+  return `${rows[0]?.e ?? 0}:${rows[0]?.d ?? 0}`;
+}
+
+export function queryCacheKey(question: string, fingerprint: string): string {
+  const norm = question.trim().toLowerCase().replace(/\s+/g, " ");
+  return createHash("sha256").update(`${norm}|${fingerprint}`).digest("hex");
+}
+
+export async function getCachedQuery(key: string): Promise<Record<string, unknown> | null> {
+  const { rows } = await query<{ payload: Record<string, unknown> }>(
+    `SELECT payload FROM query_cache WHERE cache_key = $1`,
+    [key],
+  );
+  return rows[0]?.payload ?? null;
+}
+
+export async function putCachedQuery(
+  key: string,
+  question: string,
+  payload: unknown,
+): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO query_cache (cache_key, question, payload) VALUES ($1, $2, $3)`,
+      [key, question, JSON.stringify(payload)],
+    );
+  } catch {
+    // best-effort cache — ignore duplicate-key races
+  }
 }
 
 export async function listDenials(limit = 20): Promise<DenialRow[]> {

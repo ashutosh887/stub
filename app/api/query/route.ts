@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { answerSpendQuestion, openaiEnabled } from "@/lib/ai";
 import { describeQuery, parseQuestion, summarize } from "@/core/query";
-import { runLedgerQuery } from "@/lib/data";
+import {
+  getCachedQuery,
+  ledgerFingerprint,
+  putCachedQuery,
+  queryCacheKey,
+  runLedgerQuery,
+} from "@/lib/data";
 import { microToUsd } from "@/lib/money";
 import { limits } from "@/config";
 import { HttpError, readJson, withRoute } from "@/lib/api";
@@ -17,10 +23,19 @@ export const POST = withRoute(
     const body = await readJson<{ question?: string }>(request);
     const question = requireText(body.question, "question", limits.maxQuestionLength);
 
+    // Cache keyed on the question + a ledger fingerprint, so repeated questions
+    // are free but any new spend (which changes the fingerprint) gets a fresh answer.
+    const key = queryCacheKey(question, await ledgerFingerprint());
+    const cached = await getCachedQuery(key);
+    if (cached) {
+      return NextResponse.json({ ...cached, engine: "cache" });
+    }
+
+    let payload: Record<string, unknown>;
     try {
       if (!openaiEnabled) throw new Error("OpenAI not configured");
       const result = await answerSpendQuestion(question);
-      return NextResponse.json({ ...result, engine: "openai" });
+      payload = { ...result, engine: "openai" };
     } catch (llmErr) {
       if (openaiEnabled) {
         log.warn("query_openai_fallback", { requestId, error: (llmErr as Error).message });
@@ -33,16 +48,19 @@ export const POST = withRoute(
           amountUsd: microToUsd(r.totalMicro),
           count: r.count,
         }));
-        return NextResponse.json({
+        payload = {
           answer: summarize(rows, query),
           description: describeQuery(query),
           query,
           rows,
           engine: "parser",
-        });
+        };
       } catch (parserErr) {
         throw new HttpError(502, (parserErr as Error).message);
       }
     }
+
+    await putCachedQuery(key, question, payload);
+    return NextResponse.json(payload);
   },
 );

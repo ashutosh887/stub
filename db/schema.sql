@@ -46,6 +46,13 @@ CREATE TABLE IF NOT EXISTS idempotency_keys (
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS query_cache (
+  cache_key       TEXT PRIMARY KEY,
+  question        TEXT NOT NULL,
+  payload         JSONB NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS policies (
   id                       UUID PRIMARY KEY,
   account_id               UUID NOT NULL,
