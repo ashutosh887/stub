@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FaGithub, FaNpm } from "react-icons/fa6";
 
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
 const NPM_URL = "https://www.npmjs.com/package/trystub";
@@ -28,17 +29,21 @@ export function SiteNav({ current }: { current?: "home" | "how" | "dashboard" })
             href={NPM_URL}
             target="_blank"
             rel="noreferrer"
-            className="hidden rounded-md px-3 py-1.5 text-fg-dim transition-colors hover:text-fg sm:inline-block"
+            aria-label="trystub on npm"
+            title="trystub on npm"
+            className="rounded-md p-2 text-fg-dim transition-colors hover:text-fg"
           >
-            npm
+            <FaNpm className="h-5 w-5" />
           </a>
           <a
             href={GITHUB_URL}
             target="_blank"
             rel="noreferrer"
-            className="hidden rounded-md px-3 py-1.5 text-fg-dim transition-colors hover:text-fg sm:inline-block"
+            aria-label="Source on GitHub"
+            title="Source on GitHub"
+            className="rounded-md p-2 text-fg-dim transition-colors hover:text-fg"
           >
-            GitHub
+            <FaGithub className="h-[18px] w-[18px]" />
           </a>
           <Link
             href="/dashboard"
