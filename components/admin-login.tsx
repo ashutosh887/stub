@@ -34,13 +34,13 @@ export function AdminLogin() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <div className="rounded-xl border border-line bg-surface p-6">
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-lg font-semibold tracking-tight text-fg">stub</span>
-          <span className="text-xs uppercase tracking-widest text-fg-mute">admin</span>
+      <div className="rounded-2xl border border-line bg-surface p-7">
+        <div className="flex items-baseline gap-2">
+          <span className="font-display text-xl font-semibold tracking-tight text-fg">Stub</span>
+          <span className="text-[11px] uppercase tracking-[0.18em] text-fg-mute">control</span>
         </div>
-        <h1 className="mt-3 text-lg font-semibold text-fg">Sign in</h1>
-        <p className="mt-1 text-sm text-fg-dim">Enter the admin token to manage spend controls.</p>
+        <h1 className="mt-4 font-display text-xl font-semibold text-fg">Sign in</h1>
+        <p className="mt-1 text-sm text-fg-dim">Enter your admin token to manage spend controls.</p>
         <form onSubmit={submit} className="mt-4 flex flex-col gap-3">
           <input
             type="password"

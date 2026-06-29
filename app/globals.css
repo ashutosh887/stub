@@ -1,23 +1,30 @@
 @import "tailwindcss";
 
 @theme {
-  --color-ink: #0d1117;
-  --color-surface: #151b23;
-  --color-surface-2: #1c232c;
-  --color-line: #262d38;
-  --color-line-bright: #323b48;
-  --color-fg: #e6edf3;
-  --color-fg-dim: #9aa7b4;
-  --color-fg-mute: #6b7785;
-  --color-commit: #3fb950;
-  --color-commit-dim: #1f6f33;
-  --color-deny: #f85149;
-  --color-deny-dim: #7a2620;
-  --color-warn: #d6a017;
-  --color-brand: #4fd6c2;
+  /* Ledger terminal — deep cool ink, refined surfaces, one gold brand accent.
+     Green/red are reserved strictly for credit/debit + status, muted on purpose. */
+  --color-ink: #07090d;
+  --color-surface: #0e131b;
+  --color-surface-2: #141b25;
+  --color-line: #1e2630;
+  --color-line-bright: #2c3744;
+  --color-fg: #eef1f5;
+  --color-fg-dim: #98a4b2;
+  --color-fg-mute: #5e6a77;
+
+  --color-commit: #46c08a;
+  --color-commit-dim: #1d5e44;
+  --color-deny: #e5575c;
+  --color-deny-dim: #6f2a2c;
+  --color-warn: #d8a23a;
+
+  /* brand = ledger gold (accounting ink), used with restraint */
+  --color-brand: #e4b363;
+  --color-brand-dim: #8a6c34;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
 }
 
 * {
@@ -35,24 +42,60 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* tabular figures — money is always mono + tabular */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
 }
 
+.font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
+/* signature: the double-entry rule — a hairline that splits debit | credit */
+.ledger-rule {
+  background-image: linear-gradient(
+    to bottom,
+    transparent,
+    var(--color-line-bright) 12%,
+    var(--color-line-bright) 88%,
+    transparent
+  );
+}
+
+/* hero atmosphere: a faint gold wash + grid, not a flat slab */
+.hero-veil {
+  background:
+    radial-gradient(120% 80% at 80% -10%, rgba(228, 179, 99, 0.08), transparent 60%),
+    radial-gradient(90% 60% at 0% 0%, rgba(70, 192, 138, 0.05), transparent 55%);
+}
+
+.grid-veil {
+  background-image:
+    linear-gradient(var(--color-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
+  background-size: 44px 44px;
+  -webkit-mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
+  mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .rise {
-    animation: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
+  .rise-2 { animation-delay: 0.08s; }
+  .rise-3 { animation-delay: 0.16s; }
+  .rise-4 { animation-delay: 0.24s; }
 }
 
 @keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ping-once {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0; }
 }

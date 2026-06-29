@@ -1,327 +1,291 @@
-import {
-  listAccounts,
-  listAgents,
-  listDenials,
-  listEntries,
-  listFleetSpend,
-  listPolicies,
-} from "../lib/data";
-import { formatUsd, microToUsd } from "../lib/money";
-import { forecast } from "../core/forecast";
-import { SpendSimulator } from "../components/spend-simulator";
-import { FreezeToggle, KillSwitch } from "../components/freeze-controls";
-import { LiveRefresh } from "../components/live-refresh";
-import { PolicyEditor, type PolicyView } from "../components/policy-editor";
-import { NlQuery } from "../components/nl-query";
-import { AgentRegistry } from "../components/agent-registry";
-import { AdminLogin } from "../components/admin-login";
-import { cookies } from "next/headers";
-import { security } from "../config";
-import { ADMIN_COOKIE } from "../lib/api";
+import Link from "next/link";
+import { SiteNav } from "@/components/site-nav";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 
-const TYPE_LABEL: Record<string, string> = {
-  org: "Organization",
-  team: "Team",
-  agent: "Agent",
-  vendor: "Vendor",
-};
+const GITHUB_URL = "https://github.com/ashutosh887/stub";
 
-const REASON_LABEL: Record<string, string> = {
-  cap_exceeded: "Over budget",
-  team_cap_exceeded: "Over team budget",
-  org_cap_exceeded: "Over org budget",
-  account_frozen: "Account frozen",
-  velocity_tripped: "Velocity breaker (auto-frozen)",
-  per_txn_limit: "Over per-transaction cap",
-  window_limit: "Over rolling-window cap",
-  vendor_blocked: "Vendor blocked",
-  vendor_not_allowed: "Vendor not allow-listed",
-  needs_approval: "Needs human approval",
-};
-
-const BURN_TONE: Record<string, string> = {
-  ok: "text-fg-mute",
-  notice: "text-fg-dim",
-  warn: "text-warn",
-  critical: "text-deny",
-};
-
-export default async function Dashboard() {
-  if (security.authEnabled) {
-    const jar = await cookies();
-    if (jar.get(ADMIN_COOKIE)?.value !== security.adminToken) return <AdminLogin />;
-  }
-
-  const [accounts, entries, denials, policies, fleetSpend, agents] = await Promise.all([
-    listAccounts(),
-    listEntries(40),
-    listDenials(20),
-    listPolicies(),
-    listFleetSpend(),
-    listAgents(),
-  ]);
-
-  const policyViews: PolicyView[] = policies.map((p) => ({
-    id: p.id,
-    accountId: p.accountId,
-    accountName: p.accountName,
-    label: p.label,
-    enabled: p.enabled,
-    limitUsd: p.limitMicro == null ? null : microToUsd(p.limitMicro),
-    windowSeconds: p.windowSeconds,
-    vendorAllow: p.vendorAllow,
-    vendorBlock: p.vendorBlock,
-    approvalUsd: p.approvalThresholdMicro == null ? null : microToUsd(p.approvalThresholdMicro),
-  }));
-
-  const org = accounts.find((a) => a.type === "org");
-  const cap = org?.capMicro ?? 0n;
-  const spent = accounts
-    .filter((a) => a.type === "vendor")
-    .reduce((sum, a) => sum + a.balanceMicro, 0n);
-  const remaining = cap - spent;
-  const pctSpent = cap > 0n ? Number((spent * 1000n) / cap) / 10 : 0;
-
-  const burn = forecast({ balanceMicro: remaining, events: fleetSpend, nowMs: Date.now() });
-  const runway =
-    burn.daysToDepletion == null
-      ? "—"
-      : burn.daysToDepletion >= 1
-        ? `${burn.daysToDepletion.toFixed(burn.daysToDepletion < 10 ? 1 : 0)}d`
-        : `${Math.max(1, Math.round(burn.daysToDepletion * 24))}h`;
-
-  const budgets = accounts
-    .filter((a) => a.type === "org" || a.type === "team" || a.type === "agent")
-    .map((a) => ({ id: a.id, name: a.name, type: a.type }));
-  const vendors = accounts
-    .filter((a) => a.type === "vendor")
-    .map((a) => ({ id: a.id, name: a.name, type: a.type }));
-
-  const grouped = {
-    team: accounts.filter((a) => a.type === "team"),
-    agent: accounts.filter((a) => a.type === "agent"),
-    vendor: accounts.filter((a) => a.type === "vendor"),
-  };
-
-  const anyActive = accounts.some(
-    (a) => a.type !== "vendor" && !a.frozen,
-  );
-
+export default function Home() {
   return (
-    <main className="mx-auto max-w-6xl px-6 py-10">
-      <header className="flex flex-wrap items-end justify-between gap-4 border-b border-line pb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-lg font-semibold tracking-tight text-fg">stub</span>
-            <span className="text-xs uppercase tracking-widest text-fg-mute">spend control plane</span>
+    <>
+      <SiteNav current="home" />
+
+      {/* Hero */}
+      <header className="relative overflow-hidden border-b border-line hero-veil">
+        <div className="pointer-events-none absolute inset-0 grid-veil opacity-60" />
+        <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-28">
+          <div>
+            <span className="rise inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-fg-dim">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+              Amazon Aurora DSQL · double-entry
+            </span>
+
+            <h1 className="rise rise-2 mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight text-fg sm:text-6xl">
+              One budget your
+              <br />
+              agents can&apos;t break.
+            </h1>
+
+            <p className="rise rise-3 mt-6 max-w-xl text-lg leading-relaxed text-fg-dim">
+              Stub is the general ledger for agent spend. Set one company-wide budget across your
+              whole fleet — and a spend that would breach it{" "}
+              <span className="text-fg">fails the database transaction</span>, not your nerves.
+            </p>
+
+            <div className="rise rise-4 mt-8 flex flex-wrap items-center gap-3">
+              <Link
+                href="/dashboard"
+                className="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+              >
+                Open the live dashboard
+              </Link>
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-line-bright px-5 py-2.5 text-sm font-medium text-fg-dim transition-colors hover:text-fg"
+              >
+                View the source
+              </a>
+            </div>
+
+            <dl className="rise rise-4 mt-10 flex gap-8 border-t border-line pt-6">
+              <Metric value="$0" label="overspend window" />
+              <Metric value="2" label="AWS regions, one budget" />
+              <Metric value="40001" label="the conflict that saves you" />
+            </dl>
           </div>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg">
-            One budget your agents can&apos;t break.
-          </h1>
+
+          {/* Signature: a live double-entry record + a rejected overspend */}
+          <LedgerSignature />
         </div>
-        <LiveRefresh />
       </header>
 
-      <section className="mt-8 rounded-xl border border-line bg-surface p-6">
-        <div className="flex items-baseline justify-between">
+      {/* The moment */}
+      <Section eyebrow="The problem" title="At 2:13am, a fleet spent thousands no one could explain.">
+        <div className="grid gap-6 md:grid-cols-3">
+          <Card
+            head="Limits stop at the session"
+            body="Agent wallets cap spend per session. Run fifty agents and nothing enforces one budget across the fleet — every session is green while the company bleeds."
+          />
+          <Card
+            head="Retries pay twice"
+            body="When two agents race the same dollar, a naive retry can re-fire an irreversible payment. The ledger says one charge; the merchant got two."
+          />
+          <Card
+            head="No one can answer the CFO"
+            body="How much did our agents spend, and on exactly what? Without an audit-grade ledger, the honest answer is a shrug and a grep through logs."
+          />
+        </div>
+      </Section>
+
+      {/* How it holds */}
+      <Section
+        eyebrow="How the budget holds"
+        title="The database is the guardrail — not application luck."
+        muted
+      >
+        <ol className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
+          <Step
+            n="01"
+            head="Every spend is checked in one transaction"
+            body="Policies, the budget hierarchy (org → team → agent), and velocity limits are evaluated inside a single ACID transaction — before any money moves."
+          />
+          <Step
+            n="02"
+            head="A breach loses its commit"
+            body="Under concurrent cross-region writes, Aurora DSQL's optimistic concurrency control returns a serialization failure — SQLSTATE 40001. The overspend never commits."
+          />
+          <Step
+            n="03"
+            head="The denial is recorded, the balance holds"
+            body="Stub retries against the fresh balance or records a denial. The balance never goes negative. Every line is immutable and hash-chained for audit."
+          />
+        </ol>
+      </Section>
+
+      {/* Why DSQL */}
+      <Section eyebrow="Why Amazon Aurora DSQL" title="Swap the database and the guarantee breaks.">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <p className="text-lg leading-relaxed text-fg-dim">
+            Correctness here <span className="text-fg">is</span> the database&apos;s consistency
+            model. The load-bearing property is <span className="text-fg">active-active,
+            multi-region strong consistency</span> — a writer in us-east-1 and a writer in us-east-2
+            hitting the same balance resolve to one consistent outcome. No other AWS database offers
+            it: Aurora PostgreSQL Global is single-writer, and DynamoDB global tables are eventually
+            consistent — last-writer-wins, which means silent overspend during replication.
+          </p>
+          <div className="rounded-2xl border border-line bg-surface p-6">
+            <div className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">
+              The unswappable core
+            </div>
+            <ul className="mt-4 space-y-3 text-sm text-fg-dim">
+              <Bullet>Strong consistency + OCC across regions</Bullet>
+              <Bullet>Double-entry ledger as first-class SQL</Bullet>
+              <Bullet>Hash-chained, tamper-evident audit trail</Bullet>
+              <Bullet>JSON receipts beside relational rows</Bullet>
+            </ul>
+          </div>
+        </div>
+      </Section>
+
+      {/* What it does */}
+      <Section eyebrow="What you get" title="A treasury console for the agent economy." muted>
+        <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+          <Feature head="Hierarchical budgets" body="Org → team → agent caps, enforced together in one transaction." />
+          <Feature head="Policy engine" body="Per-transaction and rolling-window caps, vendor rules, approval thresholds." />
+          <Feature head="Kill switch" body="Freeze one agent or the entire fleet instantly." />
+          <Feature head="Velocity breaker" body="Runaway spend trips a limit and auto-freezes the account." />
+          <Feature head="Ask your ledger" body="Plain-English questions answered over the ledger — never raw SQL." />
+          <Feature head="3-line SDK" body="Drop the budget gate in front of any paid call. Money moves only after it commits." />
+        </div>
+      </Section>
+
+      {/* CTA */}
+      <section className="border-y border-line hero-veil">
+        <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-xs font-medium uppercase tracking-widest text-fg-mute">
-              Org guardrail
-            </div>
-            <div className="mt-1 text-sm text-fg-dim">{org?.name ?? "—"} · company-wide budget</div>
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-fg">
+              See the cap hold, live.
+            </h2>
+            <p className="mt-2 text-fg-dim">
+              Run a spend, trip a limit, watch the ledger answer in plain English.
+            </p>
           </div>
-          <div className="flex items-center gap-4">
-            <KillSwitch anyActive={anyActive} />
-            <div className="text-right">
-              <div className="tabular text-3xl font-semibold text-fg">{formatUsd(remaining)}</div>
-              <div className="text-xs text-fg-mute">remaining of {formatUsd(cap)}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-5 h-3 w-full overflow-hidden rounded-full bg-ink">
-          <div
-            className="h-full rounded-full bg-commit transition-[width] duration-700"
-            style={{
-              width: `${Math.min(pctSpent, 100)}%`,
-              backgroundColor: pctSpent >= 100 ? "var(--color-deny)" : pctSpent >= 80 ? "var(--color-warn)" : "var(--color-commit)",
-            }}
-          />
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm">
-          <Stat label="Committed" value={formatUsd(spent)} />
-          <Stat label="Burn" value={`${pctSpent.toFixed(1)}%`} />
-          <Stat
-            label="Runway"
-            value={runway}
-            tone={burn.daysToDepletion != null && burn.daysToDepletion < 2 ? "deny" : "default"}
-          />
-          <Stat label="Ledger entries" value={String(entries.length)} />
-          <Stat label="Breaches blocked" value={String(denials.length)} tone={denials.length ? "deny" : "default"} />
+          <Link
+            href="/dashboard"
+            className="shrink-0 rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90"
+          >
+            Open the dashboard
+          </Link>
         </div>
       </section>
 
-      <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-        <SectionTitle>Ask</SectionTitle>
-        <p className="mt-1 text-sm text-fg-dim">Ask about your spending in plain English.</p>
-        <div className="mt-4">
-          <NlQuery />
-        </div>
-      </section>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-        <section className="rounded-xl border border-line bg-surface p-6">
-          <SectionTitle>Accounts</SectionTitle>
-          <div className="mt-4 flex flex-col gap-5">
-            {(["team", "agent", "vendor"] as const).map((type) => (
-              <div key={type}>
-                <div className="text-xs font-medium uppercase tracking-widest text-fg-mute">
-                  {TYPE_LABEL[type]}s
-                </div>
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {grouped[type].map((a) => (
-                    <div
-                      key={a.id}
-                      className={`rounded-lg border bg-surface-2 px-3 py-2.5 ${
-                        a.frozen ? "border-deny-dim" : "border-line"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-fg">{a.name}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="tabular text-sm text-fg-dim">{formatUsd(a.balanceMicro)}</span>
-                          {type !== "vendor" && <FreezeToggle accountId={a.id} frozen={a.frozen} />}
-                        </div>
-                      </div>
-                      {type !== "vendor" && a.capMicro != null && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink">
-                            <div
-                              className="h-full rounded-full transition-[width] duration-500"
-                              style={{
-                                width: `${a.burn.pct}%`,
-                                backgroundColor:
-                                  a.burn.state === "critical"
-                                    ? "var(--color-deny)"
-                                    : a.burn.state === "warn"
-                                      ? "var(--color-warn)"
-                                      : "var(--color-commit)",
-                              }}
-                            />
-                          </div>
-                          <span className={`tabular text-[11px] ${BURN_TONE[a.burn.state]}`}>
-                            {a.burn.pct}%
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-line bg-surface p-6">
-          <SectionTitle>Simulate spend</SectionTitle>
-          <p className="mt-1 text-sm text-fg-dim">Try a spend against your budget and policies.</p>
-          <div className="mt-4">
-            <SpendSimulator budgets={budgets} vendors={vendors} />
-          </div>
-        </section>
-      </div>
-
-      <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-        <SectionTitle>Agents</SectionTitle>
-        <p className="mt-1 text-sm text-fg-dim">
-          Know your agents — a real-time registry. Issue a scoped key; spends made with it are
-          pinned to that agent&apos;s budget.
-        </p>
-        <div className="mt-4">
-          <AgentRegistry
-            agents={agents.map((a) => ({
-              id: a.id,
-              name: a.name,
-              accountName: a.accountName,
-              keyPreview: a.keyPreview,
-              createdAt: a.createdAt,
-            }))}
-            budgets={budgets}
-          />
-        </div>
-      </section>
-
-      <section className="mt-6 rounded-xl border border-line bg-surface p-6">
-        <SectionTitle>Policies</SectionTitle>
-        <p className="mt-1 text-sm text-fg-dim">
-          Rules applied to every spend — caps, time windows, vendor rules, and approvals.
-        </p>
-        <div className="mt-4">
-          <PolicyEditor policies={policyViews} budgets={budgets} vendors={vendors} />
-        </div>
-      </section>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-line bg-surface p-6">
-          <SectionTitle>Ledger</SectionTitle>
-          <div className="mt-4 flex flex-col divide-y divide-line">
-            {entries.length === 0 && <Empty>No spend yet.</Empty>}
-            {entries.map((e) => (
-              <div key={e.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-sm text-fg">
-                    {e.intent ?? "spend"} <span className="text-fg-mute">→ {e.accountName}</span>
-                  </div>
-                  <div className="tabular truncate text-xs text-fg-mute">{e.hash.slice(0, 16)}…</div>
-                </div>
-                <span
-                  className={`tabular shrink-0 text-sm ${e.kind === "debit" ? "text-deny" : "text-commit"}`}
-                >
-                  {e.kind === "debit" ? "−" : "+"}
-                  {formatUsd(e.amountMicro < 0n ? -e.amountMicro : e.amountMicro)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-line bg-surface p-6">
-          <SectionTitle>Denials</SectionTitle>
-          <div className="mt-4 flex flex-col divide-y divide-line">
-            {denials.length === 0 && <Empty>No denials yet.</Empty>}
-            {denials.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="truncate text-sm text-fg">{d.intent ?? "spend"}</div>
-                  <div className="text-xs text-deny">{REASON_LABEL[d.reason] ?? d.reason}</div>
-                </div>
-                <span className="tabular shrink-0 text-sm text-fg-dim">{formatUsd(d.attemptedMicro)}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </main>
+      <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-fg-mute sm:flex-row">
+        <span className="font-display text-base text-fg-dim">Stub</span>
+        <span>One budget your agents can&apos;t break. Built on Amazon Aurora DSQL.</span>
+        <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="hover:text-fg">
+          GitHub ↗
+        </a>
+      </footer>
+    </>
   );
 }
 
-function Stat({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "deny" }) {
+/* ── Signature: double-entry record + rejected overspend ── */
+function LedgerSignature() {
   return (
-    <div>
-      <div className="text-xs uppercase tracking-wide text-fg-mute">{label}</div>
-      <div className={`tabular text-base ${tone === "deny" ? "text-deny" : "text-fg"}`}>{value}</div>
+    <div className="rise rise-3 relative">
+      <div className="rounded-2xl border border-line-bright bg-surface p-5 shadow-2xl shadow-black/40">
+        <div className="flex items-center justify-between border-b border-line pb-3">
+          <span className="text-[11px] uppercase tracking-[0.18em] text-fg-mute">Ledger</span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-commit">
+            <span className="h-1.5 w-1.5 rounded-full bg-commit" />
+            committed
+          </span>
+        </div>
+
+        {/* one spend, two entries, split by the double-entry rule */}
+        <div className="relative mt-4 grid grid-cols-2 gap-4">
+          <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ledger-rule" />
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">Debit · budget</div>
+            <div className="mt-1 text-sm text-fg">research-agent</div>
+            <div className="tabular mt-2 text-xl text-deny">−$0.04</div>
+          </div>
+          <div className="pl-4 text-right">
+            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">Credit · vendor</div>
+            <div className="mt-1 text-sm text-fg">Data API (x402)</div>
+            <div className="tabular mt-2 text-xl text-commit">+$0.04</div>
+          </div>
+        </div>
+
+        <div className="tabular mt-4 truncate border-t border-line pt-3 text-[11px] text-fg-mute">
+          hash 9f2a…c41b · prev 6b18…ee03 · intent &quot;fetch market data&quot;
+        </div>
+      </div>
+
+      {/* the rejected overspend, stamped */}
+      <div className="mt-3 flex items-center justify-between rounded-xl border border-deny-dim bg-surface px-5 py-3">
+        <div>
+          <div className="text-sm text-fg">coding-agent → LLM tokens</div>
+          <div className="text-[11px] text-deny">cap exceeded · serialization failure</div>
+        </div>
+        <span className="tabular rounded-md border border-deny-dim px-2 py-1 text-xs text-deny">
+          40001 · rejected
+        </span>
+      </div>
     </div>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-sm font-semibold uppercase tracking-widest text-fg-dim">{children}</h2>;
+/* ── primitives ── */
+function Section({
+  eyebrow,
+  title,
+  muted,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  muted?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={muted ? "bg-surface/40" : ""}>
+      <div className="mx-auto max-w-6xl px-6 py-16">
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">{eyebrow}</div>
+        <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold leading-tight tracking-tight text-fg sm:text-4xl">
+          {title}
+        </h2>
+        <div className="mt-8">{children}</div>
+      </div>
+    </section>
+  );
 }
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="py-6 text-center text-sm text-fg-mute">{children}</div>;
+function Metric({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <div className="tabular text-2xl font-semibold text-fg">{value}</div>
+      <div className="mt-0.5 text-xs text-fg-mute">{label}</div>
+    </div>
+  );
+}
+
+function Card({ head, body }: { head: string; body: string }) {
+  return (
+    <div className="rounded-2xl border border-line bg-surface p-6">
+      <h3 className="text-base font-semibold text-fg">{head}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-fg-dim">{body}</p>
+    </div>
+  );
+}
+
+function Step({ n, head, body }: { n: string; head: string; body: string }) {
+  return (
+    <li className="bg-surface p-6">
+      <div className="tabular text-sm text-brand">{n}</div>
+      <h3 className="mt-3 text-base font-semibold text-fg">{head}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-fg-dim">{body}</p>
+    </li>
+  );
+}
+
+function Feature({ head, body }: { head: string; body: string }) {
+  return (
+    <div className="bg-surface p-6">
+      <h3 className="text-sm font-semibold text-fg">{head}</h3>
+      <p className="mt-1.5 text-sm leading-relaxed text-fg-dim">{body}</p>
+    </div>
+  );
+}
+
+function Bullet({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-2">
+      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand" />
+      <span>{children}</span>
+    </li>
+  );
 }

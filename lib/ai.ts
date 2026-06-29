@@ -36,7 +36,7 @@ export interface AskResult {
 
 function systemPrompt(now: string): string {
   return [
-    "You are the analytics copilot for Stub, a spend control plane for AI agents.",
+    "You are the analytics copilot for Stub, the general ledger for agent spend.",
     `The current timestamp is ${now}.`,
     "The organization has teams (Marketing, Engineering); agents are nested under teams " +
       "(research-agent under Marketing, coding-agent under Engineering); vendors include " +
