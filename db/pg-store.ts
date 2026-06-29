@@ -40,16 +40,15 @@ const ACCOUNT_COLS = `id, type, parent_id, name, balance_micro, cap_micro, froze
 function makeTx(client: PoolClient): Tx {
   return {
     async getAccount(id) {
-      const { rows } = await client.query(
-        `SELECT ${ACCOUNT_COLS} FROM accounts WHERE id = $1`,
-        [id],
-      );
+      const { rows } = await client.query(`SELECT ${ACCOUNT_COLS} FROM accounts WHERE id = $1`, [
+        id,
+      ]);
       return rows[0] ? toAccount(rows[0]) : null;
     },
     async getAncestors(id) {
       const result: Account[] = [];
       const seen = new Set<string>([id]);
-      let { rows } = await client.query(`SELECT parent_id FROM accounts WHERE id = $1`, [id]);
+      const { rows } = await client.query(`SELECT parent_id FROM accounts WHERE id = $1`, [id]);
       let parentId = (rows[0]?.parent_id as string | null) ?? null;
       while (parentId && !seen.has(parentId)) {
         seen.add(parentId);
@@ -120,10 +119,10 @@ function makeTx(client: PoolClient): Tx {
       return rows[0]?.transaction_id ?? null;
     },
     async putIdempotent(key, transactionId) {
-      await client.query(
-        `INSERT INTO idempotency_keys (key, transaction_id) VALUES ($1, $2)`,
-        [key, transactionId],
-      );
+      await client.query(`INSERT INTO idempotency_keys (key, transaction_id) VALUES ($1, $2)`, [
+        key,
+        transactionId,
+      ]);
     },
     async getPolicies(accountId) {
       const { rows } = await client.query(

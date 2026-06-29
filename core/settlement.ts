@@ -127,7 +127,10 @@ async function reserveTx(tx: Tx, request: SpendRequest): Promise<ReserveOutcome>
       vendorId: vendor.id,
       spentInWindow: (windowSeconds) => tx.spentInWindow(budget.id, windowSeconds),
     });
-    if (verdict.decision !== "allow" && !(verdict.decision === "needs_approval" && request.approve)) {
+    if (
+      verdict.decision !== "allow" &&
+      !(verdict.decision === "needs_approval" && request.approve)
+    ) {
       const outcome = await deny(verdict.reason);
       if (verdict.decision === "needs_approval") return { ...outcome, status: "needs_approval" };
       return outcome;
@@ -147,7 +150,11 @@ async function reserveTx(tx: Tx, request: SpendRequest): Promise<ReserveOutcome>
     return deny(binding.id === budget.id ? "cap_exceeded" : `${binding.type}_cap_exceeded`);
   }
 
-  await tx.updateAccount(budget.id, budget.balanceMicro - request.amountMicro, budget.lastEntryHash);
+  await tx.updateAccount(
+    budget.id,
+    budget.balanceMicro - request.amountMicro,
+    budget.lastEntryHash,
+  );
   for (const ancestor of ancestors) {
     await tx.updateAccount(
       ancestor.id,
@@ -184,7 +191,13 @@ async function settleTx(
 ): Promise<SettleOutcome> {
   const reservation = await tx.getReservation(reservationId);
   if (!reservation) {
-    return { status: "not_found", reservationId, transactionId: null, settledMicro: 0n, refundMicro: 0n };
+    return {
+      status: "not_found",
+      reservationId,
+      transactionId: null,
+      settledMicro: 0n,
+      refundMicro: 0n,
+    };
   }
   if (reservation.status === "settled") {
     return {
@@ -208,10 +221,24 @@ async function settleTx(
 
   const actual = actualMicro ?? reservation.heldMicro;
   if (actual <= 0n) {
-    return { status: "invalid", reservationId, transactionId: null, settledMicro: 0n, refundMicro: 0n, reason: "non_positive_amount" };
+    return {
+      status: "invalid",
+      reservationId,
+      transactionId: null,
+      settledMicro: 0n,
+      refundMicro: 0n,
+      reason: "non_positive_amount",
+    };
   }
   if (actual > reservation.heldMicro) {
-    return { status: "invalid", reservationId, transactionId: null, settledMicro: 0n, refundMicro: 0n, reason: "exceeds_hold" };
+    return {
+      status: "invalid",
+      reservationId,
+      transactionId: null,
+      settledMicro: 0n,
+      refundMicro: 0n,
+      reason: "exceeds_hold",
+    };
   }
 
   const budget = await tx.getAccount(reservation.budgetAccountId);
@@ -228,8 +255,20 @@ async function settleTx(
     costCenter: reservation.costCenter,
     receipt: reservation.receipt,
   };
-  const debit = buildEntry({ transactionId, account: budget, kind: "debit", amountMicro: -actual, request: attribution });
-  const credit = buildEntry({ transactionId, account: vendor, kind: "credit", amountMicro: actual, request: attribution });
+  const debit = buildEntry({
+    transactionId,
+    account: budget,
+    kind: "debit",
+    amountMicro: -actual,
+    request: attribution,
+  });
+  const credit = buildEntry({
+    transactionId,
+    account: vendor,
+    kind: "credit",
+    amountMicro: actual,
+    request: attribution,
+  });
 
   const refund = reservation.heldMicro - actual;
 
@@ -243,15 +282,26 @@ async function settleTx(
     await tx.updateAccount(ancestor.id, ancestor.balanceMicro + refund, ancestor.lastEntryHash);
   }
 
-  await tx.updateReservation(reservationId, { status: "settled", settledMicro: actual, transactionId });
+  await tx.updateReservation(reservationId, {
+    status: "settled",
+    settledMicro: actual,
+    transactionId,
+  });
 
-  return { status: "settled", reservationId, transactionId, settledMicro: actual, refundMicro: refund };
+  return {
+    status: "settled",
+    reservationId,
+    transactionId,
+    settledMicro: actual,
+    refundMicro: refund,
+  };
 }
 
 async function releaseTx(tx: Tx, reservationId: string): Promise<ReleaseOutcome> {
   const reservation = await tx.getReservation(reservationId);
   if (!reservation) return { status: "not_found", reservationId, refundMicro: 0n };
-  if (reservation.status === "released") return { status: "duplicate", reservationId, refundMicro: 0n };
+  if (reservation.status === "released")
+    return { status: "duplicate", reservationId, refundMicro: 0n };
   if (reservation.status === "settled") {
     return { status: "invalid", reservationId, refundMicro: 0n, reason: "already_settled" };
   }
@@ -259,10 +309,18 @@ async function releaseTx(tx: Tx, reservationId: string): Promise<ReleaseOutcome>
   const budget = await tx.getAccount(reservation.budgetAccountId);
   if (!budget) throw new Error(`unknown budget account: ${reservation.budgetAccountId}`);
 
-  await tx.updateAccount(budget.id, budget.balanceMicro + reservation.heldMicro, budget.lastEntryHash);
+  await tx.updateAccount(
+    budget.id,
+    budget.balanceMicro + reservation.heldMicro,
+    budget.lastEntryHash,
+  );
   const ancestors = await tx.getAncestors(budget.id);
   for (const ancestor of ancestors) {
-    await tx.updateAccount(ancestor.id, ancestor.balanceMicro + reservation.heldMicro, ancestor.lastEntryHash);
+    await tx.updateAccount(
+      ancestor.id,
+      ancestor.balanceMicro + reservation.heldMicro,
+      ancestor.lastEntryHash,
+    );
   }
 
   await tx.updateReservation(reservationId, { status: "released" });

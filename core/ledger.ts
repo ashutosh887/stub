@@ -119,7 +119,10 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
       vendorId: vendor.id,
       spentInWindow: (windowSeconds) => tx.spentInWindow(budget.id, windowSeconds),
     });
-    if (verdict.decision !== "allow" && !(verdict.decision === "needs_approval" && request.approve)) {
+    if (
+      verdict.decision !== "allow" &&
+      !(verdict.decision === "needs_approval" && request.approve)
+    ) {
       const outcome = await deny(verdict.reason);
       if (verdict.decision === "needs_approval") return { ...outcome, status: "needs_approval" };
       return outcome;
@@ -160,7 +163,11 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
   await tx.updateAccount(vendor.id, vendor.balanceMicro + request.amountMicro, credit.hash);
 
   for (const ancestor of ancestors) {
-    await tx.updateAccount(ancestor.id, ancestor.balanceMicro - request.amountMicro, ancestor.lastEntryHash);
+    await tx.updateAccount(
+      ancestor.id,
+      ancestor.balanceMicro - request.amountMicro,
+      ancestor.lastEntryHash,
+    );
   }
 
   if (request.idempotencyKey) {

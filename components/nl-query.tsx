@@ -54,8 +54,7 @@ export function NlQuery() {
     }
   }
 
-  const maxAmount =
-    result?.rows.reduce((m, r) => Math.max(m, Number(r.amountUsd)), 0) ?? 0;
+  const maxAmount = result?.rows.reduce((m, r) => Math.max(m, Number(r.amountUsd)), 0) ?? 0;
   const maxCount = result?.rows.reduce((m, r) => Math.max(m, r.count), 0) ?? 0;
   const byCount = result?.query.metric === "count";
 

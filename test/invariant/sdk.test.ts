@@ -18,7 +18,10 @@ describe("SDK + x402 gate", () => {
     const ok = new StubClient({
       apiKey: "stub_sk_test",
       fetch: routeFetch({
-        "/api/spend": { status: 200, body: { status: "committed", transactionId: "t1", conflicts: 0, attempts: 1 } },
+        "/api/spend": {
+          status: 200,
+          body: { status: "committed", transactionId: "t1", conflicts: 0, attempts: 1 },
+        },
       }),
     });
     expect(await ok.guard({ vendorAccountId: "v", amountUsd: "0.01" })).toBe(true);
@@ -26,7 +29,16 @@ describe("SDK + x402 gate", () => {
     const denied = new StubClient({
       apiKey: "stub_sk_test",
       fetch: routeFetch({
-        "/api/spend": { status: 402, body: { status: "denied", reason: "cap_exceeded", transactionId: "t2", conflicts: 0, attempts: 1 } },
+        "/api/spend": {
+          status: 402,
+          body: {
+            status: "denied",
+            reason: "cap_exceeded",
+            transactionId: "t2",
+            conflicts: 0,
+            attempts: 1,
+          },
+        },
       }),
     });
     expect(await denied.guard({ vendorAccountId: "v", amountUsd: "9999" })).toBe(false);
@@ -36,8 +48,20 @@ describe("SDK + x402 gate", () => {
     let payCount = 0;
     const allowed = new StubClient({
       fetch: routeFetch({
-        "/api/reserve": { status: 200, body: { status: "reserved", reservationId: "r1", conflicts: 0, attempts: 1 } },
-        "/api/settle": { status: 200, body: { status: "settled", reservationId: "r1", transactionId: "t", settledMicro: "20000", refundMicro: "0" } },
+        "/api/reserve": {
+          status: 200,
+          body: { status: "reserved", reservationId: "r1", conflicts: 0, attempts: 1 },
+        },
+        "/api/settle": {
+          status: 200,
+          body: {
+            status: "settled",
+            reservationId: "r1",
+            transactionId: "t",
+            settledMicro: "20000",
+            refundMicro: "0",
+          },
+        },
       }),
     });
     const exchange = mockX402Resource("0.02", { rows: 5 })();
@@ -57,7 +81,16 @@ describe("SDK + x402 gate", () => {
     let paidWhenDenied = false;
     const denied = new StubClient({
       fetch: routeFetch({
-        "/api/reserve": { status: 402, body: { status: "denied", reason: "velocity_tripped", reservationId: "", conflicts: 0, attempts: 1 } },
+        "/api/reserve": {
+          status: 402,
+          body: {
+            status: "denied",
+            reason: "velocity_tripped",
+            reservationId: "",
+            conflicts: 0,
+            attempts: 1,
+          },
+        },
       }),
     });
     const exchange = {
@@ -68,7 +101,9 @@ describe("SDK + x402 gate", () => {
         return { result: { rows: 5 } };
       },
     };
-    await expect(payThroughStub(denied, "vendor", exchange)).rejects.toBeInstanceOf(BudgetDeniedError);
+    await expect(payThroughStub(denied, "vendor", exchange)).rejects.toBeInstanceOf(
+      BudgetDeniedError,
+    );
     expect(paidWhenDenied).toBe(false);
   });
 
@@ -76,8 +111,14 @@ describe("SDK + x402 gate", () => {
     let released = false;
     const flaky = new StubClient({
       fetch: routeFetch({
-        "/api/reserve": { status: 200, body: { status: "reserved", reservationId: "r2", conflicts: 0, attempts: 1 } },
-        "/api/release": { status: 200, body: { status: "released", reservationId: "r2", refundMicro: "20000" } },
+        "/api/reserve": {
+          status: 200,
+          body: { status: "reserved", reservationId: "r2", conflicts: 0, attempts: 1 },
+        },
+        "/api/release": {
+          status: 200,
+          body: { status: "released", reservationId: "r2", refundMicro: "20000" },
+        },
       }),
     });
     const exchange = {

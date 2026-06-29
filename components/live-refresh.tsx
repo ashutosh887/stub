@@ -35,7 +35,9 @@ export function LiveRefresh({ intervalMs = 4000 }: { intervalMs?: number }) {
             }`}
           />
         )}
-        <span className={`relative inline-flex h-2 w-2 rounded-full ${live ? "bg-commit" : "bg-fg-mute"}`} />
+        <span
+          className={`relative inline-flex h-2 w-2 rounded-full ${live ? "bg-commit" : "bg-fg-mute"}`}
+        />
       </span>
       <span className="tabular text-xs text-fg-dim">{live ? "Live" : "Paused"}</span>
     </button>

@@ -1,12 +1,7 @@
 import "server-only";
 import OpenAI from "openai";
 import type { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import {
-  QUERY_TOOL,
-  describeQuery,
-  normalizeLedgerQuery,
-  type LedgerQuery,
-} from "@/core/query";
+import { QUERY_TOOL, describeQuery, normalizeLedgerQuery, type LedgerQuery } from "@/core/query";
 import { runLedgerQuery } from "@/lib/data";
 import { microToUsd } from "@/lib/money";
 import { openai } from "@/config";
@@ -131,7 +126,9 @@ function fallbackAnswer(rows: AskResultRow[], query: LedgerQuery): string {
       : `$${r.amountUsd} total.`;
   }
   return rows
-    .map((r) => (query.metric === "count" ? `${r.label}: ${r.count}` : `${r.label}: $${r.amountUsd}`))
+    .map((r) =>
+      query.metric === "count" ? `${r.label}: ${r.count}` : `${r.label}: $${r.amountUsd}`,
+    )
     .join(" · ");
 }
 
@@ -142,7 +139,9 @@ function describeError(err: unknown): Error {
     return new Error(`OpenAI rejected the key — check OPENAI_API_KEY. (${message})`);
   }
   if (status === 404 || /model.*(not found|does not exist)/i.test(message)) {
-    return new Error(`Model "${MODEL}" not available on this account. Set OPENAI_MODEL. (${message})`);
+    return new Error(
+      `Model "${MODEL}" not available on this account. Set OPENAI_MODEL. (${message})`,
+    );
   }
   if (status === 429 || /quota|rate limit/i.test(message)) {
     return new Error(`OpenAI quota/rate limit hit for ${MODEL}. (${message})`);

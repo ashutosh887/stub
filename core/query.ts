@@ -1,13 +1,6 @@
 export type QuerySource = "spend" | "denials";
 export type GroupBy =
-  | "none"
-  | "vendor"
-  | "account"
-  | "agent"
-  | "intent"
-  | "costCenter"
-  | "reason"
-  | "day";
+  "none" | "vendor" | "account" | "agent" | "intent" | "costCenter" | "reason" | "day";
 export type Metric = "total" | "count";
 
 export interface LedgerQuery {
@@ -54,11 +47,13 @@ export const QUERY_TOOL = {
       source: {
         type: "string",
         enum: SOURCES,
-        description: "'spend' for committed spend, 'denials' for blocked attempts. Default 'spend'.",
+        description:
+          "'spend' for committed spend, 'denials' for blocked attempts. Default 'spend'.",
       },
       account: {
         type: ["string", "null"],
-        description: "Name of a spending account or team to filter by (matches account or its parent team). e.g. 'Marketing', 'research-agent'.",
+        description:
+          "Name of a spending account or team to filter by (matches account or its parent team). e.g. 'Marketing', 'research-agent'.",
       },
       vendor: {
         type: ["string", "null"],
@@ -74,11 +69,13 @@ export const QUERY_TOOL = {
       },
       reason: {
         type: ["string", "null"],
-        description: "Denial reason to filter by (denials only): cap_exceeded, per_txn_limit, window_limit, vendor_blocked, vendor_not_allowed, needs_approval, account_frozen.",
+        description:
+          "Denial reason to filter by (denials only): cap_exceeded, per_txn_limit, window_limit, vendor_blocked, vendor_not_allowed, needs_approval, account_frozen.",
       },
       since: {
         type: ["string", "null"],
-        description: "ISO-8601 timestamp lower bound (inclusive). Compute from the current timestamp for phrases like 'last night' or 'this week'.",
+        description:
+          "ISO-8601 timestamp lower bound (inclusive). Compute from the current timestamp for phrases like 'last night' or 'this week'.",
       },
       until: {
         type: ["string", "null"],
@@ -118,7 +115,9 @@ function isoOrNull(value: unknown): string | null {
 }
 
 function pick<T extends string>(value: unknown, allowed: T[], fallback: T): T {
-  return typeof value === "string" && (allowed as string[]).includes(value) ? (value as T) : fallback;
+  return typeof value === "string" && (allowed as string[]).includes(value)
+    ? (value as T)
+    : fallback;
 }
 
 export function normalizeLedgerQuery(raw: unknown): LedgerQuery {
@@ -155,7 +154,10 @@ const GROUP_PHRASE: Record<GroupBy, string> = {
 
 export function describeQuery(q: LedgerQuery): string {
   const noun = q.source === "denials" ? "denied spend" : "spend";
-  const head = q.metric === "count" ? `Number of ${q.source === "denials" ? "denials" : "spends"}` : `Total ${noun}`;
+  const head =
+    q.metric === "count"
+      ? `Number of ${q.source === "denials" ? "denials" : "spends"}`
+      : `Total ${noun}`;
 
   const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -172,7 +174,6 @@ export function describeQuery(q: LedgerQuery): string {
   return `${head}${GROUP_PHRASE[q.groupBy]}${filters}`;
 }
 
-// Vocabulary from the seed data — keep in sync if account/vendor names change.
 const TEAM_NAMES = ["marketing", "engineering"];
 const AGENT_NAMES = ["research-agent", "research agent", "coding-agent", "coding agent"];
 const VENDOR_HINTS: Array<[RegExp, string]> = [
@@ -195,7 +196,8 @@ function parseTime(q: string, nowMs: number): { since: string | null; until: str
   if (/today/.test(q)) return { since: startOfDay(nowMs).toISOString(), until: null };
   if (/last night|overnight|past 24|last 24|past day/.test(q))
     return { since: new Date(nowMs - DAY).toISOString(), until: null };
-  if (/last hour|past hour/.test(q)) return { since: new Date(nowMs - 3_600_000).toISOString(), until: null };
+  if (/last hour|past hour/.test(q))
+    return { since: new Date(nowMs - 3_600_000).toISOString(), until: null };
   if (/this week|past week|last week|last 7|7 days/.test(q))
     return { since: new Date(nowMs - 7 * DAY).toISOString(), until: null };
   if (/this month|past month|last month|last 30|30 days/.test(q))
@@ -203,17 +205,22 @@ function parseTime(q: string, nowMs: number): { since: string | null; until: str
   return { since: null, until: null };
 }
 
-// Deterministic, dependency-free fallback for the natural-language box when no LLM is configured.
 export function parseQuestion(question: string, nowMs: number): LedgerQuery {
   const q = question.toLowerCase();
 
-  const source: QuerySource = /\b(denie|denial|deny|block|reject|refus)/.test(q) ? "denials" : "spend";
+  const source: QuerySource = /\b(denie|denial|deny|block|reject|refus)/.test(q)
+    ? "denials"
+    : "spend";
   const metric: Metric = /\b(how many|number of|count|times)\b/.test(q) ? "count" : "total";
 
   let groupBy: GroupBy = "none";
   if (/by reason|reasons|\bwhy\b/.test(q)) groupBy = "reason";
   else if (/by day|per day|daily|by date|each day/.test(q)) groupBy = "day";
-  else if (/cost cent|chargeback|charge back|showback|show back|by customer|by feature|per customer|per feature/.test(q))
+  else if (
+    /cost cent|chargeback|charge back|showback|show back|by customer|by feature|per customer|per feature/.test(
+      q,
+    )
+  )
     groupBy = "costCenter";
   else if (/by intent|per intent|each intent/.test(q)) groupBy = "intent";
   else if (/by vendor|per vendor|each vendor|top vendor|vendors\b/.test(q)) groupBy = "vendor";

@@ -94,7 +94,12 @@ export function withRoute(
     try {
       const res = await handler({ request, requestId });
       res.headers.set("x-request-id", requestId);
-      log.info("request", { route: opts.name, requestId, status: res.status, ms: Date.now() - start });
+      log.info("request", {
+        route: opts.name,
+        requestId,
+        status: res.status,
+        ms: Date.now() - start,
+      });
       return res;
     } catch (err) {
       if (err instanceof HttpError || err instanceof ValidationError) {

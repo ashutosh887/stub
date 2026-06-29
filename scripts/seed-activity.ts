@@ -4,10 +4,6 @@ import { spend } from "@/core/ledger";
 import { reserve, settle, release } from "@/core/settlement";
 import { query, close } from "@/db/client";
 
-// Generates realistic ledger activity by running real spends through the core
-// ledger against the live cluster — committed double-entry lines + a few denials.
-// Run AFTER `npm run seed` (which resets accounts and clears history).
-
 const usd = (n: number) => BigInt(Math.round(n * 1_000_000));
 
 interface Row {
@@ -46,7 +42,11 @@ async function main() {
         vendor: vendor.name,
         amountUsd: amount.toFixed(2),
         intent,
-        proof: "0x" + Math.abs(Math.round(amount * 1e8)).toString(16).padStart(12, "0"),
+        proof:
+          "0x" +
+          Math.abs(Math.round(amount * 1e8))
+            .toString(16)
+            .padStart(12, "0"),
       },
     });
     if (r.status === "committed") committed += 1;
@@ -54,7 +54,6 @@ async function main() {
     return r;
   }
 
-  // research-agent → Data API, attributed across cost centers (kept under the velocity breaker)
   const dataSpends: [number, string, string][] = [
     [0.04, "fetch market data", "Marketing"],
     [0.2, "scrape SEC filings", "Customer: Acme"],
@@ -65,7 +64,6 @@ async function main() {
   ];
   for (const [amt, intent, cc] of dataSpends) await run(research, dataApi, amt, intent, cc);
 
-  // coding-agent → LLM tokens, attributed across cost centers
   const llmSpends: [number, string, string][] = [
     [4.5, "generate API client", "Feature: Search"],
     [2.1, "write unit tests", "Engineering"],
@@ -78,15 +76,12 @@ async function main() {
   ];
   for (const [amt, intent, cc] of llmSpends) await run(coding, llm, amt, intent, cc);
 
-  // A denial: over the agent's cap (no state change — just a recorded denial)
   await run(coding, llm, 500, "bulk fine-tune run", "Engineering");
 
-  // A second denial with a different reason: spend against a momentarily frozen account
   await query("UPDATE accounts SET frozen = true WHERE id = $1", [coding.id]);
   await run(coding, llm, 5, "nightly batch job", "Engineering");
   await query("UPDATE accounts SET frozen = false WHERE id = $1", [coding.id]);
 
-  // A settled reservation (estimate held, real cost lower → refund) and a released one.
   const held = await reserve(store, {
     budgetAccountId: research.id,
     vendorAccountId: dataApi.id,
@@ -95,7 +90,8 @@ async function main() {
     costCenter: "Marketing",
     agentId: research.name,
   });
-  if (held.status === "reserved") await settle(store, held.reservationId, { actualMicro: usd(0.18) });
+  if (held.status === "reserved")
+    await settle(store, held.reservationId, { actualMicro: usd(0.18) });
 
   const cancelled = await reserve(store, {
     budgetAccountId: research.id,
@@ -107,7 +103,9 @@ async function main() {
   });
   if (cancelled.status === "reserved") await release(store, cancelled.reservationId);
 
-  console.log(`\n  ${committed} committed · ${denied} denied · 2 reservations (1 settled, 1 released)`);
+  console.log(
+    `\n  ${committed} committed · ${denied} denied · 2 reservations (1 settled, 1 released)`,
+  );
   console.log("  Ledger now has attributed double-entry history, denials, and reservations.\n");
 }
 

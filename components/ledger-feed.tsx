@@ -81,7 +81,9 @@ export function LedgerFeed({ entries }: { entries: FeedEntry[] }) {
                     Payment receipt
                   </div>
                   <pre className="tabular mt-2 overflow-x-auto whitespace-pre-wrap break-words text-fg-dim">
-                    {e.receipt ? JSON.stringify(e.receipt, null, 2) : "No receipt captured for this entry."}
+                    {e.receipt
+                      ? JSON.stringify(e.receipt, null, 2)
+                      : "No receipt captured for this entry."}
                   </pre>
                 </div>
               </div>

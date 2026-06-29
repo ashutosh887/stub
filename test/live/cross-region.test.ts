@@ -120,16 +120,14 @@ describe.skipIf(!PEER_ENDPOINT)(
       const budgetEntries = await loadEntries(budgetId);
       const vendorEntries = await loadEntries(vendorId);
       const finalBudget = (
-        await query<{ balance_micro: string }>(
-          `SELECT balance_micro FROM accounts WHERE id = $1`,
-          [budgetId],
-        )
+        await query<{ balance_micro: string }>(`SELECT balance_micro FROM accounts WHERE id = $1`, [
+          budgetId,
+        ])
       ).rows[0].balance_micro;
       const finalVendor = (
-        await query<{ balance_micro: string }>(
-          `SELECT balance_micro FROM accounts WHERE id = $1`,
-          [vendorId],
-        )
+        await query<{ balance_micro: string }>(`SELECT balance_micro FROM accounts WHERE id = $1`, [
+          vendorId,
+        ])
       ).rows[0].balance_micro;
 
       const balanceMicro = BigInt(finalBudget);

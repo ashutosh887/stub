@@ -117,9 +117,7 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
               <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">
                 Final balance
               </div>
-              <div
-                className={`tabular text-lg ${result.neverNegative ? "text-fg" : "text-deny"}`}
-              >
+              <div className={`tabular text-lg ${result.neverNegative ? "text-fg" : "text-deny"}`}>
                 ${result.finalBalanceUsd.toFixed(2)}
               </div>
               <div className="text-[11px] text-fg-mute">

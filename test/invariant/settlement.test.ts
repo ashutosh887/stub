@@ -144,12 +144,20 @@ describe("settlement: reserve → settle holds funds then books actual cost", ()
 
   it("cannot settle a released hold, cannot release a settled one", async () => {
     const store = seed(5n * USD);
-    const a = await reserve(store, { budgetAccountId: "budget", vendorAccountId: "vendor", amountMicro: 1n * USD });
+    const a = await reserve(store, {
+      budgetAccountId: "budget",
+      vendorAccountId: "vendor",
+      amountMicro: 1n * USD,
+    });
     await release(store, a.reservationId);
     const lateSettle = await settle(store, a.reservationId);
     expect(lateSettle.status).toBe("invalid");
 
-    const b = await reserve(store, { budgetAccountId: "budget", vendorAccountId: "vendor", amountMicro: 1n * USD });
+    const b = await reserve(store, {
+      budgetAccountId: "budget",
+      vendorAccountId: "vendor",
+      amountMicro: 1n * USD,
+    });
     await settle(store, b.reservationId);
     const lateRelease = await release(store, b.reservationId);
     expect(lateRelease.status).toBe("invalid");

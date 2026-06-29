@@ -23,8 +23,6 @@ export const POST = withRoute(
     const body = await readJson<{ question?: string }>(request);
     const question = requireText(body.question, "question", limits.maxQuestionLength);
 
-    // Cache keyed on the question + a ledger fingerprint, so repeated questions
-    // are free but any new spend (which changes the fingerprint) gets a fresh answer.
     const key = queryCacheKey(question, await ledgerFingerprint());
     const cached = await getCachedQuery(key);
     if (cached) {

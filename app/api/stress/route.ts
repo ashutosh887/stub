@@ -11,12 +11,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const USD = 1_000_000n;
-const PER_SPEND = 250_000n; // $0.25 — only 4 fit in a $1.00 budget
+const PER_SPEND = 250_000n;
 
-// Races N concurrent spends at one near-empty budget on the real cluster. Each
-// spend uses its own connection (dedicated pool) so the OCC conflicts are real
-// 40001s, not serialized. Runs in isolated accounts that are deleted after, so
-// the main ledger is never touched.
 export const POST = withRoute({ name: "stress" }, async ({ request }) => {
   if (!isAdmin(request)) throw new HttpError(401, "unauthorized");
   const body = await readJson<{ count?: number }>(request).catch(() => ({ count: 12 }));
@@ -57,9 +53,7 @@ export const POST = withRoute({ name: "stress" }, async ({ request }) => {
             agentId: `stress-${i}`,
           },
           { maxRetries: 50 },
-        ).catch(
-          () => ({ status: "denied", conflicts: 0, attempts: 1 } as unknown as SpendResult),
-        ),
+        ).catch(() => ({ status: "denied", conflicts: 0, attempts: 1 }) as unknown as SpendResult),
       ),
     );
 
@@ -86,8 +80,12 @@ export const POST = withRoute({ name: "stress" }, async ({ request }) => {
     });
   } finally {
     await pool.end().catch(() => {});
-    await query(`DELETE FROM entries WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
-    await query(`DELETE FROM denials WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
+    await query(`DELETE FROM entries WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
+      () => {},
+    );
+    await query(`DELETE FROM denials WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
+      () => {},
+    );
     await query(`DELETE FROM accounts WHERE id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
   }
 });

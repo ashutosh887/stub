@@ -35,7 +35,11 @@ export async function evaluatePolicies(
     if (policy.vendorBlock?.includes(ctx.vendorId)) {
       return { decision: "deny", reason: "vendor_blocked", policyLabel: policy.label };
     }
-    if (policy.vendorAllow && policy.vendorAllow.length > 0 && !policy.vendorAllow.includes(ctx.vendorId)) {
+    if (
+      policy.vendorAllow &&
+      policy.vendorAllow.length > 0 &&
+      !policy.vendorAllow.includes(ctx.vendorId)
+    ) {
       return { decision: "deny", reason: "vendor_not_allowed", policyLabel: policy.label };
     }
 
@@ -57,7 +61,11 @@ export async function evaluatePolicies(
       ctx.amountMicro > policy.approvalThresholdMicro &&
       !approval
     ) {
-      approval = { decision: "needs_approval", reason: "needs_approval", policyLabel: policy.label };
+      approval = {
+        decision: "needs_approval",
+        reason: "needs_approval",
+        policyLabel: policy.label,
+      };
     }
   }
 

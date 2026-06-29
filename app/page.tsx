@@ -10,7 +10,6 @@ export default function Home() {
     <>
       <SiteNav current="home" />
 
-      {/* Hero */}
       <header className="relative overflow-hidden border-b border-line hero-veil">
         <div className="pointer-events-none absolute inset-0 grid-veil opacity-60" />
         <div className="relative mx-auto grid max-w-6xl gap-12 px-6 py-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:py-28">
@@ -56,12 +55,10 @@ export default function Home() {
             </dl>
           </div>
 
-          {/* Signature: a live double-entry record + a rejected overspend */}
           <LedgerSignature />
         </div>
       </header>
 
-      {/* The problem */}
       <Section eyebrow="The problem" title="Agents can spend now. Nothing governs the whole fleet.">
         <div className="grid gap-6 md:grid-cols-3">
           <Card
@@ -79,7 +76,6 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* How it holds */}
       <Section
         eyebrow="How the budget holds"
         title="The database is the guardrail — not application luck."
@@ -104,16 +100,16 @@ export default function Home() {
         </ol>
       </Section>
 
-      {/* Why DSQL */}
       <Section eyebrow="Why Amazon Aurora DSQL" title="Swap the database and the guarantee breaks.">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <p className="text-lg leading-relaxed text-fg-dim">
             Correctness here <span className="text-fg">is</span> the database&apos;s consistency
-            model. The load-bearing property is <span className="text-fg">active-active,
-            multi-region strong consistency</span> — a writer in us-east-1 and a writer in us-east-2
-            hitting the same balance resolve to one consistent outcome. No other AWS database offers
-            it: Aurora PostgreSQL Global is single-writer, and DynamoDB global tables are eventually
-            consistent — last-writer-wins, which means silent overspend during replication.
+            model. The load-bearing property is{" "}
+            <span className="text-fg">active-active, multi-region strong consistency</span> — a
+            writer in us-east-1 and a writer in us-east-2 hitting the same balance resolve to one
+            consistent outcome. No other AWS database offers it: Aurora PostgreSQL Global is
+            single-writer, and DynamoDB global tables are eventually consistent — last-writer-wins,
+            which means silent overspend during replication.
           </p>
           <div className="rounded-2xl border border-line bg-surface p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">
@@ -129,22 +125,44 @@ export default function Home() {
         </div>
       </Section>
 
-      {/* What it does */}
       <Section eyebrow="What you get" title="A treasury console for the agent economy." muted>
         <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
-          <Feature head="Hierarchical budgets" body="Org → team → agent caps, enforced together in one transaction." />
-          <Feature head="Exactly-once settlement" body="Reserve, pay once, settle the real cost. A retry around an irreversible payment can't double-charge." />
-          <Feature head="Policy engine" body="Per-transaction and rolling-window caps, vendor rules, approval thresholds." />
-          <Feature head="Cost attribution" body="Tag every spend to a team, customer, or feature and answer chargeback questions cloud bills can't." />
-          <Feature head="Tamper-evident audit" body="Hash-chained entries that detect any altered row, exportable as accounting journal lines." />
-          <Feature head="Velocity breaker" body="Runaway spend trips a limit and auto-freezes the account." />
+          <Feature
+            head="Hierarchical budgets"
+            body="Org → team → agent caps, enforced together in one transaction."
+          />
+          <Feature
+            head="Exactly-once settlement"
+            body="Reserve, pay once, settle the real cost. A retry around an irreversible payment can't double-charge."
+          />
+          <Feature
+            head="Policy engine"
+            body="Per-transaction and rolling-window caps, vendor rules, approval thresholds."
+          />
+          <Feature
+            head="Cost attribution"
+            body="Tag every spend to a team, customer, or feature and answer chargeback questions cloud bills can't."
+          />
+          <Feature
+            head="Tamper-evident audit"
+            body="Hash-chained entries that detect any altered row, exportable as accounting journal lines."
+          />
+          <Feature
+            head="Velocity breaker"
+            body="Runaway spend trips a limit and auto-freezes the account."
+          />
           <Feature head="Kill switch" body="Freeze one agent or the entire fleet instantly." />
-          <Feature head="Ask your ledger" body="Plain-English questions answered over the ledger — never raw SQL." />
-          <Feature head="3-line SDK" body="Drop the budget gate in front of any paid call. Money moves only after it commits." />
+          <Feature
+            head="Ask your ledger"
+            body="Plain-English questions answered over the ledger — never raw SQL."
+          />
+          <Feature
+            head="3-line SDK"
+            body="Drop the budget gate in front of any paid call. Money moves only after it commits."
+          />
         </div>
       </Section>
 
-      {/* CTA */}
       <section className="border-y border-line hero-veil">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -152,7 +170,8 @@ export default function Home() {
               See the cap hold, live.
             </h2>
             <p className="mt-2 text-fg-dim">
-              Replay a runaway agent and watch the overspend get refused, transaction by transaction.
+              Replay a runaway agent and watch the overspend get refused, transaction by
+              transaction.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
@@ -183,7 +202,6 @@ export default function Home() {
   );
 }
 
-/* ── Signature: double-entry record + rejected overspend ── */
 function LedgerSignature() {
   return (
     <div className="rise rise-3 relative">
@@ -196,16 +214,19 @@ function LedgerSignature() {
           </span>
         </div>
 
-        {/* one spend, two entries, split by the double-entry rule */}
         <div className="relative mt-4 grid grid-cols-2 gap-4">
           <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 ledger-rule" />
           <div>
-            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">Debit · budget</div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">
+              Debit · budget
+            </div>
             <div className="mt-1 text-sm text-fg">research-agent</div>
             <div className="tabular mt-2 text-xl text-deny">−$0.04</div>
           </div>
           <div className="pl-4 text-right">
-            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">Credit · vendor</div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">
+              Credit · vendor
+            </div>
             <div className="mt-1 text-sm text-fg">Data API (x402)</div>
             <div className="tabular mt-2 text-xl text-commit">+$0.04</div>
           </div>
@@ -216,7 +237,6 @@ function LedgerSignature() {
         </div>
       </div>
 
-      {/* the rejected overspend, stamped */}
       <div className="mt-3 flex items-center justify-between rounded-xl border border-deny-dim bg-surface px-5 py-3">
         <div>
           <div className="text-sm text-fg">coding-agent → LLM tokens</div>
@@ -230,7 +250,6 @@ function LedgerSignature() {
   );
 }
 
-/* ── primitives ── */
 function Section({
   eyebrow,
   title,
@@ -245,7 +264,9 @@ function Section({
   return (
     <section className={muted ? "bg-surface/40" : ""}>
       <div className="mx-auto max-w-6xl px-6 py-16">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">{eyebrow}</div>
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+          {eyebrow}
+        </div>
         <h2 className="mt-3 max-w-3xl font-display text-3xl font-semibold leading-tight tracking-tight text-fg sm:text-4xl">
           {title}
         </h2>

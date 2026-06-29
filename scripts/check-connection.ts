@@ -3,7 +3,7 @@ import { query, close } from "@/db/client";
 
 async function main() {
   const { rows } = await query<{ now: string; version: string }>(
-    "SELECT now() AS now, version() AS version"
+    "SELECT now() AS now, version() AS version",
   );
   console.log("✅ Connected to Aurora DSQL");
   console.log("   time:", rows[0].now);

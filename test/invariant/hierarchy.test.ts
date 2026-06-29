@@ -21,7 +21,13 @@ function acct(over: Partial<Account> & Pick<Account, "id" | "type">): Account {
 function seedTree(store: MemStore, opts: { org: bigint; team: bigint; agent: bigint }) {
   store.seedAccount(acct({ id: "org", type: "org", balanceMicro: opts.org, capMicro: opts.org }));
   store.seedAccount(
-    acct({ id: "team", type: "team", parentId: "org", balanceMicro: opts.team, capMicro: opts.team }),
+    acct({
+      id: "team",
+      type: "team",
+      parentId: "org",
+      balanceMicro: opts.team,
+      capMicro: opts.team,
+    }),
   );
   store.seedAccount(
     acct({

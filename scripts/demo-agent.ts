@@ -37,7 +37,8 @@ async function main() {
   const accounts = await getAccounts();
   const budget = accounts.find((a) => a.type === "agent");
   const vendor = accounts.find((a) => a.type === "vendor");
-  if (!budget || !vendor) throw new Error("need one agent account and one vendor — run `npm run seed`");
+  if (!budget || !vendor)
+    throw new Error("need one agent account and one vendor — run `npm run seed`");
 
   console.log(`\n  Agent budget: ${budget.name} (${budget.balanceDisplay})`);
   console.log(`  Vendor:       ${vendor.name}`);

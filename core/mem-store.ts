@@ -4,7 +4,6 @@ import {
   type Denial,
   type Entry,
   type Reservation,
-  type ReservationPatch,
   type Store,
   type Tx,
   ConflictError,
@@ -192,7 +191,8 @@ export class MemStore implements Store {
       }
       for (const entry of entryWrites) this.entries.push(entry);
       for (const denial of denialWrites) this.denials.push(denial);
-      for (const [key, transactionId] of idempotencyWrites) this.idempotency.set(key, transactionId);
+      for (const [key, transactionId] of idempotencyWrites)
+        this.idempotency.set(key, transactionId);
       return result;
     });
   }

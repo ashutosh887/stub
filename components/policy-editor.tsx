@@ -227,7 +227,12 @@ export function PolicyEditor({
               <Input value={label} onChange={setLabel} placeholder="Daily ceiling" />
             </Field>
             <Field label="Cap (USD)">
-              <Input value={capUsd} onChange={setCapUsd} placeholder="e.g. 10.00" inputMode="decimal" />
+              <Input
+                value={capUsd}
+                onChange={setCapUsd}
+                placeholder="e.g. 10.00"
+                inputMode="decimal"
+              />
             </Field>
             <Field label="Window">
               <Select value={String(windowSeconds)} onChange={(v) => setWindowSeconds(Number(v))}>
@@ -263,9 +268,7 @@ export function PolicyEditor({
                   <button
                     key={v.id}
                     onClick={() =>
-                      setVendorIds((ids) =>
-                        on ? ids.filter((i) => i !== v.id) : [...ids, v.id],
-                      )
+                      setVendorIds((ids) => (on ? ids.filter((i) => i !== v.id) : [...ids, v.id]))
                     }
                     className={`rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
                       on
@@ -310,7 +313,9 @@ export function PolicyEditor({
           {sim && (
             <div className="rise mt-3 rounded-md border border-line bg-ink px-3 py-2.5 text-sm">
               {sim.evaluated === 0 ? (
-                <span className="text-fg-dim">No spend history yet for this account to replay.</span>
+                <span className="text-fg-dim">
+                  No spend history yet for this account to replay.
+                </span>
               ) : (
                 <span className="text-fg-dim">
                   Replayed {sim.evaluated} past spend{sim.evaluated === 1 ? "" : "s"} —{" "}
@@ -320,8 +325,7 @@ export function PolicyEditor({
                       , <span className="text-warn">{sim.needsApproval} held for approval</span>
                     </>
                   )}
-                  , would have saved{" "}
-                  <span className="tabular text-commit">${sim.savedUsd}</span>.
+                  , would have saved <span className="tabular text-commit">${sim.savedUsd}</span>.
                 </span>
               )}
             </div>
@@ -337,16 +341,20 @@ export function PolicyEditor({
   );
 }
 
-function Chip({ children, tone = "default" }: { children: React.ReactNode; tone?: "default" | "warn" | "deny" }) {
+function Chip({
+  children,
+  tone = "default",
+}: {
+  children: React.ReactNode;
+  tone?: "default" | "warn" | "deny";
+}) {
   const cls =
     tone === "deny"
       ? "border-deny-dim text-deny"
       : tone === "warn"
         ? "border-warn/40 text-warn"
         : "border-line text-fg-dim";
-  return (
-    <span className={`tabular rounded border px-1.5 py-0.5 text-xs ${cls}`}>{children}</span>
-  );
+  return <span className={`tabular rounded border px-1.5 py-0.5 text-xs ${cls}`}>{children}</span>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

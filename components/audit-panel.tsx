@@ -111,7 +111,9 @@ export function AuditPanel({ initial }: { initial: Report }) {
         {tamper && (
           <div
             className={`rise mt-4 rounded-lg border p-4 ${
-              tamper.detected ? "border-commit-dim bg-commit-dim/10" : "border-deny-dim bg-deny-dim/10"
+              tamper.detected
+                ? "border-commit-dim bg-commit-dim/10"
+                : "border-deny-dim bg-deny-dim/10"
             }`}
           >
             <div className="text-sm text-fg">

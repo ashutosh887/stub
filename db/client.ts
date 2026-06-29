@@ -24,9 +24,7 @@ export function createPool(config: DsqlConfig): Pool {
     user,
     ssl: { rejectUnauthorized: true },
     password: async () =>
-      user === "admin"
-        ? signer.getDbConnectAdminAuthToken()
-        : signer.getDbConnectAuthToken(),
+      user === "admin" ? signer.getDbConnectAdminAuthToken() : signer.getDbConnectAuthToken(),
     max: config.max ?? dsql.poolMax,
     idleTimeoutMillis: dsql.idleTimeoutMs,
     connectionTimeoutMillis: dsql.connectionTimeoutMs,

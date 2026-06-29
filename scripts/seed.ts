@@ -50,7 +50,15 @@ async function main() {
 
   const accounts = [org, marketing, engineering, researcher, coder, dataApi, llm];
 
-  for (const t of ["entries", "denials", "idempotency_keys", "sessions", "agents", "policies", "accounts"]) {
+  for (const t of [
+    "entries",
+    "denials",
+    "idempotency_keys",
+    "sessions",
+    "agents",
+    "policies",
+    "accounts",
+  ]) {
     await query(`DELETE FROM ${t}`);
   }
   console.log("🧹 Cleared existing rows.");

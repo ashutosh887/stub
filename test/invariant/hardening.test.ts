@@ -66,7 +66,9 @@ describe("validation", () => {
   });
 
   it("enforces size and text bounds", () => {
-    expect(() => ensureWithinSize({ big: "x".repeat(100) }, 10, "receipt")).toThrow(ValidationError);
+    expect(() => ensureWithinSize({ big: "x".repeat(100) }, 10, "receipt")).toThrow(
+      ValidationError,
+    );
     expect(ensureWithinSize(undefined, 10, "receipt")).toBeUndefined();
     expect(requireText("  hi  ", "q", 10)).toBe("hi");
     expect(() => requireText("", "q", 10)).toThrow(ValidationError);
@@ -85,7 +87,9 @@ describe("admin auth guard", () => {
     expect(isAdmin(new Request("http://x", { headers: { authorization: "Bearer s3cret" } }))).toBe(
       true,
     );
-    expect(isAdmin(new Request("http://x", { headers: { cookie: "stub_admin=s3cret" } }))).toBe(true);
+    expect(isAdmin(new Request("http://x", { headers: { cookie: "stub_admin=s3cret" } }))).toBe(
+      true,
+    );
     expect(isAdmin(new Request("http://x", { headers: { authorization: "Bearer wrong" } }))).toBe(
       false,
     );

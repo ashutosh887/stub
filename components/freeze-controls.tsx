@@ -43,13 +43,7 @@ export function KillSwitch({ anyActive }: { anyActive: boolean }) {
   );
 }
 
-export function FreezeToggle({
-  accountId,
-  frozen,
-}: {
-  accountId: string;
-  frozen: boolean;
-}) {
+export function FreezeToggle({ accountId, frozen }: { accountId: string; frozen: boolean }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [busy, setBusy] = useState(false);

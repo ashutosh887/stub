@@ -84,7 +84,11 @@ describe("ledger: single spend correctness", () => {
 
   it("detects tampering: mutating a committed entry breaks the chain", async () => {
     const store = world();
-    await spend(store, { budgetAccountId: "budget", vendorAccountId: "vendor", amountMicro: 1n * USD });
+    await spend(store, {
+      budgetAccountId: "budget",
+      vendorAccountId: "vendor",
+      amountMicro: 1n * USD,
+    });
     expect(verifyChain(store.entries)).toEqual([]);
 
     store.entries[0].amountMicro = -999n; // tamper

@@ -79,8 +79,20 @@ async function naiveAttempt(
         }
         const transactionId = randomUUID();
         await gateway.pay(randomUUID(), amountMicro);
-        const debit = buildEntry({ transactionId, account: budget, kind: "debit", amountMicro: -amountMicro, request: {} });
-        const credit = buildEntry({ transactionId, account: vendor, kind: "credit", amountMicro, request: {} });
+        const debit = buildEntry({
+          transactionId,
+          account: budget,
+          kind: "debit",
+          amountMicro: -amountMicro,
+          request: {},
+        });
+        const credit = buildEntry({
+          transactionId,
+          account: vendor,
+          kind: "credit",
+          amountMicro,
+          request: {},
+        });
         await tx.insertEntry(debit);
         await tx.insertEntry(credit);
         await tx.updateAccount(budget.id, budget.balanceMicro - amountMicro, debit.hash);
@@ -103,9 +115,7 @@ export async function runNaive(config: HarnessConfig): Promise<ApproachResult> {
   store.arm(config.writers);
 
   const results = await Promise.all(
-    Array.from({ length: config.writers }, () =>
-      naiveAttempt(store, gateway, config.amountMicro),
-    ),
+    Array.from({ length: config.writers }, () => naiveAttempt(store, gateway, config.amountMicro)),
   );
 
   const committedSpends = results.filter((r) => r.status === "committed").length;
@@ -150,7 +160,6 @@ export async function runStub(config: HarnessConfig): Promise<ApproachResult> {
 
   let conflicts = results.reduce((sum, r) => sum + r.conflicts, 0);
 
-  // Idempotent sweeper reclaims holds whose owner crashed after paying.
   for (const reservationId of held) {
     const swept = await settle(store, reservationId, { actualMicro: config.amountMicro });
     conflicts += swept.conflicts;
@@ -192,7 +201,8 @@ async function stubAttempt(
     vendorAccountId: "vendor",
     amountMicro,
   });
-  if (reserved.status !== "reserved") return { status: reserved.status, conflicts: reserved.conflicts };
+  if (reserved.status !== "reserved")
+    return { status: reserved.status, conflicts: reserved.conflicts };
 
   await gateway.pay(reserved.reservationId, amountMicro);
 

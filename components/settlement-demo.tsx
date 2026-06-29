@@ -63,9 +63,15 @@ export function SettlementDemo({
       });
       if (data.status === "reserved") {
         setHeld({ reservationId: data.reservationId, heldUsd: estimateUsd });
-        setNote({ tone: "warn", text: `Held $${estimateUsd} — funds are reserved, nothing booked yet.` });
+        setNote({
+          tone: "warn",
+          text: `Held $${estimateUsd} — funds are reserved, nothing booked yet.`,
+        });
       } else {
-        setNote({ tone: "deny", text: `Reservation ${data.status}${data.reason ? ` · ${data.reason}` : ""}.` });
+        setNote({
+          tone: "deny",
+          text: `Reservation ${data.status}${data.reason ? ` · ${data.reason}` : ""}.`,
+        });
       }
       refresh();
     } catch (err) {
@@ -85,7 +91,10 @@ export function SettlementDemo({
         });
         setHeld(null);
       } else {
-        setNote({ tone: "deny", text: `Settle ${data.status}${data.reason ? ` · ${data.reason}` : ""}.` });
+        setNote({
+          tone: "deny",
+          text: `Settle ${data.status}${data.reason ? ` · ${data.reason}` : ""}.`,
+        });
       }
       refresh();
     } catch (err) {
@@ -98,10 +107,16 @@ export function SettlementDemo({
     try {
       const data = await call("/api/release", { reservationId: held.reservationId });
       if (data.status === "released") {
-        setNote({ tone: "commit", text: `Released $${held.heldUsd} back to the budget. Nothing booked.` });
+        setNote({
+          tone: "commit",
+          text: `Released $${held.heldUsd} back to the budget. Nothing booked.`,
+        });
         setHeld(null);
       } else {
-        setNote({ tone: "deny", text: `Release ${data.status}${data.reason ? ` · ${data.reason}` : ""}.` });
+        setNote({
+          tone: "deny",
+          text: `Release ${data.status}${data.reason ? ` · ${data.reason}` : ""}.`,
+        });
       }
       refresh();
     } catch (err) {
@@ -134,10 +149,20 @@ export function SettlementDemo({
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3">
         <Field label="Budget account">
-          <Select value={budgetAccountId} onChange={setBudgetAccountId} options={budgets} disabled={!!held} />
+          <Select
+            value={budgetAccountId}
+            onChange={setBudgetAccountId}
+            options={budgets}
+            disabled={!!held}
+          />
         </Field>
         <Field label="Vendor account">
-          <Select value={vendorAccountId} onChange={setVendorAccountId} options={vendors} disabled={!!held} />
+          <Select
+            value={vendorAccountId}
+            onChange={setVendorAccountId}
+            options={vendors}
+            disabled={!!held}
+          />
         </Field>
         <Field label="Estimate to hold (USD)">
           <input
@@ -172,7 +197,9 @@ export function SettlementDemo({
             <span className="text-xs font-medium uppercase tracking-[0.14em] text-warn">
               Held · ${held.heldUsd}
             </span>
-            <span className="tabular text-[11px] text-fg-mute">{held.reservationId.slice(0, 8)}…</span>
+            <span className="tabular text-[11px] text-fg-mute">
+              {held.reservationId.slice(0, 8)}…
+            </span>
           </div>
           <div className="flex items-end gap-2">
             <Field label="Actual cost (USD)">

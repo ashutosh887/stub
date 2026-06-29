@@ -74,24 +74,22 @@ export function ExactlyOnce() {
 
       {report && (
         <div className="rise grid gap-px border-t border-line bg-line sm:grid-cols-2">
-          <Column title="Naive retry" tone="deny" a={report.naive} />
-          <Column title="Stub" tone="commit" a={report.stub} />
+          <Column title="Naive retry" a={report.naive} />
+          <Column title="Stub" a={report.stub} />
         </div>
       )}
     </section>
   );
 }
 
-function Column({ title, tone, a }: { title: string; tone: "deny" | "commit"; a: Approach }) {
+function Column({ title, a }: { title: string; a: Approach }) {
   return (
     <div className="bg-surface p-6">
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-fg">{title}</span>
         <span
           className={`rounded-md border px-2 py-0.5 text-[11px] uppercase tracking-[0.14em] ${
-            a.invariantsHold
-              ? "border-commit-dim text-commit"
-              : "border-deny-dim text-deny"
+            a.invariantsHold ? "border-commit-dim text-commit" : "border-deny-dim text-deny"
           }`}
         >
           {a.invariantsHold ? "invariants hold" : "double-pay"}
@@ -99,10 +97,18 @@ function Column({ title, tone, a }: { title: string; tone: "deny" | "commit"; a:
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
         <Row k="Spends committed" v={String(a.committedSpends)} />
-        <Row k="Payments sent" v={String(a.paymentsSent)} tone={a.doublePaid ? "deny" : "default"} />
+        <Row
+          k="Payments sent"
+          v={String(a.paymentsSent)}
+          tone={a.doublePaid ? "deny" : "default"}
+        />
         <Row k="Money charged" v={`$${a.chargedUsd.toFixed(2)}`} />
         <Row k="OCC conflicts" v={String(a.occConflicts)} />
-        <Row k="Final balance" v={`$${a.finalBalanceUsd.toFixed(2)}`} tone={a.overspend ? "deny" : "default"} />
+        <Row
+          k="Final balance"
+          v={`$${a.finalBalanceUsd.toFixed(2)}`}
+          tone={a.overspend ? "deny" : "default"}
+        />
         <Row k="Stuck holds" v={String(a.stuckHolds)} />
       </dl>
     </div>
@@ -113,7 +119,9 @@ function Row({ k, v, tone = "default" }: { k: string; v: string; tone?: "default
   return (
     <div>
       <dt className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">{k}</dt>
-      <dd className={`tabular mt-0.5 text-base ${tone === "deny" ? "text-deny" : "text-fg"}`}>{v}</dd>
+      <dd className={`tabular mt-0.5 text-base ${tone === "deny" ? "text-deny" : "text-fg"}`}>
+        {v}
+      </dd>
     </div>
   );
 }

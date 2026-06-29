@@ -68,7 +68,11 @@ export function StressTest() {
 
       {result && (
         <div className="rise grid grid-cols-2 divide-x divide-y divide-line border-t border-line sm:grid-cols-4 sm:divide-y-0">
-          <Cell label="Committed" value={`${result.committed} · $${result.committedUsd.toFixed(2)}`} tone="commit" />
+          <Cell
+            label="Committed"
+            value={`${result.committed} · $${result.committedUsd.toFixed(2)}`}
+            tone="commit"
+          />
           <Cell label="Rejected" value={String(result.denied)} tone="deny" />
           <Cell label="OCC conflicts (40001)" value={String(result.conflicts)} tone="brand" />
           <Cell

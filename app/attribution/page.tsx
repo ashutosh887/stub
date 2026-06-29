@@ -74,7 +74,9 @@ function Rollup({ title, rows }: { title: string; rows: AttributionRow[] }) {
           <div key={r.label}>
             <div className="flex items-baseline justify-between gap-2">
               <span className="truncate text-sm text-fg">{r.label}</span>
-              <span className="tabular shrink-0 text-sm text-fg-dim">{formatUsd(r.totalMicro)}</span>
+              <span className="tabular shrink-0 text-sm text-fg-dim">
+                {formatUsd(r.totalMicro)}
+              </span>
             </div>
             <div className="mt-1.5 flex items-center gap-2">
               <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink">

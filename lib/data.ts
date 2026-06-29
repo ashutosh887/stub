@@ -154,7 +154,8 @@ export async function listPolicies(): Promise<PolicyRow[]> {
 
 export async function createPolicy(input: PolicyInput): Promise<string> {
   const id = randomUUID();
-  const scope = input.windowSeconds != null ? "window" : input.limitMicro != null ? "per_txn" : "rule";
+  const scope =
+    input.windowSeconds != null ? "window" : input.limitMicro != null ? "per_txn" : "rule";
   await query(
     `INSERT INTO policies
        (id, account_id, label, enabled, scope, limit_micro, window_seconds,
@@ -415,12 +416,13 @@ export async function putCachedQuery(
   payload: unknown,
 ): Promise<void> {
   try {
-    await query(
-      `INSERT INTO query_cache (cache_key, question, payload) VALUES ($1, $2, $3)`,
-      [key, question, JSON.stringify(payload)],
-    );
+    await query(`INSERT INTO query_cache (cache_key, question, payload) VALUES ($1, $2, $3)`, [
+      key,
+      question,
+      JSON.stringify(payload),
+    ]);
   } catch {
-    // best-effort cache — ignore duplicate-key races
+    return;
   }
 }
 
@@ -462,9 +464,7 @@ const ATTRIBUTION_GROUP: Record<AttributionDimension, string> = {
   vendor: "va.name",
 };
 
-export async function listAttribution(
-  dimension: AttributionDimension,
-): Promise<AttributionRow[]> {
+export async function listAttribution(dimension: AttributionDimension): Promise<AttributionRow[]> {
   const groupExpr = ATTRIBUTION_GROUP[dimension];
   const { rows } = await query<Record<string, unknown>>(
     `SELECT ${groupExpr} AS label,
@@ -610,7 +610,14 @@ export async function tamperDemo(): Promise<TamperDemo> {
   const entries = await loadAllEntries();
   const target = entries.find((e) => e.kind === "debit");
   if (!target) {
-    return { detected: false, entryId: null, accountName: null, originalUsd: "0", alteredUsd: "0", problems: [] };
+    return {
+      detected: false,
+      entryId: null,
+      accountName: null,
+      originalUsd: "0",
+      alteredUsd: "0",
+      problems: [],
+    };
   }
   const original = target.amountMicro;
   const altered = entries.map((e) =>

@@ -49,7 +49,10 @@ export const POST = withRoute({ name: "policies", admin: true }, async ({ reques
     (body.vendorAllow?.length ?? 0) > 0 ||
     (body.vendorBlock?.length ?? 0) > 0;
   if (!hasRule) {
-    throw new HttpError(400, "a policy needs at least one constraint (limit, approval, or vendor list)");
+    throw new HttpError(
+      400,
+      "a policy needs at least one constraint (limit, approval, or vendor list)",
+    );
   }
 
   const id = await createPolicy({

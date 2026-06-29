@@ -91,6 +91,7 @@ export default async function Dashboard() {
   const remaining = cap - spent;
   const pctSpent = cap > 0n ? Number((spent * 1000n) / cap) / 10 : 0;
 
+  // eslint-disable-next-line react-hooks/purity -- request-time clock in an async Server Component
   const burn = forecast({ balanceMicro: remaining, events: fleetSpend, nowMs: Date.now() });
   const runway =
     burn.daysToDepletion == null
@@ -161,7 +162,9 @@ export default async function Dashboard() {
               <div className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
                 Org guardrail
               </div>
-              <div className="mt-1 text-sm text-fg-dim">Company-wide budget · cannot be overspent</div>
+              <div className="mt-1 text-sm text-fg-dim">
+                Company-wide budget · cannot be overspent
+              </div>
             </div>
             <div className="flex items-center gap-5">
               <KillSwitch anyActive={anyActive} />
@@ -294,8 +297,8 @@ export default async function Dashboard() {
         <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
           <SectionTitle>Agents</SectionTitle>
           <p className="mt-1 text-sm text-fg-dim">
-            Know your agents. Issue a scoped key; spends made with it are pinned to that agent&apos;s
-            budget.
+            Know your agents. Issue a scoped key; spends made with it are pinned to that
+            agent&apos;s budget.
           </p>
           <div className="mt-4">
             <AgentRegistry
@@ -343,7 +346,9 @@ export default async function Dashboard() {
           <section className="rounded-2xl border border-line bg-surface p-6">
             <SectionTitle>Denials</SectionTitle>
             <div className="mt-4 flex flex-col divide-y divide-line">
-              {denials.length === 0 && <Empty>No denials yet. Overspend attempts show up here.</Empty>}
+              {denials.length === 0 && (
+                <Empty>No denials yet. Overspend attempts show up here.</Empty>
+              )}
               {denials.map((d) => (
                 <div key={d.id} className="flex items-center justify-between gap-3 py-2.5">
                   <div className="min-w-0">

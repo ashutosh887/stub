@@ -89,8 +89,12 @@ export const POST = withRoute({ name: "incident" }, async ({ request }) => {
     });
   } finally {
     await pool.end().catch(() => {});
-    await query(`DELETE FROM entries WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
-    await query(`DELETE FROM denials WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
+    await query(`DELETE FROM entries WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
+      () => {},
+    );
+    await query(`DELETE FROM denials WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
+      () => {},
+    );
     await query(`DELETE FROM accounts WHERE id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
   }
 });

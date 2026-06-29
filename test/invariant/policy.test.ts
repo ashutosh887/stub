@@ -79,7 +79,10 @@ describe("policy simulator", () => {
   });
 
   it("replays a window cap counterfactually, ignoring would-be-blocked spend", async () => {
-    const res = await simulatePolicy(policy({ limitMicro: 4n * USD, windowSeconds: 86400 }), events);
+    const res = await simulatePolicy(
+      policy({ limitMicro: 4n * USD, windowSeconds: 86400 }),
+      events,
+    );
     expect(res.blocked).toBe(1);
     expect(res.savedMicro).toBe(3n * USD);
   });

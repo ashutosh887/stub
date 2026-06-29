@@ -52,7 +52,6 @@ export default function HowItWorks() {
           body="“How much did Marketing's agents spend on data APIs?” The model fills a constrained, parameterized query over the ledger and answers — it never writes raw SQL against your data."
         />
 
-        {/* Try it */}
         <section className="mt-14 rounded-2xl border border-line bg-surface p-7">
           <h2 className="font-display text-2xl font-semibold text-fg">Try it in 60 seconds</h2>
           <p className="mt-2 text-sm text-fg-dim">
@@ -60,9 +59,21 @@ export default function HowItWorks() {
             real money.
           </p>
           <ol className="mt-5 space-y-4">
-            <TryStep n="1" head="Run a spend" body="In “Simulate a spend,” authorize a small amount — it commits and appears in the ledger instantly." />
-            <TryStep n="2" head="Trip a limit" body="Authorize more than an agent's remaining budget. It's denied and recorded, and the balance holds." />
-            <TryStep n="3" head="Ask the ledger" body="Type a question in “Ask your ledger” and get an answer drawn straight from the entries." />
+            <TryStep
+              n="1"
+              head="Run a spend"
+              body="In “Simulate a spend,” authorize a small amount — it commits and appears in the ledger instantly."
+            />
+            <TryStep
+              n="2"
+              head="Trip a limit"
+              body="Authorize more than an agent's remaining budget. It's denied and recorded, and the balance holds."
+            />
+            <TryStep
+              n="3"
+              head="Ask the ledger"
+              body="Type a question in “Ask your ledger” and get an answer drawn straight from the entries."
+            />
           </ol>
           <Link
             href="/dashboard"
@@ -72,19 +83,19 @@ export default function HowItWorks() {
           </Link>
         </section>
 
-        {/* SDK */}
         <section className="mt-10">
           <h2 className="font-display text-2xl font-semibold text-fg">Drop it into an agent</h2>
           <p className="mt-2 text-sm text-fg-dim">
-            Put the budget gate in front of any paid call. The money moves only after the spend commits.
+            Put the budget gate in front of any paid call. The money moves only after the spend
+            commits.
           </p>
           <pre className="mt-4 overflow-x-auto rounded-xl border border-line bg-ink p-5 text-sm leading-relaxed text-fg-dim">
-            <code>{`import { StubClient } from "stub";
+            <code>{`import { StubClient } from "trystub";
 
 const stub = new StubClient({ apiKey: process.env.STUB_API_KEY });
 
 if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market data" })) {
-  await doThePaidThing(); // runs only if the budget gate committed the spend
+  await doThePaidThing();
 }`}</code>
           </pre>
         </section>

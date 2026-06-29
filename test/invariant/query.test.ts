@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MAX_LIMIT, describeQuery, normalizeLedgerQuery, parseQuestion, summarize } from "@/core/query";
+import {
+  MAX_LIMIT,
+  describeQuery,
+  normalizeLedgerQuery,
+  parseQuestion,
+  summarize,
+} from "@/core/query";
 
 const NOW = Date.parse("2026-06-26T12:00:00Z");
 
@@ -12,7 +18,12 @@ describe("normalizeLedgerQuery", () => {
 
   it("whitelists enums and clamps the limit", () => {
     const q = normalizeLedgerQuery({ source: "evil", groupBy: "drop", metric: "x", limit: 9999 });
-    expect(q).toMatchObject({ source: "spend", groupBy: "none", metric: "total", limit: MAX_LIMIT });
+    expect(q).toMatchObject({
+      source: "spend",
+      groupBy: "none",
+      metric: "total",
+      limit: MAX_LIMIT,
+    });
   });
 
   it("drops unparseable timestamps but keeps valid ISO", () => {
@@ -49,7 +60,13 @@ describe("describeQuery", () => {
 describe("parseQuestion (no-LLM fallback)", () => {
   it("parses a team + vendor spend question", () => {
     const q = parseQuestion("How much did Marketing's agents spend on data APIs?", NOW);
-    expect(q).toMatchObject({ source: "spend", metric: "total", groupBy: "none", account: "marketing", vendor: "Data API" });
+    expect(q).toMatchObject({
+      source: "spend",
+      metric: "total",
+      groupBy: "none",
+      account: "marketing",
+      vendor: "Data API",
+    });
   });
 
   it("parses 'top vendors by spend'", () => {
