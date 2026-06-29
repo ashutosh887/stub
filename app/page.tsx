@@ -6,6 +6,7 @@ export const dynamic = "force-static";
 
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
 const NPM_URL = "https://www.npmjs.com/package/trystub";
+const PROOF_URL = "https://www.theregister.com/2020/12/10/google_cloud_over_run/";
 
 export default function Home() {
   return (
@@ -62,6 +63,24 @@ export default function Home() {
       </header>
 
       <Section eyebrow="The problem" title="Agents can spend now. Nothing governs the whole fleet.">
+        <a
+          href={PROOF_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="group mb-8 block rounded-2xl border border-brand-dim bg-brand/5 p-6 transition-colors hover:bg-brand/10"
+        >
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span className="tabular text-3xl font-semibold text-brand">~$72,000</span>
+            <span className="text-sm text-fg-dim">
+              billed overnight when a $7 budget cap turned out to be an alert, not an enforced
+              limit.
+            </span>
+          </div>
+          <div className="mt-2 text-xs text-fg-mute group-hover:text-fg-dim">
+            A runaway job recursed across hundreds of parallel workers before anyone woke up.
+            Source: The Register ↗
+          </div>
+        </a>
         <div className="grid gap-6 md:grid-cols-3">
           <Card
             head="Per-session limits, no fleet budget"

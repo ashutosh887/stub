@@ -37,7 +37,7 @@ export default async function IncidentPage() {
         <p className="mt-8 max-w-2xl text-xs leading-relaxed text-fg-mute">
           Each replay runs in throwaway accounts on the real cluster and self-cleans, so your ledger
           is never touched. The blocked dollars are what Stub refused in this run; the headline
-          figures are real incidents this pattern has caused in the wild.
+          figures are documented real-world incidents, with a source linked on each scenario.
         </p>
       </main>
     </>

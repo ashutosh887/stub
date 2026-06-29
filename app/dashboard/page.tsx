@@ -66,7 +66,7 @@ export default async function Dashboard() {
     listEntries(40),
     listDenials(20),
     listPolicies(),
-    listFleetSpend(),
+    listFleetSpend(500),
     listAgents(),
   ]);
 
@@ -208,6 +208,8 @@ export default async function Dashboard() {
           </div>
         </section>
 
+        <GroupLabel hint="watch the cap hold under concurrent load">Prove the invariant</GroupLabel>
+
         <div className="mt-6">
           <StressTest />
         </div>
@@ -216,15 +218,9 @@ export default async function Dashboard() {
           <ExactlyOnce />
         </div>
 
-        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
-          <SectionTitle>Ask your ledger</SectionTitle>
-          <p className="mt-1 text-sm text-fg-dim">
-            Plain-English questions over the ledger, answered without writing SQL.
-          </p>
-          <div className="mt-4">
-            <NlQuery />
-          </div>
-        </section>
+        <GroupLabel hint="accounts, agents, and the policies on every spend">
+          Govern the fleet
+        </GroupLabel>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
           <section className="rounded-2xl border border-line bg-surface p-6">
@@ -324,6 +320,20 @@ export default async function Dashboard() {
           </div>
         </section>
 
+        <GroupLabel hint="every line immutable, hash-chained, and queryable in plain English">
+          The record
+        </GroupLabel>
+
+        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
+          <SectionTitle>Ask your ledger</SectionTitle>
+          <p className="mt-1 text-sm text-fg-dim">
+            Plain-English questions over the ledger, answered without writing SQL.
+          </p>
+          <div className="mt-4">
+            <NlQuery />
+          </div>
+        </section>
+
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <section className="rounded-2xl border border-line bg-surface p-6">
             <div className="flex items-center justify-between">
@@ -390,6 +400,18 @@ function Stat({
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">{children}</h2>
+  );
+}
+
+function GroupLabel({ children, hint }: { children: React.ReactNode; hint: string }) {
+  return (
+    <div className="mt-12 flex items-center gap-4">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
+        {children}
+      </span>
+      <span className="text-xs text-fg-mute">{hint}</span>
+      <span className="h-px flex-1 bg-line" />
+    </div>
   );
 }
 

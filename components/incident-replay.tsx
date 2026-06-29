@@ -72,13 +72,25 @@ export function IncidentReplay({ scenarios }: { scenarios: Scenario[] }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-2 px-4 py-3">
-        <p className="max-w-xl text-xs leading-relaxed text-fg-dim">
-          <span className="text-brand">Context · </span>
-          {scenario?.headline} Stub caps {scenario?.calls} runaway calls against a{" "}
-          <span className="tabular text-fg">${scenario?.budgetUsd.toFixed(2)}</span> budget on the
-          live Aurora DSQL cluster: only what fits commits, the rest collide on OCC and lose with{" "}
-          <span className="tabular text-fg">40001</span>.
-        </p>
+        <div className="max-w-xl">
+          <p className="text-xs leading-relaxed text-fg-dim">
+            <span className="text-brand">Context · </span>
+            {scenario?.headline} Stub caps {scenario?.calls} runaway calls against a{" "}
+            <span className="tabular text-fg">${scenario?.budgetUsd.toFixed(2)}</span> budget on the
+            live Aurora DSQL cluster: only what fits commits, the rest collide on OCC and lose with{" "}
+            <span className="tabular text-fg">40001</span>.
+          </p>
+          {scenario?.sourceUrl && (
+            <a
+              href={scenario.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-fg-mute underline decoration-line-bright underline-offset-2 transition-colors hover:text-fg"
+            >
+              Source: {scenario.sourceLabel} ↗
+            </a>
+          )}
+        </div>
         <button
           onClick={run}
           disabled={busy}

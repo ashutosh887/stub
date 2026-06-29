@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 
-export function LiveRefresh({ intervalMs = 4000 }: { intervalMs?: number }) {
+export function LiveRefresh({ intervalMs = 12000 }: { intervalMs?: number }) {
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const [live, setLive] = useState(true);
   const [pulse, setPulse] = useState(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -12,9 +13,10 @@ export function LiveRefresh({ intervalMs = 4000 }: { intervalMs?: number }) {
   useEffect(() => {
     if (!live) return;
     timer.current = setInterval(() => {
-      router.refresh();
+      if (document.hidden) return;
       setPulse(true);
       setTimeout(() => setPulse(false), 600);
+      startTransition(() => router.refresh());
     }, intervalMs);
     return () => {
       if (timer.current) clearInterval(timer.current);
