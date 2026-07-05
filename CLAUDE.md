@@ -125,15 +125,22 @@ layer: the system of record across the whole fleet.
 - `sdk/`: the **drop-in SDK** (`index.ts` `StubClient` with `guard`/`spend`/`reserve`/`settle`/
   `release`) + thin mockable x402/AgentCore adapter (`x402.ts` `payThroughStub`, reserve→pay→settle).
   Dependency-free; **published to npm as `trystub`** (own `package.json`/`tsconfig.json`, built
-  to `dist/`, shipped by the `Publish SDK` workflow on a `sdk-v*` tag).
+  to `dist/`, shipped by the `Publish SDK` workflow on a `sdk-v*` tag; the tag only publishes to
+  npm, so create the matching GitHub Release separately after).
 - `config/`: single source of truth for env-driven values (`index.ts`): `dsql`, `openai`, `app`,
   `demo`, `limits`, plus `requiredEnv` (lazy). `core/` and `sdk/` stay config-free.
 - `app/` `components/` `lib/`: Next.js (App Router) multipage console + API routes + server helpers.
-  Pages: `/dashboard` (overview), `/incident` (replay), `/settlement` (reserve→pay→settle),
+  App pages: `/dashboard` (overview), `/incident` (replay), `/settlement` (reserve→pay→settle),
   `/audit` (chain verification + journal export), `/attribution` (chargeback/showback), all sharing
-  the `AppTabs` sub-nav. Every route runs through `lib/api.ts` `withRoute` (request id, sanitized
-  errors, admin auth, rate limit); page-level gating via `adminPageAllowed`. Auth is open when
-  `ADMIN_TOKEN` is unset, enforced when set.
+  the `AppTabs` sub-nav. Marketing pages `/` and `/how-it-works` share `SiteNav` (logo mark +
+  `NpmStatsLink` hover tooltip showing latest npm version + GitHub stars) and `SiteFooter`. Every
+  route runs through `lib/api.ts` `withRoute` (request id, sanitized errors, admin auth, rate
+  limit); page-level gating via `adminPageAllowed`. Auth is open when `ADMIN_TOKEN` is unset,
+  enforced when set.
+- **Branding & SEO** (in `app/`): logo assets (`icon.png`, `apple-icon.png`, `public/logo.png`,
+  all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
+  (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,
+  per-page canonicals, and `sitemap.ts` / `robots.ts`.
 - `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent). `test/`:
   invariant + live proofs. `docs/`: local-only planning notes (gitignored).
 
