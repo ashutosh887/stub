@@ -1,9 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FaGithub, FaNpm } from "react-icons/fa6";
+import { NpmStatsLink } from "@/components/npm-stats-link";
 
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
-const NPM_URL = "https://www.npmjs.com/package/trystub";
 
 export function SiteNav({ current }: { current?: "home" | "how" | "dashboard" }) {
   return (
@@ -21,16 +21,13 @@ export function SiteNav({ current }: { current?: "home" | "how" | "dashboard" })
           <NavLink href="/how-it-works" active={current === "how"}>
             How it works
           </NavLink>
-          <a
-            href={NPM_URL}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="trystub on npm"
-            title="trystub on npm"
+          <NpmStatsLink
+            ariaLabel="trystub on npm"
+            placement="below"
             className="rounded-md p-2 text-fg-dim transition-colors hover:text-fg"
           >
             <FaNpm className="h-5 w-5" />
-          </a>
+          </NpmStatsLink>
           <a
             href={GITHUB_URL}
             target="_blank"

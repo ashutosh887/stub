@@ -1,8 +1,8 @@
 import { FaGithub, FaNpm } from "react-icons/fa6";
 import { SiHashnode } from "react-icons/si";
+import { NpmStatsLink } from "@/components/npm-stats-link";
 
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
-const NPM_URL = "https://www.npmjs.com/package/trystub";
 const BLOG_URL =
   "https://ashutosh887.hashnode.dev/building-a-budget-your-ai-agents-physically-cannot-overspend-on-aurora-dsql";
 
@@ -22,14 +22,13 @@ export function SiteFooter() {
         >
           <SiHashnode className="h-4 w-4" /> Blog
         </a>
-        <a
-          href={NPM_URL}
-          target="_blank"
-          rel="noreferrer"
+        <NpmStatsLink
+          ariaLabel="trystub on npm"
+          placement="above"
           className="inline-flex items-center gap-1.5 hover:text-fg"
         >
           <FaNpm className="h-4 w-4" /> npm
-        </a>
+        </NpmStatsLink>
         <a
           href={GITHUB_URL}
           target="_blank"
