@@ -2,9 +2,16 @@
 
 > **One budget your agents can't break.**
 
+[![npm version](https://img.shields.io/npm/v/trystub.svg)](https://www.npmjs.com/package/trystub)
+[![npm downloads](https://img.shields.io/npm/dm/trystub.svg)](https://www.npmjs.com/package/trystub)
+[![install size](https://packagephobia.com/badge?p=trystub)](https://packagephobia.com/result?p=trystub)
+[![types](https://img.shields.io/npm/types/trystub.svg)](https://www.npmjs.com/package/trystub)
+[![license](https://img.shields.io/npm/l/trystub.svg)](https://github.com/ashutosh887/stub/blob/main/sdk/LICENSE)
+
 A drop-in budget gate for AI agents that spend real money: paid APIs, x402 micropayments, and LLM
 tokens. Put one enforceable budget in front of your whole fleet and keep an exact, double-entry
-record of what every agent spent.
+record of what every agent spent. Zero dependencies, TypeScript-first, works with any runtime that
+has `fetch`.
 
 The hard part it solves: a naive retry around an irreversible payment double-charges. `trystub` uses
 a **reserve → pay → settle** flow, so the payment fires exactly once, even under concurrent writers,
@@ -69,6 +76,7 @@ authenticate as an admin.
 
 - Live console: [trystub.vercel.app](https://trystub.vercel.app)
 - Source: [github.com/ashutosh887/stub](https://github.com/ashutosh887/stub)
+- How it was built: [the build story on Hashnode](https://ashutosh887.hashnode.dev/building-a-budget-your-ai-agents-physically-cannot-overspend-on-aurora-dsql)
 
 ## License
 
