@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
 
 export const dynamic = "force-static";
@@ -6,6 +7,7 @@ export const dynamic = "force-static";
 export const metadata = {
   title: "How Stub works",
   description: "What Stub is, the double-entry ledger behind it, and how to try it in 60 seconds.",
+  alternates: { canonical: "/how-it-works" },
 };
 
 export default function HowItWorks() {
@@ -112,6 +114,8 @@ if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market d
           </a>
         </div>
       </main>
+
+      <SiteFooter />
     </>
   );
 }

@@ -1,11 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
-import { FaGithub, FaNpm } from "react-icons/fa6";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
 
 export const dynamic = "force-static";
 
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
 const GITHUB_URL = "https://github.com/ashutosh887/stub";
-const NPM_URL = "https://www.npmjs.com/package/trystub";
 const PROOF_URL = "https://www.theregister.com/2020/12/10/google_cloud_over_run/";
 
 export default function Home() {
@@ -213,30 +215,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-10 text-sm text-fg-mute sm:flex-row">
-        <span className="font-display text-base text-fg-dim">Stub</span>
-        <span>
-          One budget your agents can&apos;t break. Built with v0 and Vercel on Amazon Aurora DSQL.
-        </span>
-        <div className="flex items-center gap-5">
-          <a
-            href={NPM_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 hover:text-fg"
-          >
-            <FaNpm className="h-4 w-4" /> npm
-          </a>
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 hover:text-fg"
-          >
-            <FaGithub className="h-4 w-4" /> GitHub
-          </a>
-        </div>
-      </footer>
+      <SiteFooter />
     </>
   );
 }
