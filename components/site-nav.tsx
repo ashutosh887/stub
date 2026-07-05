@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { FaGithub, FaNpm } from "react-icons/fa6";
 
@@ -8,7 +9,8 @@ export function SiteNav({ current }: { current?: "home" | "how" | "dashboard" })
   return (
     <nav className="sticky top-0 z-40 border-b border-line bg-ink/80 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-        <Link href="/" aria-label="Stub home">
+        <Link href="/" aria-label="Stub home" className="flex items-center gap-2.5">
+          <Image src="/logo.png" alt="" width={26} height={26} className="rounded-md" priority />
           <span className="font-display text-xl font-semibold text-fg">Stub</span>
         </Link>
 
