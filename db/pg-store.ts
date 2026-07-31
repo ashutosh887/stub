@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { getPool } from "./client";
+import { db } from "@/config";
 import type { Policy } from "@/core/policy";
 import {
   type Account,
@@ -14,13 +15,18 @@ import {
   isConflict,
 } from "@/core/store";
 
+// DSQL is snapshot-isolated with OCC by default; plain Postgres needs SERIALIZABLE to raise 40001.
+function beginStatement(): string {
+  return db.driver === "postgres" ? "BEGIN ISOLATION LEVEL SERIALIZABLE" : "BEGIN";
+}
+
 export class PgStore implements Store {
   constructor(private readonly pool: Pool = getPool()) {}
 
   async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
-      await client.query("BEGIN");
+      await client.query(beginStatement());
       const result = await fn(makeTx(client));
       await client.query("COMMIT");
       return result;

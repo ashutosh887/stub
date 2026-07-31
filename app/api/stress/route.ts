@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { createPool, query } from "@/db/client";
+import { createDriverPool, query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
 import { spend, type SpendResult } from "@/core/ledger";
 import { GENESIS_HASH } from "@/core/hash";
-import { dsql } from "@/config";
 import { HttpError, isAdmin, readJson, withRoute } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -31,13 +30,7 @@ export const POST = withRoute({ name: "stress" }, async ({ request }) => {
     [vendorId, GENESIS_HASH],
   );
 
-  const pool = createPool({
-    endpoint: dsql.endpoint,
-    region: dsql.region,
-    database: dsql.database,
-    user: dsql.user,
-    max: count,
-  });
+  const pool = createDriverPool(count);
   const store = new PgStore(pool);
 
   try {

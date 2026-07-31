@@ -1,6 +1,6 @@
 import { DsqlSigner } from "@aws-sdk/dsql-signer";
 import { Pool, type PoolClient } from "pg";
-import { dsql } from "@/config";
+import { db, dsql } from "@/config";
 
 export interface DsqlConfig {
   endpoint: string;
@@ -38,16 +38,41 @@ export function createPool(config: DsqlConfig): Pool {
   return created;
 }
 
-let pool: Pool | undefined;
+export function createPostgresPool(url: string, max?: number): Pool {
+  const isLocal = /@(localhost|127\.0\.0\.1|host\.docker\.internal)[:/]/.test(url);
 
-export function getPool(): Pool {
-  if (pool) return pool;
-  pool = createPool({
+  const created = new Pool({
+    connectionString: url,
+    ssl: isLocal ? undefined : { rejectUnauthorized: true },
+    max: max ?? db.poolMax,
+    idleTimeoutMillis: db.idleTimeoutMs,
+    connectionTimeoutMillis: db.connectionTimeoutMs,
+  });
+
+  created.on("error", (err) => {
+    console.error("[postgres] idle pool client error:", err.message);
+  });
+
+  return created;
+}
+
+export function createDriverPool(max?: number): Pool {
+  const url = db.url;
+  if (url) return createPostgresPool(url, max);
+  return createPool({
     endpoint: dsql.endpoint,
     region: dsql.region,
     database: dsql.database,
     user: dsql.user,
+    max,
   });
+}
+
+let pool: Pool | undefined;
+
+export function getPool(): Pool {
+  if (pool) return pool;
+  pool = createDriverPool();
   return pool;
 }
 

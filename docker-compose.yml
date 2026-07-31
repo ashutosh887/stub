@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: stub-postgres
+    environment:
+      POSTGRES_USER: stub
+      POSTGRES_PASSWORD: stub
+      POSTGRES_DB: stub
+    ports:
+      - "5432:5432"
+    volumes:
+      - stub-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U stub -d stub"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  stub-pgdata:

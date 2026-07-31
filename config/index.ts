@@ -16,6 +16,20 @@ function int(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+export type DbDriver = "dsql" | "postgres";
+
+export const db = {
+  get url(): string | undefined {
+    return env("DATABASE_URL");
+  },
+  get driver(): DbDriver {
+    return env("DATABASE_URL") ? "postgres" : "dsql";
+  },
+  poolMax: int("DB_POOL_MAX", 10),
+  idleTimeoutMs: int("DB_IDLE_TIMEOUT_MS", 30_000),
+  connectionTimeoutMs: int("DB_CONNECTION_TIMEOUT_MS", 10_000),
+};
+
 export const dsql = {
   get endpoint(): string {
     return requiredEnv("DSQL_ENDPOINT");

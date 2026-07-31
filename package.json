@@ -13,6 +13,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
     "check:db": "tsx scripts/check-connection.ts",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
