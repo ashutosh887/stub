@@ -38,17 +38,39 @@
     "access": "public"
   },
   "type": "module",
-  "main": "./dist/index.js",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
     },
     "./x402": {
-      "types": "./dist/x402.d.ts",
-      "import": "./dist/x402.js"
+      "import": {
+        "types": "./dist/esm/x402.d.ts",
+        "default": "./dist/esm/x402.js"
+      },
+      "require": {
+        "types": "./dist/cjs/x402.d.ts",
+        "default": "./dist/cjs/x402.js"
+      }
+    },
+    "./llm": {
+      "import": {
+        "types": "./dist/esm/llm.d.ts",
+        "default": "./dist/esm/llm.js"
+      },
+      "require": {
+        "types": "./dist/cjs/llm.d.ts",
+        "default": "./dist/cjs/llm.js"
+      }
     }
   },
   "files": [
@@ -58,7 +80,9 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
     "prepublishOnly": "npm run build"
   },
   "engines": {
