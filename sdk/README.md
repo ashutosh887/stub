@@ -121,6 +121,7 @@ Ships as both ESM and CommonJS, so `import` and `require` both work.
 
 - Live console: [trystub.vercel.app](https://trystub.vercel.app)
 - Source: [github.com/ashutosh887/stub](https://github.com/ashutosh887/stub)
+- Changelog: [CHANGELOG.md](https://github.com/ashutosh887/stub/blob/main/sdk/CHANGELOG.md)
 - How it was built: [the build story on Hashnode](https://ashutosh887.hashnode.dev/building-a-budget-your-ai-agents-physically-cannot-overspend-on-aurora-dsql)
 
 ## License

@@ -39,3 +39,29 @@ npm run build    # production build
 
 The offline invariant suite (`npm test`) needs no database. The live cross-region proof
 (`npm run test:live`) requires a configured Aurora DSQL cluster and is skipped without one.
+
+If the change alters the `trystub` API, or server behaviour and configuration that callers depend on,
+add a bullet under `## [Unreleased]` in [`sdk/CHANGELOG.md`](./sdk/CHANGELOG.md). Prefix server-only
+entries with `Stub server:` so nobody hunts for them in the package. Console styling, marketing
+pages, docs, and internal refactors do not belong there. Write each entry for someone deciding
+whether to upgrade, not for someone reading the diff.
+
+## Releasing the SDK
+
+[`sdk/CHANGELOG.md`](./sdk/CHANGELOG.md) is the source of truth for release notes.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format, [SemVer](https://semver.org)
+versions: breaking change is a major, new feature is a minor, fix is a patch.
+
+1. Rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD`, add a fresh empty `## [Unreleased]` above
+   it, and update the compare links at the bottom.
+2. Set the same `X.Y.Z` in `sdk/package.json`. The workflow fails the release if the two disagree.
+3. Commit, then tag and push:
+
+```bash
+git tag sdk-vX.Y.Z && git push origin sdk-vX.Y.Z
+```
+
+The `Publish SDK` workflow builds, publishes to npm with provenance, and creates the GitHub Release
+using that version's changelog section verbatim as the body. No hand-editing on github.com. A
+version with no changelog section still releases, but falls back to generated commit notes and logs
+a warning.

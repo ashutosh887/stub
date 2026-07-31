@@ -294,7 +294,10 @@ for serverless). Point it at a multi-region cluster, two peered regions plus a w
 cross-region overspend proof runs against real replication rather than a simulation.
 
 The SDK publishes itself: push a `sdk-v*` tag (with an `NPM_TOKEN` repo secret set) and the
-`Publish SDK` workflow builds and ships `trystub` to npm. To publish manually:
+`Publish SDK` workflow builds and ships `trystub` to npm with provenance, then opens the matching
+[GitHub Release](https://github.com/ashutosh887/stub/releases) using that version's section of
+[`sdk/CHANGELOG.md`](./sdk/CHANGELOG.md) as the body. The changelog is the single source of truth
+for release notes; see [CONTRIBUTING.md](./CONTRIBUTING.md#releasing-the-sdk). To publish manually:
 `cd sdk && npm publish --access public`.
 
 ## Development
