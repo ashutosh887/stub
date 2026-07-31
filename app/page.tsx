@@ -184,6 +184,43 @@ export default function Home() {
             head="3-line SDK"
             body="Drop the budget gate in front of any paid call. Money moves only after it commits."
           />
+          <Feature
+            head="LLM token metering"
+            body="Hold an estimate, run the call, settle the real token cost. Reads OpenAI and Anthropic usage alike."
+          />
+          <Feature
+            head="Safe retries"
+            body="Timeouts and bounded retries, keyed so a retried request resolves to the same entry instead of charging twice."
+          />
+          <Feature
+            head="Sharded balances"
+            body="Split a hot balance across shards for throughput. No shard can go below zero, so the cap still holds."
+          />
+        </div>
+      </Section>
+
+      <Section eyebrow="Try it without an AWS account" title="One command, on your own machine.">
+        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+          <div>
+            <p className="text-lg leading-relaxed text-fg-dim">
+              Stub runs on local Postgres as well as Aurora DSQL. Local transactions run at{" "}
+              <span className="text-fg">SERIALIZABLE</span>, which raises the same{" "}
+              <span className="text-fg">40001</span> serialization failures, so you exercise the
+              real retry path and the real invariant. It is a faithful model, not a mock.
+            </p>
+            <p className="mt-4 text-sm leading-relaxed text-fg-mute">
+              Ten agents racing one $3 budget locally: three commit, seven are denied, twenty four
+              real conflicts, and the balance floors at $0.00.
+            </p>
+          </div>
+          <pre className="overflow-x-auto rounded-2xl border border-line bg-ink p-6 text-sm leading-relaxed text-fg-dim">
+            <code>{`npm run db:up
+echo 'DATABASE_URL=postgres://stub:stub@localhost:5432/stub' >> .env
+npm run migrate && npm run seed
+npm run dev
+
+npm run test:local   # watch the cap hold, with real 40001s`}</code>
+          </pre>
         </div>
       </Section>
 

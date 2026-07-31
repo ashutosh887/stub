@@ -53,6 +53,16 @@ export default function HowItWorks() {
           title="Ask the ledger in plain English"
           body="“How much did Marketing's agents spend on data APIs?” The model fills a constrained, parameterized query over the ledger and answers. It never writes raw SQL against your data."
         />
+        <Concept
+          n="06"
+          title="Tokens are spend too"
+          body="Paid APIs are not the only money agents move. The SDK meters LLM calls through the same budget: it holds an estimate, runs the call once, then settles the real token cost and refunds the difference. It reads OpenAI-shaped and Anthropic-shaped usage, and you supply the rates, because a price table baked into a dependency goes stale and quietly mis-bills you."
+        />
+        <Concept
+          n="07"
+          title="Retrying can't double-charge"
+          body="Every SDK call has a timeout and bounded retries on network errors and 5xx. Each spend carries a generated idempotency key, so a request retried after the server already committed it resolves to that same single ledger entry. Denials are never retried."
+        />
 
         <section className="mt-14 rounded-2xl border border-line bg-surface p-7">
           <h2 className="font-display text-2xl font-semibold text-fg">Try it in 60 seconds</h2>
@@ -100,6 +110,44 @@ if (await stub.guard({ vendorAccountId, amountUsd: 0.02, intent: "fetch market d
   await doThePaidThing();
 }`}</code>
           </pre>
+          <p className="mt-4 text-sm text-fg-dim">
+            For LLM calls, where the cost is only known afterwards, hold an estimate and settle the
+            real token spend:
+          </p>
+          <pre className="mt-4 overflow-x-auto rounded-xl border border-line bg-ink p-5 text-sm leading-relaxed text-fg-dim">
+            <code>{`import { meterLLM, estimateUsd } from "trystub/llm";
+
+const pricing = { inputPerMTok: 3, outputPerMTok: 15 };
+
+const response = await meterLLM(
+  stub,
+  { vendorAccountId, pricing, estimatedUsd: estimateUsd(promptTokens, maxOutput, pricing) },
+  () => callTheModel(),
+);`}</code>
+          </pre>
+          <p className="mt-3 text-sm text-fg-mute">
+            Zero dependencies, ships as both ESM and CommonJS.
+          </p>
+        </section>
+
+        <section className="mt-10">
+          <h2 className="font-display text-2xl font-semibold text-fg">
+            Run the whole thing locally
+          </h2>
+          <p className="mt-2 text-sm text-fg-dim">
+            You do not need an AWS account to try Stub. Point it at local Postgres and the console,
+            the ledger, and the invariant all work the same way.
+          </p>
+          <pre className="mt-4 overflow-x-auto rounded-xl border border-line bg-ink p-5 text-sm leading-relaxed text-fg-dim">
+            <code>{`npm run db:up
+echo 'DATABASE_URL=postgres://stub:stub@localhost:5432/stub' >> .env
+npm run migrate && npm run seed
+npm run dev`}</code>
+          </pre>
+          <p className="mt-3 text-sm text-fg-mute">
+            Local transactions run at SERIALIZABLE so plain Postgres raises the same 40001 as Aurora
+            DSQL. Run npm run test:local to watch ten agents race one budget and lose.
+          </p>
         </section>
 
         <div className="mt-12 border-t border-line pt-6 text-sm text-fg-mute">
