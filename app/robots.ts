@@ -1,10 +1,14 @@
 import type { MetadataRoute } from "next";
-
-const SITE_URL = "https://trystub.vercel.app";
+import { SITE_URL } from "@/config/seo";
 
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: { userAgent: "*", allow: "/", disallow: "/api/" },
+    rules: [
+      { userAgent: "*", allow: "/", disallow: "/api/" },
+      { userAgent: "GPTBot", allow: "/" },
+      { userAgent: "ClaudeBot", allow: "/" },
+      { userAgent: "PerplexityBot", allow: "/" },
+    ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,
   };

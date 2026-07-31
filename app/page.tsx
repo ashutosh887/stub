@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
+import { FAQS } from "@/config/seo";
 
 export const dynamic = "force-static";
 
@@ -221,6 +222,19 @@ npm run dev
 
 npm run test:local   # watch the cap hold, with real 40001s`}</code>
           </pre>
+        </div>
+      </Section>
+
+      <Section eyebrow="Questions" title="The things people ask first." muted>
+        <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-2">
+          {FAQS.map((faq) => (
+            <div key={faq.question} className="bg-surface p-6">
+              <h3 className="font-display text-lg font-semibold leading-snug text-fg">
+                {faq.question}
+              </h3>
+              <p className="mt-2.5 text-sm leading-relaxed text-fg-dim">{faq.answer}</p>
+            </div>
+          ))}
         </div>
       </Section>
 
