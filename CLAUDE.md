@@ -75,8 +75,13 @@ Agent (x402 / AgentCore adapter)
 
 No foreign keys, no triggers, ~3,000-row transaction cap, 1MB row-size limit, PostgreSQL-16
 _subset_, OCC requires app-level retry on `40001`, IAM tokens refreshed automatically by the
-connector, multi-region clusters restricted to one geographic grouping. Cluster: us-east-1 +
-us-east-2 with a us-west-2 witness.
+connector, multi-region clusters restricted to one geographic grouping (two peered regions plus a
+witness region).
+
+**Never commit environment-specific or account-specific details.** No cluster IDs or endpoints,
+account IDs, hosting team/project IDs, tokens, keys, personal emails, or local machine paths, in
+this file or any tracked file. Configuration belongs in env vars, documented by name only in
+`.env.example`. Keep docs written for anyone deploying Stub, not for one particular deployment.
 
 ---
 
