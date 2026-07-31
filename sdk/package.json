@@ -1,6 +1,6 @@
 {
   "name": "trystub",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Drop-in budget gate for autonomous AI agents: reserve, pay once, settle. Exactly-once spend control over a strongly-consistent double-entry ledger.",
   "keywords": [
     "ai-agents",
@@ -18,6 +18,8 @@
     "x402",
     "micropayments",
     "agentcore",
+    "token-usage",
+    "llm-observability",
     "aurora-dsql",
     "finops",
     "fintech",

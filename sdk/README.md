@@ -59,9 +59,52 @@ const data = await payThroughStub(stub, vendorAccountId, {
 for the actual amount and refunds the difference. If the reservation is denied it throws
 `BudgetDeniedError` and never pays; if `pay()` throws, the hold is released.
 
+## Metering LLM tokens
+
+Tokens are the spend most fleets actually have. `meterLLM` holds an estimate, runs the call once,
+then settles the real token cost:
+
+```ts
+import { StubClient } from "trystub";
+import { meterLLM, estimateUsd } from "trystub/llm";
+
+const pricing = { inputPerMTok: 3, outputPerMTok: 15 };
+
+const response = await meterLLM(
+  stub,
+  {
+    vendorAccountId,
+    pricing,
+    estimatedUsd: estimateUsd(promptTokens, maxOutputTokens, pricing),
+    model: "your-model",
+    costCenter: "Marketing",
+  },
+  () => callTheModel(),
+);
+```
+
+`usageFrom` reads both OpenAI-shaped (`prompt_tokens` / `completion_tokens`) and Anthropic-shaped
+(`input_tokens` / `output_tokens`) responses, including cached-input tokens, and `costUsd` prices
+them. **You supply the rates.** This package ships no price table on purpose: published prices go
+stale, and a stale number in a dependency silently mis-bills you. If the response carries no usage,
+the hold settles at the full estimate rather than guessing low.
+
+## Reliability
+
+Every call has a timeout and bounded retries on network errors, `429`, and `5xx`. Retries are safe
+because the client attaches a generated `idempotencyKey` to each `spend` and `reserve`, so a request
+that is retried after the server already committed it resolves to that same single ledger entry
+instead of charging twice. Denials and `4xx` are never retried.
+
+```ts
+new StubClient({ baseUrl, apiKey, timeoutMs: 10_000, maxRetries: 2, retryDelayMs: 200 });
+```
+
+Set `maxRetries: 0` to disable retries; the client then sends no generated key.
+
 ## API
 
-- `new StubClient({ apiKey?, baseUrl?, fetch? })`
+- `new StubClient({ apiKey?, baseUrl?, fetch?, timeoutMs?, maxRetries?, retryDelayMs? })`
 - `stub.guard(input): Promise<boolean>`: true only if the spend committed
 - `stub.spend(input): Promise<SpendResult>`: single-shot debit
 - `stub.reserve(input): Promise<ReserveResult>`: hold funds against the cap
@@ -71,6 +114,8 @@ for the actual amount and refunds the difference. If the reservation is denied i
 `input` accepts `{ vendorAccountId, amountUsd, intent?, costCenter?, idempotencyKey?, budgetAccountId?, receipt? }`.
 A scoped API key pins spends to one budget account; without one, pass `budgetAccountId` and
 authenticate as an admin.
+
+Ships as both ESM and CommonJS, so `import` and `require` both work.
 
 ## Links
 
