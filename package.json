@@ -43,6 +43,12 @@
       "prettier --write"
     ]
   },
+  "overrides": {
+    "brace-expansion": "^5.0.9",
+    "minimatch": "^10.2.6",
+    "postcss": "^8.5.25",
+    "sharp": "^0.35.3"
+  },
   "dependencies": {
     "@aws-sdk/dsql-signer": "^3.1075.0",
     "geist": "^1.7.2",
