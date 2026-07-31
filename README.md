@@ -137,12 +137,12 @@ flowchart LR
 The codebase keeps the domain pure and the database swappable:
 
 ```
-core/   pure, dependency-free domain: ledger, settlement, harness, policy, hash chain, query
-db/     the Aurora DSQL adapter: connection pool, Store implementation, schema.sql
-sdk/    the drop-in client (published to npm as trystub) + x402 / AgentCore adapter
+core/   pure, dependency-free domain: ledger, settlement, sharding, harness, policy, hash, query
+db/     the Postgres-family adapter: pool, Store implementation, schema.sql (DSQL or plain Postgres)
+sdk/    the drop-in client (published to npm as trystub) + x402 / AgentCore adapter + LLM metering
 app/    Next.js console: dashboard · incident · settlement · audit · attribution + API routes
-config/ single source of truth for env      scripts/  migrate · seed · harness · demo-agent
-test/   invariant suite (overspend, exactly-once, hash chain) + live cross-region proof
+config/ env + SEO single source of truth   scripts/  migrate · seed · harness · bench · demo-agent
+test/   invariant suite (overspend, exactly-once, hash chain) · local Postgres · live cross-region
 ```
 
 ## Data model
@@ -290,8 +290,8 @@ twice. It ships as both ESM and CommonJS.
 Runs as a standard Next.js app on Vercel. The API routes connect to Aurora DSQL via the AWS
 credential chain, so the deployment needs `DSQL_ENDPOINT`, `DSQL_REGION`, `AWS_ACCESS_KEY_ID`,
 `AWS_SECRET_ACCESS_KEY`, and `OPENAI_API_KEY` set as environment variables (with `DSQL_POOL_MAX=1`
-for serverless). The cluster is multi-region (`us-east-1` + `us-east-2` with a `us-west-2`
-witness), which is what makes the cross-region overspend proof real rather than simulated.
+for serverless). Point it at a multi-region cluster, two peered regions plus a witness, and the
+cross-region overspend proof runs against real replication rather than a simulation.
 
 The SDK publishes itself: push a `sdk-v*` tag (with an `NPM_TOKEN` repo secret set) and the
 `Publish SDK` workflow builds and ships `trystub` to npm. To publish manually:
