@@ -1,14 +1,7 @@
-import type { ReserveResult, StubClient } from "./index";
+import type { StubClient } from "./index.js";
+import { BudgetDeniedError } from "./index.js";
 
-export class BudgetDeniedError extends Error {
-  constructor(
-    readonly result: ReserveResult,
-    readonly vendorAccountId: string,
-  ) {
-    super(`budget gate denied spend (${result.reason ?? "denied"})`);
-    this.name = "BudgetDeniedError";
-  }
-}
+export { BudgetDeniedError };
 
 export interface PaymentRequired {
   status: 402;

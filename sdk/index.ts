@@ -64,6 +64,16 @@ export class StubError extends Error {
   }
 }
 
+export class BudgetDeniedError extends Error {
+  constructor(
+    readonly result: ReserveResult,
+    readonly vendorAccountId: string,
+  ) {
+    super(`budget gate denied spend (${result.reason ?? "denied"})`);
+    this.name = "BudgetDeniedError";
+  }
+}
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 200;
