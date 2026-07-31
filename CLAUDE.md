@@ -99,17 +99,22 @@ layer: the system of record across the whole fleet.
 
 ## Product surfaces
 
+Shipped:
+
 - **Budget & policy:** hierarchy + inheritance (org→team→agent→session), soft/hard caps, threshold
   alerts (50/80/100%), time windows, vendor allow/blocklists, human-in-the-loop approval over $X,
   global + per-agent kill-switch, rate limiting.
-- **Audit-grade trust:** tamper-evident hash-chained entries, full JSON receipt capture, export to
-  accounting (CSV/QuickBooks/NetSuite), idempotency keys (no double-charge).
-- **Attribution:** cost attribution to teams/customers/features, usage-based billing, chargeback/
-  showback, multi-provider cost normalization.
-- **Spend safety:** anomaly/circuit-breaker, spend-velocity auto-freeze, forecasting/projected burn,
-  sandbox/test mode.
-- **Integration:** 3-line SDK, x402/AgentCore/Stripe/AP2 adapters, NL-query server, Slack/email/
-  webhook alerts, agent identity + scoped API keys, RBAC, multi-tenancy.
+- **Audit-grade trust:** tamper-evident hash-chained entries, full JSON receipt capture, journal-line
+  CSV export, idempotency keys (no double-charge).
+- **Attribution:** cost attribution to teams/customers/features via `cost_center`, chargeback/
+  showback rollups.
+- **Spend safety:** spend-velocity auto-freeze (circuit breaker), forecasting/projected burn.
+- **Integration:** 3-line SDK, x402/AgentCore adapter, LLM token metering, NL-query server, agent
+  identity + scoped API keys.
+
+Roadmap (**not built**, do not describe these as shipped): Stripe/AP2 adapters, Slack/email/webhook
+alerts, RBAC, multi-tenancy, sandbox/test mode, usage-based billing, multi-provider cost
+normalization, CDC→Kinesis live feed.
 
 ## Repo layout
 
@@ -117,18 +122,29 @@ layer: the system of record across the whole fleet.
   `buildEntry` helpers + the hierarchy walk + velocity breaker), `settlement.ts` (reserve/settle/
   release, exactly-once), `payment.ts` (gateway interface + counting mock), `harness.ts` (naive-vs-
   Stub exactly-once proof), `store.ts` (`Store`/`Tx` interface), `mem-store.ts` (in-memory OCC model
-  for offline tests), `policy.ts`, `query.ts`, `audit.ts`, `hash.ts`, `burn.ts`, `forecast.ts`,
-  `apikey.ts`. No `pg`/AWS imports here.
-- `db/`: the **Aurora DSQL adapter**. `client.ts` (`createPool`/`getPool`), `pg-store.ts` (`Store`
-  impl over DSQL), `schema.sql` (single source of truth, idempotent; secondary indexes use
-  `CREATE INDEX ASYNC`; applied by `npm run migrate`). Swap this dir, the core is untouched.
+  for offline tests), `sharded.ts` (opt-in sharded balances for hot-row contention), `policy.ts`,
+  `query.ts`, `audit.ts`, `hash.ts`, `burn.ts`, `forecast.ts`, `apikey.ts`. No `pg`/AWS imports here.
+- `db/`: the **Postgres-family adapter**. `client.ts` (`createPool` for DSQL + IAM,
+  `createPostgresPool` for a plain `DATABASE_URL`, `createDriverPool`/`getPool` dispatching on
+  `config.db.driver`), `pg-store.ts` (`Store` impl, standard SQL only; opens transactions
+  `SERIALIZABLE` on plain Postgres so it raises the same `40001` as DSQL's OCC), `schema.sql`
+  (single source of truth, idempotent; `CREATE INDEX ASYNC` is rewritten to `CREATE INDEX` by
+  `npm run migrate` on the postgres driver). Swap this dir, the core is untouched.
+- **Two drivers, one code path:** set `DATABASE_URL` for local Postgres (`npm run db:up`,
+  `docker-compose.yml`) and every `DSQL_*` var is ignored; leave it unset for Aurora DSQL. Local
+  mode is a faithful OCC model, not a mock, so `npm run test:local` proves the invariant with no
+  AWS account.
 - `sdk/`: the **drop-in SDK** (`index.ts` `StubClient` with `guard`/`spend`/`reserve`/`settle`/
-  `release`) + thin mockable x402/AgentCore adapter (`x402.ts` `payThroughStub`, reserve→pay→settle).
-  Dependency-free; **published to npm as `trystub`** (own `package.json`/`tsconfig.json`, built
-  to `dist/`, shipped by the `Publish SDK` workflow on a `sdk-v*` tag; the tag only publishes to
-  npm, so create the matching GitHub Release separately after).
-- `config/`: single source of truth for env-driven values (`index.ts`): `dsql`, `openai`, `app`,
-  `demo`, `limits`, plus `requiredEnv` (lazy). `core/` and `sdk/` stay config-free.
+  `release`, plus per-call timeout, bounded retry on network/`429`/`5xx`, and a generated
+  idempotency key on `spend`/`reserve` so a retry can never double-charge) + thin mockable
+  x402/AgentCore adapter (`x402.ts` `payThroughStub`) + LLM token metering (`llm.ts` `meterLLM`,
+  `usageFrom`, `costUsd`, `estimateUsd`). **Ships no model price table on purpose**: prices go
+  stale, so the caller supplies rates; only the stable OpenAI/Anthropic usage shapes are adapted.
+  Dependency-free; dual ESM + CJS build (`tsconfig.json` → `dist/esm`, `tsconfig.cjs.json` →
+  `dist/cjs`); **published to npm as `trystub`**, shipped by the `Publish SDK` workflow on a
+  `sdk-v*` tag (the tag only publishes to npm, so create the matching GitHub Release separately).
+- `config/`: single source of truth for env-driven values (`index.ts`): `db`, `dsql`, `openai`,
+  `app`, `demo`, `limits`, plus `requiredEnv` (lazy). `core/` and `sdk/` stay config-free.
 - `app/` `components/` `lib/`: Next.js (App Router) multipage console + API routes + server helpers.
   App pages: `/dashboard` (overview), `/incident` (replay), `/settlement` (reserve→pay→settle),
   `/audit` (chain verification + journal export), `/attribution` (chargeback/showback), all sharing
@@ -141,18 +157,23 @@ layer: the system of record across the whole fleet.
   all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
   (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,
   per-page canonicals, and `sitemap.ts` / `robots.ts`.
-- `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent). `test/`:
-  invariant + live proofs. `docs/`: local-only planning notes (gitignored).
+- `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent/bench). `test/`:
+  `invariant/` (offline), `local/` (local Postgres), `live/` (real cluster). `docs/`: local-only
+  planning notes (gitignored).
 
 ## Commands
 
 - Dev: `npm run dev` · Build: `npm run build` · Typecheck: `npm run typecheck`
 - Lint/format: `npm run lint` · `npm run format` · `npm run verify` (lint + typecheck + invariant).
   Husky hooks run lint-staged on pre-commit and commitlint on commit-msg (Conventional Commits).
+- Local DB (no AWS): `npm run db:up` · `npm run db:down` (needs `DATABASE_URL` set)
 - DB: `npm run check:db` · `npm run migrate` · `npm run seed` · `npm run seed:activity`
 - Demo agent (needs `npm run dev`): `npm run demo:agent`
-- Offline invariant gate (in-memory OCC, no cluster): `npm test` / `npm run test:invariant`
+- Offline invariant gate (in-memory OCC, no database): `npm test` / `npm run test:invariant`
+- **Local overspend proof** (real `40001`s on local Postgres, auto-skips without `DATABASE_URL`):
+  `npm run test:local`
 - **Exactly-once harness** (naive double-pay vs Stub, prints pass/fail): `npm run harness`
+- **Contention benchmark** (single balance row vs sharded, sweeps 1→32 writers): `npm run bench`
 - **Live cross-region overspend proof:** `npm run test:live` (`test/live/cross-region.test.ts`):
   6 agents across two regions race one near-empty budget on the real cluster → exactly what fits
   commits, the rest deny with real OCC `40001`s, balance never negative. Auto-skips without

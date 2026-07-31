@@ -84,6 +84,24 @@ The invariants are demonstrated, not just claimed:
 - **The audit page** re-verifies the hash chain and demonstrates tamper detection on a throwaway
   copy of a real entry; the live ledger is never touched.
 
+### The known ceiling
+
+The contended balance row is what makes the invariant work, and it is also the throughput limit.
+`npm run bench` measures it. On local Postgres, throughput against a single budget stays flat around
+300-450 ops/sec no matter how many writers pile on, while conflicts per spend climb past 2 and p95
+latency goes from ~13 ms at 1 writer to ~380 ms at 32. Adding writers buys nothing.
+
+`core/sharded.ts` splits one balance into N shard rows. Each shard is checked and debited
+independently, so writers collide less, and because no shard ever goes below zero, the sum cannot
+either: **sharding relaxes throughput without weakening the overspend invariant.** A spend takes
+one shard on the fast path and only reads the others when that shard is short, so it borrows across
+shards instead of falsely denying a spend that fits. Measured at 8 shards on local Postgres, that is
+a 1.2-2.8x throughput gain with equal or lower conflicts per spend.
+
+This is opt-in (`shardedSpend`) and not yet wired into the API routes or the console, which still
+use the single-row path. The definitive numbers belong on the real DSQL cluster, where reads do not
+conflict at all; the local figures understate the gain.
+
 ## Why Aurora DSQL
 
 Budget-enforcement correctness _is_ the database's consistency model. The load-bearing property is
@@ -176,20 +194,37 @@ A deliberate double-entry ledger:
 
 ## Quickstart
 
+**No AWS account needed.** Stub runs against local Postgres, which raises the same `40001`
+serialization failures as Aurora DSQL, so you exercise the real retry path and the real invariant:
+
 ```bash
 npm install
+npm run db:up               # Postgres in Docker
+echo 'DATABASE_URL=postgres://stub:stub@localhost:5432/stub' >> .env
+npm run migrate && npm run seed && npm run seed:activity
+npm run dev                 # console at http://localhost:3000
+```
+
+Set `DATABASE_URL` and it wins; leave it unset and Stub connects to Aurora DSQL with the `DSQL_*`
+vars instead. Local transactions run at `SERIALIZABLE` because plain Postgres needs it to reproduce
+DSQL's optimistic concurrency; production DSQL is snapshot-isolated with OCC by default.
+
+For the production path:
+
+```bash
 cp .env.example .env        # set DSQL_* (and optionally OPENAI_API_KEY)
 npm run check:db            # verify the Aurora DSQL connection
 npm run migrate && npm run seed
-npm run dev                 # dashboard at http://localhost:3000
 npm run demo:agent          # an agent spending through the gate (needs the dev server running)
 ```
 
 Tests & proofs:
 
 ```bash
-npm test                    # offline invariant suite (in-memory OCC model, no cluster needed)
+npm test                    # offline invariant suite (in-memory OCC model, no database needed)
+npm run test:local          # 10 agents race one budget on local Postgres, real 40001s
 npm run harness             # naive-vs-Stub exactly-once comparison (double-pay made visible)
+npm run bench               # hot-row contention benchmark, single row vs sharded
 npm run test:live           # live cross-region overspend proof (requires DSQL_ENDPOINT_PEER)
 ```
 
@@ -229,6 +264,26 @@ const data = await payThroughStub(stub, vendorAccountId, {
   },
 });
 ```
+
+LLM tokens go through the same hold-then-settle path. `usageFrom` reads OpenAI-shaped and
+Anthropic-shaped responses; you supply the rates, because the package ships no price table that
+could go stale:
+
+```ts
+import { meterLLM, estimateUsd } from "trystub/llm";
+
+const pricing = { inputPerMTok: 3, outputPerMTok: 15 };
+
+const response = await meterLLM(
+  stub,
+  { vendorAccountId, pricing, estimatedUsd: estimateUsd(promptTokens, maxOutput, pricing) },
+  () => callTheModel(),
+);
+```
+
+The client times out, retries network errors / `429` / `5xx`, and attaches a generated idempotency
+key to every `spend` and `reserve` so a retry resolves to the same ledger entry instead of charging
+twice. It ships as both ESM and CommonJS.
 
 ## Deployment
 
