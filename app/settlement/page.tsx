@@ -9,6 +9,13 @@ import { formatUsd } from "@/lib/money";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Reserve, pay, settle",
+  description:
+    "The exactly-once settlement flow: hold an estimate against the budget, pay once, then settle the real cost and refund the difference.",
+  alternates: { canonical: "/settlement" },
+};
+
 const STATUS_TONE: Record<string, string> = {
   held: "text-warn",
   settled: "text-commit",

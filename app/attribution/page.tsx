@@ -8,6 +8,13 @@ import { formatUsd } from "@/lib/money";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Cost attribution and chargeback",
+  description:
+    "Break agent spend down by cost center, team, and vendor to answer chargeback and showback questions a cloud bill cannot.",
+  alternates: { canonical: "/attribution" },
+};
+
 export default async function AttributionPage() {
   if (!(await adminPageAllowed())) return <AdminLogin />;
 

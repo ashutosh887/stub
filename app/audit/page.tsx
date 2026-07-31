@@ -8,6 +8,13 @@ import { auditReport } from "@/lib/data";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Audit and chain verification",
+  description:
+    "Verify the tamper-evident hash chain over every ledger entry, see tamper detection demonstrated, and export the books as accounting journal lines.",
+  alternates: { canonical: "/audit" },
+};
+
 export default async function AuditPage() {
   if (!(await adminPageAllowed())) return <AdminLogin />;
 

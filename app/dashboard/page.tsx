@@ -28,6 +28,13 @@ import { ADMIN_COOKIE } from "@/lib/api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Live dashboard",
+  description:
+    "Watch agent spend commit and get denied in real time against one enforced budget, with live balances, burn rates, and the denial feed.",
+  alternates: { canonical: "/dashboard" },
+};
+
 const TYPE_LABEL: Record<string, string> = {
   org: "Organization",
   team: "Team",

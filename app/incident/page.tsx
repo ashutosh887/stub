@@ -8,6 +8,13 @@ import { SCENARIOS } from "@/lib/incidents";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "Incident replay",
+  description:
+    "Replay documented runaway-agent spend patterns against an enforced cap and watch the overspend get refused, transaction by transaction.",
+  alternates: { canonical: "/incident" },
+};
+
 export default async function IncidentPage() {
   if (!(await adminPageAllowed())) return <AdminLogin />;
 
