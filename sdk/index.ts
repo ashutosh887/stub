@@ -49,6 +49,9 @@ export interface StubClientOptions {
   apiKey?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
+  timeoutMs?: number;
+  maxRetries?: number;
+  retryDelayMs?: number;
 }
 
 export class StubError extends Error {
@@ -61,10 +64,29 @@ export class StubError extends Error {
   }
 }
 
+const DEFAULT_TIMEOUT_MS = 10_000;
+const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_RETRY_DELAY_MS = 200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function newIdempotencyKey(): string {
+  const webCrypto = globalThis.crypto;
+  if (webCrypto && typeof webCrypto.randomUUID === "function") {
+    return `stub-${webCrypto.randomUUID()}`;
+  }
+  return `stub-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
 export class StubClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly doFetch: typeof fetch;
+  private readonly timeoutMs: number;
+  private readonly maxRetries: number;
+  private readonly retryDelayMs: number;
 
   constructor(options: StubClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? "http://localhost:3000").replace(/\/$/, "");
@@ -72,25 +94,75 @@ export class StubClient {
     const f = options.fetch ?? globalThis.fetch;
     if (!f) throw new Error("no fetch available; pass options.fetch");
     this.doFetch = f.bind(globalThis);
+    this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.maxRetries = Math.max(0, options.maxRetries ?? DEFAULT_MAX_RETRIES);
+    this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS;
   }
 
-  private async post<T>(path: string, body: unknown): Promise<T> {
+  private async once(path: string, body: unknown): Promise<Response> {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (this.apiKey) headers.authorization = `Bearer ${this.apiKey}`;
-    const res = await this.doFetch(`${this.baseUrl}${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-    const data = (await res.json()) as T & { error?: string };
-    if (res.status >= 500 || res.status === 401 || res.status === 400) {
-      throw new StubError(data.error ?? `${path} failed (${res.status})`, res.status);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      return await this.doFetch(`${this.baseUrl}${path}`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
     }
-    return data;
   }
 
-  spend(input: SpendInput): Promise<SpendResult> {
-    return this.post<SpendResult>("/api/spend", input);
+  private async post<T>(path: string, body: unknown): Promise<{ data: T; attempts: number }> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= this.maxRetries + 1; attempt++) {
+      let res: Response;
+      try {
+        res = await this.once(path, body);
+      } catch (err) {
+        lastError = err;
+        if (attempt > this.maxRetries) break;
+        await sleep(this.retryDelayMs * 2 ** (attempt - 1));
+        continue;
+      }
+
+      if ((res.status === 429 || res.status >= 500) && attempt <= this.maxRetries) {
+        await sleep(this.retryDelayMs * 2 ** (attempt - 1));
+        continue;
+      }
+
+      const data = (await res.json().catch(() => ({}))) as T & { error?: string };
+      if (res.status >= 500 || res.status === 429 || res.status === 401 || res.status === 400) {
+        throw new StubError(data.error ?? `${path} failed (${res.status})`, res.status);
+      }
+      return { data, attempts: attempt };
+    }
+
+    const reason = lastError instanceof Error ? lastError.message : "network error";
+    throw new StubError(`${path} unreachable after ${this.maxRetries + 1} attempts: ${reason}`, 0);
+  }
+
+  private keyFor(input: SpendInput): string | undefined {
+    if (input.idempotencyKey !== undefined) return input.idempotencyKey;
+    return this.maxRetries > 0 ? newIdempotencyKey() : undefined;
+  }
+
+  async spend(input: SpendInput): Promise<SpendResult> {
+    const ownedKey = input.idempotencyKey === undefined;
+    const idempotencyKey = this.keyFor(input);
+    const { data, attempts } = await this.post<SpendResult>("/api/spend", {
+      ...input,
+      idempotencyKey,
+    });
+    if (ownedKey && attempts > 1 && data.status === "duplicate") {
+      return { ...data, status: "committed" };
+    }
+    return data;
   }
 
   async guard(input: SpendInput): Promise<boolean> {
@@ -98,15 +170,26 @@ export class StubClient {
     return result.status === "committed";
   }
 
-  reserve(input: SpendInput): Promise<ReserveResult> {
-    return this.post<ReserveResult>("/api/reserve", input);
+  async reserve(input: SpendInput): Promise<ReserveResult> {
+    const ownedKey = input.idempotencyKey === undefined;
+    const idempotencyKey = this.keyFor(input);
+    const { data, attempts } = await this.post<ReserveResult>("/api/reserve", {
+      ...input,
+      idempotencyKey,
+    });
+    if (ownedKey && attempts > 1 && data.status === "duplicate") {
+      return { ...data, status: "reserved" };
+    }
+    return data;
   }
 
-  settle(reservationId: string, actualUsd?: number | string): Promise<SettleResult> {
-    return this.post<SettleResult>("/api/settle", { reservationId, actualUsd });
+  async settle(reservationId: string, actualUsd?: number | string): Promise<SettleResult> {
+    const { data } = await this.post<SettleResult>("/api/settle", { reservationId, actualUsd });
+    return data;
   }
 
-  release(reservationId: string): Promise<ReleaseResult> {
-    return this.post<ReleaseResult>("/api/release", { reservationId });
+  async release(reservationId: string): Promise<ReleaseResult> {
+    const { data } = await this.post<ReleaseResult>("/api/release", { reservationId });
+    return data;
   }
 }
