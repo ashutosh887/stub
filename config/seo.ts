@@ -80,32 +80,32 @@ export const FAQS: Faq[] = [
   {
     question: "How do you stop an AI agent from overspending?",
     answer:
-      "Give the whole fleet one budget and make the database enforce it. Stub records every spend as a double-entry transaction that also decrements the budget. If the spend would take the balance below zero, the transaction does not commit, so there is no moment where the overspend is briefly real. Cloud budget alerts cannot do this because they notify after the money is gone.",
+      "Give the whole fleet one budget and let the database enforce it. Every spend is a double-entry transaction that also decrements the budget, so one that would go below zero never commits. Alerts only tell you after the money is gone.",
   },
   {
     question: "What happens when two agents spend the same dollars at once?",
     answer:
-      "One of them loses. Both transactions read the same balance and try to write it, and Aurora DSQL's optimistic concurrency control lets exactly one commit and returns SQLSTATE 40001 to the other. Stub retries the loser against the fresh balance, and if the money is gone by then, it records a denial. The balance never goes negative.",
+      "One of them loses. Both read the same balance and try to write it, so Aurora DSQL commits exactly one and returns SQLSTATE 40001 to the other. Stub retries against the fresh balance, or records a denial. The balance never goes negative.",
   },
   {
     question: "Can a retry double-charge a vendor?",
     answer:
-      "Not through Stub. A naive retry around an irreversible payment is the classic way to pay twice, so Stub splits the operation: reserve the estimate against the budget, run the payment exactly once outside the transaction keyed on that reservation, then settle the real cost and refund the difference. The SDK also attaches an idempotency key to every spend, so a request retried after the server already committed it resolves to the same single ledger entry.",
+      "No. Stub reserves the estimate, pays exactly once outside the transaction, then settles the real cost and refunds the difference. Retries replay the ledger, never the payment. The SDK also keys every spend, so a retried request resolves to the same entry.",
   },
   {
     question: "Do I need an AWS account to try it?",
     answer:
-      "No. Set DATABASE_URL and Stub runs on local Postgres, with the console, the ledger, and the invariant all working the same way. Local transactions run at SERIALIZABLE, which raises the same 40001 serialization failures as Aurora DSQL, so you exercise the real retry path rather than a mock.",
+      "No. Set DATABASE_URL and Stub runs on local Postgres, console and ledger included. Transactions run at SERIALIZABLE, so you hit the same 40001 conflicts as production.",
   },
   {
     question: "Does it track LLM token costs, or only API payments?",
     answer:
-      "Both. The SDK meters LLM calls through the same budget: it holds an estimate, runs the call once, then settles the actual token cost and refunds the difference. It reads OpenAI-shaped and Anthropic-shaped usage fields. You supply the per-million-token rates, because a price table baked into a package goes stale and quietly mis-bills you.",
+      "Both. The SDK holds an estimate, runs the call once, then settles the real token cost. It reads OpenAI and Anthropic usage fields. You supply the rates, because a price table shipped inside a package goes stale and quietly mis-bills you.",
   },
   {
     question: "Why Aurora DSQL instead of regular Postgres or DynamoDB?",
     answer:
-      "Because the guarantee is the database's consistency model, not application code. Enforcing one budget across regions needs active-active multi-region strong consistency. Aurora PostgreSQL Global is single-writer, and DynamoDB global tables are eventually consistent, which means last-writer-wins and a silent overspend during replication. Stub runs on plain Postgres too, but single-region.",
+      "Because the guarantee is the database's consistency model, not your code. One budget across regions needs active-active strong consistency. Aurora PostgreSQL Global is single-writer, and DynamoDB global tables are eventually consistent, so last-writer-wins means silent overspend. Stub runs on plain Postgres too, single-region.",
   },
 ];
 

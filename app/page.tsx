@@ -130,11 +130,10 @@ export default function Home() {
           <p className="text-lg leading-relaxed text-fg-dim">
             Correctness here <span className="text-fg">is</span> the database&apos;s consistency
             model. The load-bearing property is{" "}
-            <span className="text-fg">active-active, multi-region strong consistency</span>. A
-            writer in us-east-1 and a writer in us-east-2 hitting the same balance resolve to one
-            consistent outcome. No other AWS database offers it: Aurora PostgreSQL Global is
-            single-writer, and DynamoDB global tables are eventually consistent (last-writer-wins,
-            which means silent overspend during replication).
+            <span className="text-fg">active-active, multi-region strong consistency</span>: writers
+            in us-east-1 and us-east-2 hitting the same balance resolve to one outcome. No other AWS
+            database offers it. Aurora PostgreSQL Global is single-writer, and DynamoDB global
+            tables are eventually consistent, which means silent overspend during replication.
           </p>
           <div className="rounded-2xl border border-line bg-surface p-6">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">
@@ -204,14 +203,12 @@ export default function Home() {
         <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
           <div>
             <p className="text-lg leading-relaxed text-fg-dim">
-              Stub runs on local Postgres as well as Aurora DSQL. Local transactions run at{" "}
-              <span className="text-fg">SERIALIZABLE</span>, which raises the same{" "}
-              <span className="text-fg">40001</span> serialization failures, so you exercise the
-              real retry path and the real invariant. It is a faithful model, not a mock.
+              Stub runs on local Postgres too. Transactions run at{" "}
+              <span className="text-fg">SERIALIZABLE</span>, so you get the same{" "}
+              <span className="text-fg">40001</span> conflicts as production. A model, not a mock.
             </p>
             <p className="mt-4 text-sm leading-relaxed text-fg-mute">
-              Ten agents racing one $3 budget locally: three commit, seven are denied, twenty four
-              real conflicts, and the balance floors at $0.00.
+              Ten agents, one $3 budget: three commit, seven denied, balance floors at $0.00.
             </p>
           </div>
           <pre className="overflow-x-auto rounded-2xl border border-line bg-ink p-6 text-sm leading-relaxed text-fg-dim">
