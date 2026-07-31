@@ -104,8 +104,18 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS account_shards (
+  account_id      UUID NOT NULL,
+  shard_index     INT NOT NULL,
+  balance_micro   BIGINT NOT NULL DEFAULT 0,
+  last_entry_hash TEXT NOT NULL DEFAULT '0000000000000000000000000000000000000000000000000000000000000000',
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (account_id, shard_index)
+);
+
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS cost_center TEXT;
 ALTER TABLE denials ADD COLUMN IF NOT EXISTS cost_center TEXT;
+ALTER TABLE entries ADD COLUMN IF NOT EXISTS shard_index INT;
 
 CREATE INDEX ASYNC IF NOT EXISTS entries_account_created_idx ON entries (account_id, created_at);
 CREATE INDEX ASYNC IF NOT EXISTS entries_txn_idx ON entries (transaction_id);

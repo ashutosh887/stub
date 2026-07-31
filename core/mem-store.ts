@@ -4,6 +4,7 @@ import {
   type Denial,
   type Entry,
   type Reservation,
+  type Shard,
   type Store,
   type Tx,
   ConflictError,
@@ -14,6 +15,15 @@ interface Versioned {
   version: number;
 }
 
+interface VersionedShard {
+  shard: Shard;
+  version: number;
+}
+
+function shardKey(accountId: string, index: number): string {
+  return `${accountId}#${index}`;
+}
+
 interface VersionedReservation {
   reservation: Reservation;
   version: number;
@@ -21,6 +31,7 @@ interface VersionedReservation {
 
 export class MemStore implements Store {
   private accounts = new Map<string, Versioned>();
+  private shards = new Map<string, VersionedShard>();
   readonly entries: Entry[] = [];
   readonly denials: Denial[] = [];
   private idempotency = new Map<string, string>();
@@ -45,6 +56,17 @@ export class MemStore implements Store {
 
   seedAccount(account: Account): void {
     this.accounts.set(account.id, { account: clone(account), version: 0 });
+  }
+
+  seedShard(shard: Shard): void {
+    this.shards.set(shardKey(shard.accountId, shard.index), { shard: clone(shard), version: 0 });
+  }
+
+  shardBalances(accountId: string): bigint[] {
+    return [...this.shards.values()]
+      .filter(({ shard }) => shard.accountId === accountId)
+      .sort((a, b) => a.shard.index - b.shard.index)
+      .map(({ shard }) => shard.balanceMicro);
   }
 
   seedPolicy(policy: Policy): void {
@@ -73,6 +95,8 @@ export class MemStore implements Store {
     const idempotencyWrites = new Map<string, string>();
     const reservationReads = new Map<string, number>();
     const reservationWrites = new Map<string, Reservation>();
+    const shardReads = new Map<string, number>();
+    const shardWrites = new Map<string, Shard>();
 
     const snapshot = (id: string): Versioned | undefined => {
       const found = this.accounts.get(id);
@@ -93,8 +117,41 @@ export class MemStore implements Store {
       return account;
     };
 
+    const readShard = (accountId: string, index: number, track: boolean): Shard | null => {
+      const key = shardKey(accountId, index);
+      const pending = shardWrites.get(key);
+      if (pending) return clone(pending);
+      const found = this.shards.get(key);
+      if (!found) {
+        if (track && !shardReads.has(key)) shardReads.set(key, -1);
+        return null;
+      }
+      if (track && !shardReads.has(key)) shardReads.set(key, found.version);
+      return clone(found.shard);
+    };
+
     const tx: Tx = {
       getAccount: async (id) => readAccount(id),
+      listShards: async (accountId) =>
+        [...this.shards.values()]
+          .filter(({ shard }) => shard.accountId === accountId)
+          .sort((a, b) => a.shard.index - b.shard.index)
+          .map(({ shard }) => readShard(shard.accountId, shard.index, false)!)
+          .filter(Boolean),
+      getShard: async (accountId, index) => readShard(accountId, index, true),
+      upsertShard: async (shard) => {
+        readShard(shard.accountId, shard.index, true);
+        shardWrites.set(shardKey(shard.accountId, shard.index), clone(shard));
+      },
+      updateShard: async (accountId, index, balanceMicro, lastEntryHash) => {
+        const current = readShard(accountId, index, true);
+        if (!current) throw new Error(`unknown shard: ${accountId}#${index}`);
+        shardWrites.set(shardKey(accountId, index), {
+          ...current,
+          balanceMicro,
+          lastEntryHash,
+        });
+      },
       getAncestors: async (id) => {
         const result: Account[] = [];
         const self = readAccount(id);
@@ -174,6 +231,11 @@ export class MemStore implements Store {
         const current = this.reservations.get(id);
         if (!current || current.version !== version) throw new ConflictError();
       }
+      for (const [key, version] of shardReads) {
+        const current = this.shards.get(key);
+        const seen = current?.version ?? -1;
+        if (seen !== version) throw new ConflictError();
+      }
       for (const [key] of idempotencyWrites) {
         if (this.idempotency.has(key)) throw new ConflictError("duplicate idempotency key");
       }
@@ -188,6 +250,10 @@ export class MemStore implements Store {
       for (const [id, reservation] of reservationWrites) {
         const existing = this.reservations.get(id);
         this.reservations.set(id, { reservation, version: (existing?.version ?? -1) + 1 });
+      }
+      for (const [key, shard] of shardWrites) {
+        const existing = this.shards.get(key);
+        this.shards.set(key, { shard, version: (existing?.version ?? -1) + 1 });
       }
       for (const entry of entryWrites) this.entries.push(entry);
       for (const denial of denialWrites) this.denials.push(denial);

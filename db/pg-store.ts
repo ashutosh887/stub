@@ -9,6 +9,7 @@ import {
   type Entry,
   type Reservation,
   type ReservationStatus,
+  type Shard,
   type Store,
   type Tx,
   ConflictError,
@@ -67,6 +68,49 @@ function makeTx(client: PoolClient): Tx {
       }
       return result;
     },
+    async listShards(accountId) {
+      const { rows } = await client.query(
+        `SELECT account_id, shard_index, balance_micro, last_entry_hash
+           FROM account_shards WHERE account_id = $1 ORDER BY shard_index`,
+        [accountId],
+      );
+      return rows.map(toShard);
+    },
+    async getShard(accountId, index) {
+      const { rows } = await client.query(
+        `SELECT account_id, shard_index, balance_micro, last_entry_hash
+           FROM account_shards WHERE account_id = $1 AND shard_index = $2`,
+        [accountId, index],
+      );
+      return rows[0] ? toShard(rows[0]) : null;
+    },
+    async upsertShard(shard: Shard) {
+      const params = [
+        shard.accountId,
+        shard.index,
+        shard.balanceMicro.toString(),
+        shard.lastEntryHash,
+      ];
+      const updated = await client.query(
+        `UPDATE account_shards SET balance_micro = $3, last_entry_hash = $4
+          WHERE account_id = $1 AND shard_index = $2`,
+        params,
+      );
+      if (updated.rowCount === 0) {
+        await client.query(
+          `INSERT INTO account_shards (account_id, shard_index, balance_micro, last_entry_hash)
+           VALUES ($1,$2,$3,$4)`,
+          params,
+        );
+      }
+    },
+    async updateShard(accountId, index, balanceMicro, lastEntryHash) {
+      await client.query(
+        `UPDATE account_shards SET balance_micro = $3, last_entry_hash = $4
+          WHERE account_id = $1 AND shard_index = $2`,
+        [accountId, index, balanceMicro.toString(), lastEntryHash],
+      );
+    },
     async updateAccount(id, balanceMicro, lastEntryHash) {
       await client.query(
         `UPDATE accounts SET balance_micro = $2, last_entry_hash = $3 WHERE id = $1`,
@@ -77,26 +121,47 @@ function makeTx(client: PoolClient): Tx {
       await client.query(`UPDATE accounts SET frozen = $2 WHERE id = $1`, [id, frozen]);
     },
     async insertEntry(entry: Entry) {
+      const columns = [
+        "id",
+        "transaction_id",
+        "account_id",
+        "kind",
+        "amount_micro",
+        "agent_id",
+        "session_id",
+        "user_id",
+        "intent",
+        "cost_center",
+        "receipt",
+        "prev_hash",
+        "hash",
+      ];
+      const values: unknown[] = [
+        entry.id,
+        entry.transactionId,
+        entry.accountId,
+        entry.kind,
+        entry.amountMicro.toString(),
+        entry.agentId,
+        entry.sessionId,
+        entry.userId,
+        entry.intent,
+        entry.costCenter,
+        entry.receipt === undefined ? null : JSON.stringify(entry.receipt),
+        entry.prevHash,
+        entry.hash,
+      ];
+
+      // Only sharded spends reference shard_index, so unsharded writes work on either schema.
+      if (entry.shardIndex != null) {
+        columns.push("shard_index");
+        values.push(entry.shardIndex);
+      }
+
       await client.query(
-        `INSERT INTO entries
-           (id, transaction_id, account_id, kind, amount_micro,
-            agent_id, session_id, user_id, intent, cost_center, receipt, prev_hash, hash)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [
-          entry.id,
-          entry.transactionId,
-          entry.accountId,
-          entry.kind,
-          entry.amountMicro.toString(),
-          entry.agentId,
-          entry.sessionId,
-          entry.userId,
-          entry.intent,
-          entry.costCenter,
-          entry.receipt === undefined ? null : JSON.stringify(entry.receipt),
-          entry.prevHash,
-          entry.hash,
-        ],
+        `INSERT INTO entries (${columns.join(", ")})
+         VALUES (${values.map((_, i) => `$${i + 1}`).join(",")})`,
+        values,
       );
     },
     async insertDenial(denial: Denial) {
@@ -199,6 +264,15 @@ function makeTx(client: PoolClient): Tx {
         ],
       );
     },
+  };
+}
+
+function toShard(row: Record<string, unknown>): Shard {
+  return {
+    accountId: row.account_id as string,
+    index: Number(row.shard_index),
+    balanceMicro: BigInt(row.balance_micro as string),
+    lastEntryHash: row.last_entry_hash as string,
   };
 }
 

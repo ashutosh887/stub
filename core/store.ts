@@ -21,6 +21,7 @@ export interface Entry {
   id: string;
   transactionId: string;
   accountId: string;
+  shardIndex?: number | null;
   kind: EntryKind;
   amountMicro: bigint;
   agentId: string | null;
@@ -69,8 +70,24 @@ export interface ReservationPatch {
   transactionId?: string | null;
 }
 
+export interface Shard {
+  accountId: string;
+  index: number;
+  balanceMicro: bigint;
+  lastEntryHash: string;
+}
+
 export interface Tx {
   getAccount(id: string): Promise<Account | null>;
+  listShards(accountId: string): Promise<Shard[]>;
+  getShard(accountId: string, index: number): Promise<Shard | null>;
+  upsertShard(shard: Shard): Promise<void>;
+  updateShard(
+    accountId: string,
+    index: number,
+    balanceMicro: bigint,
+    lastEntryHash: string,
+  ): Promise<void>;
   getAncestors(id: string): Promise<Account[]>;
   updateAccount(id: string, balanceMicro: bigint, lastEntryHash: string): Promise<void>;
   setFrozen(id: string, frozen: boolean): Promise<void>;

@@ -7,12 +7,16 @@ export interface ChainProblem {
   kind: "broken_link" | "bad_hash";
 }
 
+function chainKey(entry: Entry): string {
+  return `${entry.accountId}#${entry.shardIndex ?? ""}`;
+}
+
 export function verifyChain(entries: Entry[]): ChainProblem[] {
   const lastHashByAccount = new Map<string, string>();
   const problems: ChainProblem[] = [];
 
   for (const entry of entries) {
-    const expectedPrev = lastHashByAccount.get(entry.accountId) ?? GENESIS_HASH;
+    const expectedPrev = lastHashByAccount.get(chainKey(entry)) ?? GENESIS_HASH;
     if (entry.prevHash !== expectedPrev) {
       problems.push({ accountId: entry.accountId, entryId: entry.id, kind: "broken_link" });
     }
@@ -34,7 +38,7 @@ export function verifyChain(entries: Entry[]): ChainProblem[] {
       problems.push({ accountId: entry.accountId, entryId: entry.id, kind: "bad_hash" });
     }
 
-    lastHashByAccount.set(entry.accountId, entry.hash);
+    lastHashByAccount.set(chainKey(entry), entry.hash);
   }
 
   return problems;
