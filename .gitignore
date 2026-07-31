@@ -1,13 +1,12 @@
 node_modules/
 dist/
-.env
-.env.local
 *.log
 .DS_Store
 .next/
 *.tsbuildinfo
 .vercel
 .env*
+!.env.example
 
 # internal planning / reference docs: local only, never committed
 docs/
