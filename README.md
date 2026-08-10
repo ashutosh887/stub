@@ -101,7 +101,8 @@ a 1.2-2.8x throughput gain with equal or lower conflicts per spend.
 Sharding is opt-in per account: provisioning an account with `provisionShards` flips its `sharded`
 flag, and `/api/spend` dispatches to the sharded path automatically for any account with that flag
 set (`core/sharded.ts` `spendAuto`), with the same policy, frozen, velocity, and hierarchy checks
-either way. The console has no UI to provision a sharded account yet; that's still a script/API call.
+either way. The console has no UI to provision a sharded account yet; that's an admin-gated
+`POST /api/accounts/shard` call, or `stub.provisionShards(accountId)` from the SDK.
 The definitive numbers belong on the real DSQL cluster, where reads do not conflict at all; the
 local figures understate the gain.
 
@@ -289,6 +290,11 @@ const response = await meterLLM(
 The client times out, retries network errors / `429` / `5xx`, and attaches a generated idempotency
 key to every `spend` and `reserve` so a retry resolves to the same ledger entry instead of charging
 twice. It ships as both ESM and CommonJS.
+
+Two calls are for whoever operates Stub, not an agent's runtime: construct a client with the
+server's `ADMIN_TOKEN` as `apiKey` and call `stub.sweep()` (reclaim expired holds) or
+`stub.provisionShards(accountId, shards?)` (shard an account's current balance) instead of
+`npm run sweep` / a script. See [sdk/README.md](./sdk/README.md#operator-actions).
 
 ## Deployment
 

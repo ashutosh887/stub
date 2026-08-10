@@ -151,9 +151,16 @@ normalization, CDC→Kinesis live feed.
   x402/AgentCore adapter (`x402.ts` `payThroughStub`) + LLM token metering (`llm.ts` `meterLLM`,
   `usageFrom`, `costUsd`, `estimateUsd`). **Ships no model price table on purpose**: prices go
   stale, so the caller supplies rates; only the stable OpenAI/Anthropic usage shapes are adapted.
-  Dependency-free; dual ESM + CJS build (`tsconfig.json` → `dist/esm`, `tsconfig.cjs.json` →
-  `dist/cjs`); **published to npm as `trystub`**, shipped by the `Publish SDK` workflow on a
-  `sdk-v*` tag (the tag only publishes to npm, so create the matching GitHub Release separately).
+  Also `sweep()`/`provisionShards(accountId, shards?)`: operator-only methods (construct the
+  client with `ADMIN_TOKEN` as `apiKey`, not an agent's scoped key) hitting the admin-gated
+  `POST /api/sweep` / `POST /api/accounts/shard` routes. Dependency-free; dual ESM + CJS build
+  (`tsconfig.json` → `dist/esm`, `tsconfig.cjs.json` → `dist/cjs`); **published to npm as
+  `trystub`**, shipped by the `Publish SDK` workflow on a `sdk-v*` tag (builds, publishes with
+  provenance, then creates the GitHub Release from that version's `sdk/CHANGELOG.md` section —
+  the workflow does this itself now, nothing to create by hand). Release steps live in
+  `CONTRIBUTING.md` → "Releasing the SDK": rename `## [Unreleased]` to the version, bump
+  `sdk/package.json` to match (the workflow fails if they disagree), commit, tag `sdk-vX.Y.Z`,
+  push the tag.
 - `config/`: single source of truth for env-driven values (`index.ts`): `db`, `dsql`, `openai`,
   `app`, `demo`, `limits`, plus `requiredEnv` (lazy). `core/` and `sdk/` stay config-free.
 - `app/` `components/` `lib/`: Next.js (App Router) multipage console + API routes + server helpers.
@@ -187,6 +194,9 @@ normalization, CDC→Kinesis live feed.
 - **Contention benchmark** (single balance row vs sharded, sweeps 1→32 writers): `npm run bench`
 - **Reservation TTL sweep** (reclaims holds stuck past `RESERVATION_TTL_SECONDS`, default 900s):
   `npm run sweep`, or `POST /api/sweep` (admin-gated) for an external scheduler to call
+- **Provision a sharded account**: `POST /api/accounts/shard` (admin-gated) or SDK
+  `stub.provisionShards(accountId, shards?)` — shards the account's current balance, refuses to
+  run twice on the same account
 - **Live cross-region overspend proof:** `npm run test:live` (`test/live/cross-region.test.ts`):
   6 agents across two regions race one near-empty budget on the real cluster → exactly what fits
   commits, the rest deny with real OCC `40001`s, balance never negative. Auto-skips without
