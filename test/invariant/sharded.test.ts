@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { MemStore } from "@/core/mem-store";
 import { GENESIS_HASH } from "@/core/hash";
 import { verifyChain } from "@/core/audit";
-import { provisionShards, shardBalance, shardedSpend, spendAuto } from "@/core/sharded";
+import {
+  provisionShards,
+  shardBalance,
+  shardedSpend,
+  shardExistingAccount,
+  spendAuto,
+} from "@/core/sharded";
 import type { Account } from "@/core/store";
 import type { Policy } from "@/core/policy";
 
@@ -370,5 +376,33 @@ describe("spendAuto dispatches on the account's sharded flag", () => {
 
     expect(result.status).toBe("committed");
     expect(store.getAccount("agent")!.balanceMicro).toBe(3n * USD);
+  });
+});
+
+describe("shardExistingAccount provisions shards from an account's current balance", () => {
+  it("splits the account's existing balance and flags it sharded", async () => {
+    const store = new MemStore();
+    store.seedAccount(acct({ id: "agent", type: "agent", balanceMicro: 8n * USD }));
+
+    const result = await shardExistingAccount(store, "agent", 4);
+
+    expect(result).toEqual({ accountId: "agent", shards: 4, totalMicro: 8n * USD });
+    expect(store.getAccount("agent")!.sharded).toBe(true);
+    expect(await shardBalance(store, "agent")).toBe(8n * USD);
+  });
+
+  it("refuses to re-provision an already-sharded account", async () => {
+    const store = new MemStore();
+    store.seedAccount(acct({ id: "agent", type: "agent", balanceMicro: 8n * USD }));
+    await shardExistingAccount(store, "agent", 4);
+
+    await expect(shardExistingAccount(store, "agent", 4)).rejects.toThrow(
+      "account already sharded: agent",
+    );
+  });
+
+  it("rejects an unknown account", async () => {
+    const store = new MemStore();
+    await expect(shardExistingAccount(store, "ghost", 4)).rejects.toThrow("unknown account: ghost");
   });
 });

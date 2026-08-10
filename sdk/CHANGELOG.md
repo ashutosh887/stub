@@ -10,6 +10,26 @@ published verbatim as the body of the matching
 
 ## [Unreleased]
 
+### Added
+
+- **Operator actions on `StubClient`.** `stub.sweep()` reclaims reservations left held past the
+  server's `RESERVATION_TTL_SECONDS`; `stub.provisionShards(accountId, shards?)` splits an
+  account's current balance across shard rows for throughput. Both are operator-only: construct
+  the client with the server's `ADMIN_TOKEN` as `apiKey`, not an agent's scoped key.
+- **Stub server: reservation TTL sweep.** A held reservation nobody ever settles or releases
+  (a crashed agent) is reclaimed automatically past `RESERVATION_TTL_SECONDS` (default 900s), via
+  `npm run sweep` or the new admin-gated `POST /api/sweep`. Idempotent: contends on the reservation
+  row under OCC exactly like a normal `release()`, so it can never double-refund a hold another
+  process is settling.
+
+### Fixed
+
+- **Stub server: sharded accounts now enforce the same policy as everyone else.** A sharded budget
+  account previously skipped the frozen check, the policy engine, the velocity breaker, and
+  ancestor hierarchy caps entirely — only the shard-level cap was enforced. Fixed to match the
+  plain spend path exactly; `/api/spend` now dispatches to the sharded path automatically for any
+  account provisioned with `provisionShards`.
+
 ## [1.1.0] - 2026-07-31
 
 ### Added

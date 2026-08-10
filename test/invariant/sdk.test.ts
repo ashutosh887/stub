@@ -133,4 +133,35 @@ describe("SDK + x402 gate", () => {
     released = true;
     expect(released).toBe(true);
   });
+
+  it("sweep() reclaims expired reservations through the admin route", async () => {
+    const admin = new StubClient({
+      apiKey: "admin-token",
+      fetch: routeFetch({
+        "/api/sweep": {
+          status: 200,
+          body: { ttlSeconds: 900, swept: 3, released: 3 },
+        },
+      }),
+    });
+    expect(await admin.sweep()).toEqual({ ttlSeconds: 900, swept: 3, released: 3 });
+  });
+
+  it("provisionShards() splits an account's balance through the admin route", async () => {
+    const admin = new StubClient({
+      apiKey: "admin-token",
+      fetch: routeFetch({
+        "/api/accounts/shard": {
+          status: 200,
+          body: { accountId: "agent-1", shards: 8, total: "50", totalDisplay: "$50.00" },
+        },
+      }),
+    });
+    expect(await admin.provisionShards("agent-1")).toEqual({
+      accountId: "agent-1",
+      shards: 8,
+      total: "50",
+      totalDisplay: "$50.00",
+    });
+  });
 });

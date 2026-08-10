@@ -45,6 +45,19 @@ export interface ReleaseResult {
   reason?: string;
 }
 
+export interface SweepResult {
+  ttlSeconds: number;
+  swept: number;
+  released: number;
+}
+
+export interface ShardAccountResult {
+  accountId: string;
+  shards: number;
+  total: string;
+  totalDisplay: string;
+}
+
 export interface StubClientOptions {
   apiKey?: string;
   baseUrl?: string;
@@ -200,6 +213,19 @@ export class StubClient {
 
   async release(reservationId: string): Promise<ReleaseResult> {
     const { data } = await this.post<ReleaseResult>("/api/release", { reservationId });
+    return data;
+  }
+
+  async sweep(): Promise<SweepResult> {
+    const { data } = await this.post<SweepResult>("/api/sweep", {});
+    return data;
+  }
+
+  async provisionShards(accountId: string, shards?: number): Promise<ShardAccountResult> {
+    const { data } = await this.post<ShardAccountResult>("/api/accounts/shard", {
+      accountId,
+      shards,
+    });
     return data;
   }
 }

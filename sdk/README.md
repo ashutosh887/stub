@@ -102,6 +102,25 @@ new StubClient({ baseUrl, apiKey, timeoutMs: 10_000, maxRetries: 2, retryDelayMs
 
 Set `maxRetries: 0` to disable retries; the client then sends no generated key.
 
+## Operator actions
+
+Two calls are for whoever runs the Stub deployment, not an agent's runtime: construct the client
+with the server's `ADMIN_TOKEN` as `apiKey` instead of an agent's scoped key.
+
+```ts
+const admin = new StubClient({
+  apiKey: process.env.STUB_ADMIN_TOKEN,
+  baseUrl: process.env.STUB_URL,
+});
+
+await admin.sweep(); // reclaim reservations left held past the server's TTL; run on a schedule
+await admin.provisionShards(accountId); // split a hot budget across shard rows for throughput
+```
+
+`provisionShards` shards whatever the account's balance is right now, and refuses to run twice on
+the same account. If you shard a budget account, shard every vendor account it pays too — a sharded
+spend errors if either side of the pair isn't sharded.
+
 ## API
 
 - `new StubClient({ apiKey?, baseUrl?, fetch?, timeoutMs?, maxRetries?, retryDelayMs? })`
@@ -110,6 +129,8 @@ Set `maxRetries: 0` to disable retries; the client then sends no generated key.
 - `stub.reserve(input): Promise<ReserveResult>`: hold funds against the cap
 - `stub.settle(reservationId, actualUsd?): Promise<SettleResult>`: book the real cost
 - `stub.release(reservationId): Promise<ReleaseResult>`: return a hold
+- `stub.sweep(): Promise<SweepResult>`: operator-only, reclaim expired holds
+- `stub.provisionShards(accountId, shards?): Promise<ShardAccountResult>`: operator-only, shard an account
 
 `input` accepts `{ vendorAccountId, amountUsd, intent?, costCenter?, idempotencyKey?, budgetAccountId?, receipt? }`.
 A scoped API key pins spends to one budget account; without one, pass `budgetAccountId` and

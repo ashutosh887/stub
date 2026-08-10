@@ -41,6 +41,26 @@ export async function provisionShards(
   });
 }
 
+export interface ShardExistingAccountResult {
+  accountId: string;
+  shards: number;
+  totalMicro: bigint;
+}
+
+export async function shardExistingAccount(
+  store: Store,
+  accountId: string,
+  shards: number = DEFAULT_SHARDS,
+): Promise<ShardExistingAccountResult> {
+  const account = await store.transaction((tx) => tx.getAccount(accountId));
+  if (!account) throw new Error(`unknown account: ${accountId}`);
+  // account.balanceMicro goes stale once sharded, so re-provisioning would silently rewind it.
+  if (account.sharded) throw new Error(`account already sharded: ${accountId}`);
+
+  await provisionShards(store, accountId, account.balanceMicro, shards);
+  return { accountId, shards, totalMicro: account.balanceMicro };
+}
+
 export async function shardBalance(store: Store, accountId: string): Promise<bigint> {
   return store.transaction(async (tx) => {
     const shards = await tx.listShards(accountId);
