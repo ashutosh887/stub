@@ -12,6 +12,7 @@ export interface Account {
   frozen?: boolean;
   velocityLimitMicro?: bigint | null;
   velocityWindowSeconds?: number | null;
+  sharded?: boolean;
   lastEntryHash: string;
 }
 
@@ -55,6 +56,7 @@ export interface Reservation {
   heldMicro: bigint;
   settledMicro: bigint | null;
   status: ReservationStatus;
+  createdAt: Date;
   transactionId: string | null;
   agentId: string | null;
   sessionId: string | null;
@@ -91,6 +93,7 @@ export interface Tx {
   getAncestors(id: string): Promise<Account[]>;
   updateAccount(id: string, balanceMicro: bigint, lastEntryHash: string): Promise<void>;
   setFrozen(id: string, frozen: boolean): Promise<void>;
+  markSharded(id: string): Promise<void>;
   insertEntry(entry: Entry): Promise<void>;
   insertDenial(denial: Denial): Promise<void>;
   getIdempotent(key: string): Promise<string | null>;
@@ -104,6 +107,7 @@ export interface Tx {
 
 export interface Store {
   transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
+  listExpiredReservations(olderThan: Date): Promise<Reservation[]>;
 }
 
 export const SERIALIZATION_FAILURE = "40001";

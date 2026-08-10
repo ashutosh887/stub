@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { GENESIS_HASH } from "./hash";
-import { buildEntry, runOcc, type SpendRequest, type SpendResult } from "./ledger";
+import { buildEntry, runOcc, spend, type SpendRequest, type SpendResult } from "./ledger";
+import { evaluatePolicies } from "./policy";
 import { type Shard, type Store, type Tx } from "./store";
 
 export const DEFAULT_SHARDS = 8;
@@ -36,6 +37,7 @@ export async function provisionShards(
         lastEntryHash: GENESIS_HASH,
       });
     }
+    await tx.markSharded(accountId);
   });
 }
 
@@ -91,6 +93,16 @@ export async function shardedSpend(
   return { ...result, conflicts, attempts };
 }
 
+export async function spendAuto(
+  store: Store,
+  request: SpendRequest,
+  options: ShardedSpendOptions = {},
+): Promise<SpendResult> {
+  const budget = await store.transaction((tx) => tx.getAccount(request.budgetAccountId));
+  if (budget?.sharded) return shardedSpend(store, request, options);
+  return spend(store, request, { maxRetries: options.maxRetries });
+}
+
 async function settleSharded(
   tx: Tx,
   request: SpendRequest,
@@ -102,7 +114,60 @@ async function settleSharded(
     if (existing) return { status: "duplicate", transactionId: existing };
   }
 
+  const budget = await tx.getAccount(request.budgetAccountId);
+  if (!budget) throw new Error(`unknown budget account: ${request.budgetAccountId}`);
+
   const transactionId = randomUUID();
+  type Outcome = Omit<SpendResult, "conflicts" | "attempts">;
+  const deny = async (reason: string): Promise<Outcome> => {
+    await tx.insertDenial({
+      id: randomUUID(),
+      accountId: budget.id,
+      attemptedMicro: request.amountMicro,
+      reason,
+      agentId: request.agentId ?? null,
+      sessionId: request.sessionId ?? null,
+      intent: request.intent ?? null,
+      costCenter: request.costCenter ?? null,
+      receipt: request.receipt ?? null,
+    });
+    return { status: "denied", transactionId, reason };
+  };
+
+  const ancestors = await tx.getAncestors(budget.id);
+  const chain = [budget, ...ancestors];
+
+  const frozen = chain.find((a) => a.frozen);
+  if (frozen) return deny("account_frozen");
+
+  const policies = await tx.getPolicies(budget.id);
+  if (policies.length > 0) {
+    const verdict = await evaluatePolicies(policies, {
+      amountMicro: request.amountMicro,
+      vendorId: request.vendorAccountId,
+      spentInWindow: (windowSeconds) => tx.spentInWindow(budget.id, windowSeconds),
+    });
+    if (
+      verdict.decision !== "allow" &&
+      !(verdict.decision === "needs_approval" && request.approve)
+    ) {
+      const outcome = await deny(verdict.reason);
+      if (verdict.decision === "needs_approval") return { ...outcome, status: "needs_approval" };
+      return outcome;
+    }
+  }
+
+  if (budget.velocityLimitMicro != null && budget.velocityWindowSeconds != null) {
+    const recent = await tx.spentInWindow(budget.id, budget.velocityWindowSeconds);
+    if (recent + request.amountMicro > budget.velocityLimitMicro) {
+      await tx.setFrozen(budget.id, true);
+      return deny("velocity_tripped");
+    }
+  }
+
+  const boundAncestor = ancestors.find((a) => request.amountMicro > a.balanceMicro);
+  if (boundAncestor) return deny(`${boundAncestor.type}_cap_exceeded`);
+
   const budgetIndex = pick(shardCount);
   const preferred = await tx.getShard(request.budgetAccountId, budgetIndex);
 
@@ -119,20 +184,7 @@ async function settleSharded(
     known = all;
   }
 
-  if (!draws) {
-    await tx.insertDenial({
-      id: randomUUID(),
-      accountId: request.budgetAccountId,
-      attemptedMicro: request.amountMicro,
-      reason: "cap_exceeded",
-      agentId: request.agentId ?? null,
-      sessionId: request.sessionId ?? null,
-      intent: request.intent ?? null,
-      costCenter: request.costCenter ?? null,
-      receipt: request.receipt ?? null,
-    });
-    return { status: "denied", transactionId, reason: "cap_exceeded" };
-  }
+  if (!draws) return deny("cap_exceeded");
 
   const byIndex = new Map(known.map((shard) => [shard.index, shard]));
 
@@ -186,6 +238,14 @@ async function settleSharded(
     vendorShard.balanceMicro + request.amountMicro,
     credit.hash,
   );
+
+  for (const ancestor of ancestors) {
+    await tx.updateAccount(
+      ancestor.id,
+      ancestor.balanceMicro - request.amountMicro,
+      ancestor.lastEntryHash,
+    );
+  }
 
   if (request.idempotencyKey) {
     await tx.putIdempotent(request.idempotencyKey, transactionId);

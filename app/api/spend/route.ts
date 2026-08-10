@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { spend } from "@/core/ledger";
+import { spendAuto } from "@/core/sharded";
 import { resolveApiKey, store } from "@/lib/data";
 import { limits } from "@/config";
 import { HttpError, isAdmin, readJson, withRoute } from "@/lib/api";
@@ -44,7 +44,7 @@ export const POST = withRoute({ name: "spend" }, async ({ request, requestId }) 
   const amountMicro = parseSpendAmount(body.amountUsd, limits.maxSpendMicro);
   ensureWithinSize(body.receipt, limits.maxReceiptBytes, "receipt");
 
-  const result = await spend(
+  const result = await spendAuto(
     store,
     {
       budgetAccountId,

@@ -22,6 +22,7 @@
     "demo:agent": "tsx scripts/demo-agent.ts",
     "harness": "tsx scripts/harness.ts",
     "bench": "tsx scripts/bench.ts",
+    "sweep": "tsx scripts/sweep.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

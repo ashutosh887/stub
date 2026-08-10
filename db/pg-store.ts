@@ -39,10 +39,21 @@ export class PgStore implements Store {
       client.release();
     }
   }
+
+  async listExpiredReservations(olderThan: Date): Promise<Reservation[]> {
+    const { rows } = await this.pool.query(
+      `SELECT id, budget_account_id, vendor_account_id, held_micro, settled_micro,
+              status, transaction_id, agent_id, session_id, user_id, intent, cost_center,
+              receipt, created_at
+         FROM reservations WHERE status = 'held' AND created_at < $1`,
+      [olderThan],
+    );
+    return rows.map(toReservation);
+  }
 }
 
 const ACCOUNT_COLS = `id, type, parent_id, name, balance_micro, cap_micro, frozen,
-  velocity_limit_micro, velocity_window_seconds, last_entry_hash`;
+  velocity_limit_micro, velocity_window_seconds, sharded, last_entry_hash`;
 
 function makeTx(client: PoolClient): Tx {
   return {
@@ -119,6 +130,9 @@ function makeTx(client: PoolClient): Tx {
     },
     async setFrozen(id, frozen) {
       await client.query(`UPDATE accounts SET frozen = $2 WHERE id = $1`, [id, frozen]);
+    },
+    async markSharded(id) {
+      await client.query(`UPDATE accounts SET sharded = true WHERE id = $1`, [id]);
     },
     async insertEntry(entry: Entry) {
       const columns = [
@@ -218,7 +232,8 @@ function makeTx(client: PoolClient): Tx {
     async getReservation(id) {
       const { rows } = await client.query(
         `SELECT id, budget_account_id, vendor_account_id, held_micro, settled_micro,
-                status, transaction_id, agent_id, session_id, user_id, intent, cost_center, receipt
+                status, transaction_id, agent_id, session_id, user_id, intent, cost_center,
+                receipt, created_at
            FROM reservations WHERE id = $1`,
         [id],
       );
@@ -228,8 +243,8 @@ function makeTx(client: PoolClient): Tx {
       await client.query(
         `INSERT INTO reservations
            (id, budget_account_id, vendor_account_id, held_micro, settled_micro, status,
-            transaction_id, agent_id, session_id, user_id, intent, cost_center, receipt)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+            transaction_id, agent_id, session_id, user_id, intent, cost_center, receipt, created_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
         [
           reservation.id,
           reservation.budgetAccountId,
@@ -244,6 +259,7 @@ function makeTx(client: PoolClient): Tx {
           reservation.intent,
           reservation.costCenter,
           reservation.receipt === undefined ? null : JSON.stringify(reservation.receipt),
+          reservation.createdAt,
         ],
       );
     },
@@ -284,6 +300,7 @@ function toReservation(row: Record<string, unknown>): Reservation {
     heldMicro: BigInt(row.held_micro as string),
     settledMicro: row.settled_micro == null ? null : BigInt(row.settled_micro as string),
     status: row.status as ReservationStatus,
+    createdAt: new Date(row.created_at as string),
     transactionId: (row.transaction_id as string | null) ?? null,
     agentId: (row.agent_id as string | null) ?? null,
     sessionId: (row.session_id as string | null) ?? null,
@@ -322,6 +339,7 @@ function toAccount(row: Record<string, unknown>): Account {
       row.velocity_limit_micro == null ? null : BigInt(row.velocity_limit_micro as string),
     velocityWindowSeconds:
       row.velocity_window_seconds == null ? null : Number(row.velocity_window_seconds),
+    sharded: row.sharded === true,
     lastEntryHash: row.last_entry_hash as string,
   };
 }

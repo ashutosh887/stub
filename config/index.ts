@@ -71,6 +71,7 @@ export const limits = {
   maxReceiptBytes: int("MAX_RECEIPT_BYTES", 64_000),
   maxQuestionLength: int("MAX_QUESTION_LENGTH", 500),
   occMaxRetries: int("OCC_MAX_RETRIES", 25),
+  reservationTtlSeconds: int("RESERVATION_TTL_SECONDS", 900),
   rateLimitWindowMs: int("RATE_LIMIT_WINDOW_MS", 60_000),
   rateLimitMax: int("RATE_LIMIT_MAX", 120),
   rateLimitQueryMax: int("RATE_LIMIT_QUERY_MAX", 20),

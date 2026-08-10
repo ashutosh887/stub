@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS account_shards (
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS cost_center TEXT;
 ALTER TABLE denials ADD COLUMN IF NOT EXISTS cost_center TEXT;
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS shard_index INT;
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS sharded BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX ASYNC IF NOT EXISTS entries_account_created_idx ON entries (account_id, created_at);
 CREATE INDEX ASYNC IF NOT EXISTS entries_txn_idx ON entries (transaction_id);

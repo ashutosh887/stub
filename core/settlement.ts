@@ -43,6 +43,10 @@ export interface SettleOptions extends SettlementOptions {
   actualMicro?: bigint;
 }
 
+export interface SweepOptions extends SettlementOptions {
+  now?: Date;
+}
+
 export async function reserve(
   store: Store,
   request: SpendRequest,
@@ -81,6 +85,22 @@ export async function release(
     options.maxRetries ?? DEFAULT_MAX_RETRIES,
   );
   return { ...result, conflicts, attempts };
+}
+
+export async function sweepExpiredReservations(
+  store: Store,
+  ttlSeconds: number,
+  options: SweepOptions = {},
+): Promise<ReleaseResult[]> {
+  const now = options.now ?? new Date();
+  const cutoff = new Date(now.getTime() - ttlSeconds * 1000);
+  const expired = await store.listExpiredReservations(cutoff);
+
+  const results: ReleaseResult[] = [];
+  for (const reservation of expired) {
+    results.push(await release(store, reservation.id, { maxRetries: options.maxRetries }));
+  }
+  return results;
 }
 
 type ReserveOutcome = Omit<ReserveResult, "conflicts" | "attempts">;
@@ -170,6 +190,7 @@ async function reserveTx(tx: Tx, request: SpendRequest): Promise<ReserveOutcome>
     heldMicro: request.amountMicro,
     settledMicro: null,
     status: "held",
+    createdAt: new Date(),
     transactionId: null,
     agentId: request.agentId ?? null,
     sessionId: request.sessionId ?? null,

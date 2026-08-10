@@ -80,6 +80,16 @@ export class MemStore implements Store {
     return found ? clone(found.account) : null;
   }
 
+  async listExpiredReservations(olderThan: Date): Promise<Reservation[]> {
+    const result: Reservation[] = [];
+    for (const { reservation } of this.reservations.values()) {
+      if (reservation.status === "held" && reservation.createdAt < olderThan) {
+        result.push(clone(reservation));
+      }
+    }
+    return result;
+  }
+
   arm(n: number): void {
     this.barrier = new Barrier(n);
   }
@@ -88,7 +98,7 @@ export class MemStore implements Store {
     const reads = new Map<string, number>();
     const accountWrites = new Map<
       string,
-      { balanceMicro?: bigint; lastEntryHash?: string; frozen?: boolean }
+      { balanceMicro?: bigint; lastEntryHash?: string; frozen?: boolean; sharded?: boolean }
     >();
     const entryWrites: Entry[] = [];
     const denialWrites: Denial[] = [];
@@ -113,6 +123,7 @@ export class MemStore implements Store {
         if (pending.balanceMicro !== undefined) account.balanceMicro = pending.balanceMicro;
         if (pending.lastEntryHash !== undefined) account.lastEntryHash = pending.lastEntryHash;
         if (pending.frozen !== undefined) account.frozen = pending.frozen;
+        if (pending.sharded !== undefined) account.sharded = pending.sharded;
       }
       return account;
     };
@@ -171,6 +182,10 @@ export class MemStore implements Store {
       setFrozen: async (id, frozen) => {
         snapshot(id);
         accountWrites.set(id, { ...accountWrites.get(id), frozen });
+      },
+      markSharded: async (id) => {
+        snapshot(id);
+        accountWrites.set(id, { ...accountWrites.get(id), sharded: true });
       },
       insertEntry: async (entry) => {
         entryWrites.push(clone(entry));
@@ -245,6 +260,7 @@ export class MemStore implements Store {
         if (write.balanceMicro !== undefined) current.account.balanceMicro = write.balanceMicro;
         if (write.lastEntryHash !== undefined) current.account.lastEntryHash = write.lastEntryHash;
         if (write.frozen !== undefined) current.account.frozen = write.frozen;
+        if (write.sharded !== undefined) current.account.sharded = write.sharded;
         current.version += 1;
       }
       for (const [id, reservation] of reservationWrites) {

@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { MemStore } from "@/core/mem-store";
 import { GENESIS_HASH } from "@/core/hash";
 import { verifyChain } from "@/core/audit";
-import { provisionShards, shardBalance, shardedSpend } from "@/core/sharded";
+import { provisionShards, shardBalance, shardedSpend, spendAuto } from "@/core/sharded";
 import type { Account } from "@/core/store";
+import type { Policy } from "@/core/policy";
 
 const USD = 1_000_000n;
 
@@ -164,5 +165,210 @@ describe("sharded balances", () => {
     expect(first.status).toBe("committed");
     expect(second.status).toBe("duplicate");
     expect(await shardBalance(store, "budget")).toBe(4n * USD);
+  });
+});
+
+function acct(over: Partial<Account> & Pick<Account, "id" | "type">): Account {
+  return {
+    parentId: null,
+    name: over.id,
+    balanceMicro: 0n,
+    capMicro: null,
+    lastEntryHash: GENESIS_HASH,
+    ...over,
+  };
+}
+
+function policy(p: Partial<Policy>): Policy {
+  return {
+    id: "p",
+    accountId: "agent",
+    label: "rule",
+    enabled: true,
+    limitMicro: null,
+    windowSeconds: null,
+    vendorAllow: null,
+    vendorBlock: null,
+    approvalThresholdMicro: null,
+    ...p,
+  };
+}
+
+describe("sharded accounts enforce the same guardrails as unsharded ones", () => {
+  it("denies with the binding ancestor's reason even though the sharded agent has room", async () => {
+    const store = new MemStore();
+    store.seedAccount(
+      acct({ id: "org", type: "org", balanceMicro: 500n * USD, capMicro: 500n * USD }),
+    );
+    store.seedAccount(
+      acct({
+        id: "team",
+        type: "team",
+        parentId: "org",
+        balanceMicro: 5n * USD,
+        capMicro: 5n * USD,
+      }),
+    );
+    store.seedAccount(
+      acct({ id: "agent", type: "agent", parentId: "team", balanceMicro: 50n * USD }),
+    );
+    store.seedAccount(acct({ id: "vendor", type: "vendor" }));
+    await provisionShards(store, "agent", 50n * USD, 4);
+    await provisionShards(store, "vendor", 0n, 4);
+
+    const result = await shardedSpend(
+      store,
+      { budgetAccountId: "agent", vendorAccountId: "vendor", amountMicro: 10n * USD },
+      { shards: 4 },
+    );
+
+    expect(result.status).toBe("denied");
+    expect(result.reason).toBe("team_cap_exceeded");
+    expect(await shardBalance(store, "agent")).toBe(50n * USD);
+  });
+
+  it("rolls a committed sharded spend up every ancestor balance", async () => {
+    const store = new MemStore();
+    store.seedAccount(
+      acct({ id: "org", type: "org", balanceMicro: 500n * USD, capMicro: 500n * USD }),
+    );
+    store.seedAccount(
+      acct({
+        id: "team",
+        type: "team",
+        parentId: "org",
+        balanceMicro: 200n * USD,
+        capMicro: 200n * USD,
+      }),
+    );
+    store.seedAccount(
+      acct({ id: "agent", type: "agent", parentId: "team", balanceMicro: 50n * USD }),
+    );
+    store.seedAccount(acct({ id: "vendor", type: "vendor" }));
+    await provisionShards(store, "agent", 50n * USD, 4);
+    await provisionShards(store, "vendor", 0n, 4);
+
+    const result = await shardedSpend(
+      store,
+      { budgetAccountId: "agent", vendorAccountId: "vendor", amountMicro: 10n * USD },
+      { shards: 4 },
+    );
+
+    expect(result.status).toBe("committed");
+    expect(await shardBalance(store, "agent")).toBe(40n * USD);
+    expect(store.getAccount("team")!.balanceMicro).toBe(190n * USD);
+    expect(store.getAccount("org")!.balanceMicro).toBe(490n * USD);
+  });
+
+  it("a frozen ancestor cascades to a sharded agent", async () => {
+    const store = new MemStore();
+    store.seedAccount(acct({ id: "org", type: "org", balanceMicro: 500n * USD }));
+    store.seedAccount(
+      acct({ id: "agent", type: "agent", parentId: "org", balanceMicro: 50n * USD }),
+    );
+    store.seedAccount(acct({ id: "vendor", type: "vendor" }));
+    await provisionShards(store, "agent", 50n * USD, 4);
+    await provisionShards(store, "vendor", 0n, 4);
+    await store.transaction((tx) => tx.setFrozen("org", true));
+
+    const result = await shardedSpend(
+      store,
+      { budgetAccountId: "agent", vendorAccountId: "vendor", amountMicro: 1n * USD },
+      { shards: 4 },
+    );
+
+    expect(result.status).toBe("denied");
+    expect(result.reason).toBe("account_frozen");
+  });
+
+  it("denies a policy violation (vendor block) before touching any shard", async () => {
+    const store = new MemStore();
+    store.seedAccount(acct({ id: "agent", type: "agent", balanceMicro: 10n * USD }));
+    store.seedAccount(acct({ id: "vendor", type: "vendor" }));
+    store.seedPolicy(policy({ accountId: "agent", vendorBlock: ["vendor"] }));
+    await provisionShards(store, "agent", 10n * USD, 4);
+    await provisionShards(store, "vendor", 0n, 4);
+
+    const result = await shardedSpend(
+      store,
+      { budgetAccountId: "agent", vendorAccountId: "vendor", amountMicro: 1n * USD },
+      { shards: 4 },
+    );
+
+    expect(result.status).toBe("denied");
+    expect(result.reason).toBe("vendor_blocked");
+    expect(await shardBalance(store, "agent")).toBe(10n * USD);
+  });
+
+  it("the velocity breaker trips on a sharded account and then freezes it", async () => {
+    const store = new MemStore();
+    store.seedAccount(
+      acct({
+        id: "agent",
+        type: "agent",
+        balanceMicro: 100n * USD,
+        velocityLimitMicro: 5n * USD,
+        velocityWindowSeconds: 60,
+      }),
+    );
+    store.seedAccount(acct({ id: "vendor", type: "vendor" }));
+    await provisionShards(store, "agent", 100n * USD, 4);
+    await provisionShards(store, "vendor", 0n, 4);
+
+    const spendOnce = () =>
+      shardedSpend(
+        store,
+        { budgetAccountId: "agent", vendorAccountId: "vendor", amountMicro: 2n * USD },
+        { shards: 4 },
+      );
+
+    expect((await spendOnce()).status).toBe("committed");
+    expect((await spendOnce()).status).toBe("committed");
+    const tripped = await spendOnce();
+    expect(tripped.status).toBe("denied");
+    expect(tripped.reason).toBe("velocity_tripped");
+
+    expect(store.getAccount("agent")!.frozen).toBe(true);
+    const after = await spendOnce();
+    expect(after.status).toBe("denied");
+    expect(after.reason).toBe("account_frozen");
+  });
+});
+
+describe("spendAuto dispatches on the account's sharded flag", () => {
+  it("routes a sharded budget through shardedSpend", async () => {
+    const store = new MemStore();
+    store.seedAccount(acct({ id: "agent", type: "agent", balanceMicro: 5n * USD }));
+    store.seedAccount(acct({ id: "vendor", type: "vendor" }));
+    await provisionShards(store, "agent", 5n * USD);
+    await provisionShards(store, "vendor", 0n);
+
+    expect(store.getAccount("agent")!.sharded).toBe(true);
+
+    const result = await spendAuto(store, {
+      budgetAccountId: "agent",
+      vendorAccountId: "vendor",
+      amountMicro: 2n * USD,
+    });
+
+    expect(result.status).toBe("committed");
+    expect(await shardBalance(store, "agent")).toBe(3n * USD);
+  });
+
+  it("routes an unsharded budget through the plain ledger path", async () => {
+    const store = new MemStore();
+    store.seedAccount(acct({ id: "agent", type: "agent", balanceMicro: 5n * USD }));
+    store.seedAccount(acct({ id: "vendor", type: "vendor" }));
+
+    expect(store.getAccount("agent")!.sharded).toBeFalsy();
+
+    const result = await spendAuto(store, {
+      budgetAccountId: "agent",
+      vendorAccountId: "vendor",
+      amountMicro: 2n * USD,
+    });
+
+    expect(result.status).toBe("committed");
+    expect(store.getAccount("agent")!.balanceMicro).toBe(3n * USD);
   });
 });
