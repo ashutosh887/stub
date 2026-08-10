@@ -10,6 +10,8 @@ published verbatim as the body of the matching
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-10
+
 ### Added
 
 - **Operator actions on `StubClient`.** `stub.sweep()` reclaims reservations left held past the
@@ -84,7 +86,8 @@ First public release: a drop-in budget gate for autonomous AI agents.
   payment.
 - Dependency-free. Works anywhere `fetch` exists.
 
-[unreleased]: https://github.com/ashutosh887/stub/compare/sdk-v1.1.0...HEAD
+[unreleased]: https://github.com/ashutosh887/stub/compare/sdk-v1.2.0...HEAD
+[1.2.0]: https://github.com/ashutosh887/stub/compare/sdk-v1.1.0...sdk-v1.2.0
 [1.1.0]: https://github.com/ashutosh887/stub/compare/sdk-v1.0.2...sdk-v1.1.0
 [1.0.2]: https://github.com/ashutosh887/stub/compare/sdk-v1.0.1...sdk-v1.0.2
 [1.0.1]: https://github.com/ashutosh887/stub/compare/sdk-v1.0.0...sdk-v1.0.1
