@@ -55,7 +55,10 @@ Agent (x402 / AgentCore adapter)
   decrements the balance up the hierarchy in one txn (enforcing the cap at reserve time); settle
   books the actual cost + refunds the difference; both settle and release are **exactly-once** via
   the reservation row under OCC. The irreversible payment fires once, outside the txn, keyed on the
-  reservation. A crashed hold is reclaimed by an idempotent sweeper.
+  reservation. A crashed hold past `RESERVATION_TTL_SECONDS` is reclaimed by an idempotent sweeper
+  (`sweepExpiredReservations`, `npm run sweep` or `POST /api/sweep`): it releases the hold via the
+  same `release()` path an agent would call, so it contends on the reservation row under OCC exactly
+  like any other release and can never double-refund a hold another process is settling.
 - `policies`: layered ceilings (per-transaction · rolling window · cumulative), vendor
   allow/blocklists, approval thresholds, evaluated against each spend at runtime.
 - `agents` / `sessions`: identity, session budgets, scoped API keys (SHA-256 hashed).
@@ -125,9 +128,12 @@ normalization, CDC→Kinesis live feed.
 
 - `core/`: **pure, dependency-free domain**. `ledger.ts` (store-agnostic `spend()` + `runOcc`/
   `buildEntry` helpers + the hierarchy walk + velocity breaker), `settlement.ts` (reserve/settle/
-  release, exactly-once), `payment.ts` (gateway interface + counting mock), `harness.ts` (naive-vs-
-  Stub exactly-once proof), `store.ts` (`Store`/`Tx` interface), `mem-store.ts` (in-memory OCC model
-  for offline tests), `sharded.ts` (opt-in sharded balances for hot-row contention), `policy.ts`,
+  release + `sweepExpiredReservations`, all exactly-once), `payment.ts` (gateway interface +
+  counting mock), `harness.ts` (naive-vs-Stub exactly-once proof), `store.ts` (`Store`/`Tx`
+  interface), `mem-store.ts` (in-memory OCC model for offline tests), `sharded.ts` (per-account
+  opt-in sharded balances for hot-row contention: `provisionShards` flips an account's `sharded`
+  flag, and `spendAuto` — used by `/api/spend` — dispatches to `shardedSpend` or the plain `spend()`
+  based on that flag, with full policy/frozen/velocity/hierarchy parity either way), `policy.ts`,
   `query.ts`, `audit.ts`, `hash.ts`, `burn.ts`, `forecast.ts`, `apikey.ts`. No `pg`/AWS imports here.
 - `db/`: the **Postgres-family adapter**. `client.ts` (`createPool` for DSQL + IAM,
   `createPostgresPool` for a plain `DATABASE_URL`, `createDriverPool`/`getPool` dispatching on
@@ -162,9 +168,9 @@ normalization, CDC→Kinesis live feed.
   all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
   (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,
   per-page canonicals, and `sitemap.ts` / `robots.ts`.
-- `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent/bench). `test/`:
-  `invariant/` (offline), `local/` (local Postgres), `live/` (real cluster). `docs/`: local-only
-  planning notes (gitignored).
+- `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent/bench/sweep).
+  `test/`: `invariant/` (offline), `local/` (local Postgres), `live/` (real cluster). `docs/`:
+  local-only planning notes (gitignored).
 
 ## Commands
 
@@ -179,6 +185,8 @@ normalization, CDC→Kinesis live feed.
   `npm run test:local`
 - **Exactly-once harness** (naive double-pay vs Stub, prints pass/fail): `npm run harness`
 - **Contention benchmark** (single balance row vs sharded, sweeps 1→32 writers): `npm run bench`
+- **Reservation TTL sweep** (reclaims holds stuck past `RESERVATION_TTL_SECONDS`, default 900s):
+  `npm run sweep`, or `POST /api/sweep` (admin-gated) for an external scheduler to call
 - **Live cross-region overspend proof:** `npm run test:live` (`test/live/cross-region.test.ts`):
   6 agents across two regions race one near-empty budget on the real cluster → exactly what fits
   commits, the rest deny with real OCC `40001`s, balance never negative. Auto-skips without

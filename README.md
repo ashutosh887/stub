@@ -98,9 +98,12 @@ one shard on the fast path and only reads the others when that shard is short, s
 shards instead of falsely denying a spend that fits. Measured at 8 shards on local Postgres, that is
 a 1.2-2.8x throughput gain with equal or lower conflicts per spend.
 
-This is opt-in (`shardedSpend`) and not yet wired into the API routes or the console, which still
-use the single-row path. The definitive numbers belong on the real DSQL cluster, where reads do not
-conflict at all; the local figures understate the gain.
+Sharding is opt-in per account: provisioning an account with `provisionShards` flips its `sharded`
+flag, and `/api/spend` dispatches to the sharded path automatically for any account with that flag
+set (`core/sharded.ts` `spendAuto`), with the same policy, frozen, velocity, and hierarchy checks
+either way. The console has no UI to provision a sharded account yet; that's still a script/API call.
+The definitive numbers belong on the real DSQL cluster, where reads do not conflict at all; the
+local figures understate the gain.
 
 ## Why Aurora DSQL
 
@@ -141,7 +144,7 @@ core/   pure, dependency-free domain: ledger, settlement, sharding, harness, pol
 db/     the Postgres-family adapter: pool, Store implementation, schema.sql (DSQL or plain Postgres)
 sdk/    the drop-in client (published to npm as trystub) + x402 / AgentCore adapter + LLM metering
 app/    Next.js console: dashboard · incident · settlement · audit · attribution + API routes
-config/ env + SEO single source of truth   scripts/  migrate · seed · harness · bench · demo-agent
+config/ env + SEO single source of truth   scripts/  migrate · seed · harness · bench · sweep · demo-agent
 test/   invariant suite (overspend, exactly-once, hash chain) · local Postgres · live cross-region
 ```
 
@@ -158,6 +161,7 @@ A deliberate double-entry ledger:
   and **cost center** (the chargeback dimension: team, customer, or feature).
 - **`reservations`**: the reserve→settle state machine (`held → settled | released`). A hold binds
   funds against the cap; settle books the actual cost and refunds the rest. Settling is exactly-once.
+  A hold left open past `RESERVATION_TTL_SECONDS` (default 900s) is reclaimed by the sweeper.
 - **`policies`**: layered ceilings (per-transaction · rolling window · cumulative), evaluated against
   each spend at runtime, plus vendor allow/blocklists and approval thresholds.
 - **`agents` / `sessions`**: identity, session budgets, and scoped API keys (SHA-256 hashed).
@@ -225,6 +229,7 @@ npm test                    # offline invariant suite (in-memory OCC model, no d
 npm run test:local          # 10 agents race one budget on local Postgres, real 40001s
 npm run harness             # naive-vs-Stub exactly-once comparison (double-pay made visible)
 npm run bench               # hot-row contention benchmark, single row vs sharded
+npm run sweep               # reclaim reservations held past RESERVATION_TTL_SECONDS (default 900s)
 npm run test:live           # live cross-region overspend proof (requires DSQL_ENDPOINT_PEER)
 ```
 
