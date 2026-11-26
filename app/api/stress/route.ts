@@ -4,7 +4,7 @@ import { createDriverPool, query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
 import { spend, type SpendResult } from "@/core/ledger";
 import { GENESIS_HASH } from "@/core/hash";
-import { HttpError, isAdmin, readJson, withRoute } from "@/lib/api";
+import { HttpError, drillsAllowed, isAdmin, readJson, withRoute } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +14,9 @@ const PER_SPEND = 250_000n;
 
 export const POST = withRoute({ name: "stress" }, async ({ request }) => {
   if (!isAdmin(request)) throw new HttpError(401, "unauthorized");
+  if (!drillsAllowed()) {
+    throw new HttpError(403, "drills delete their own rows, so they never run on the app's role");
+  }
   const body = await readJson<{ count?: number }>(request).catch(() => ({ count: 12 }));
   const count = Math.max(2, Math.min(24, Number(body?.count ?? 12) || 12));
 

@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Stub app identity (WA SEC03-BP01, SEC02-BP02). Vercel OIDC provider and the stub-app IAM role,
+  which production functions assume with short-lived credentials. The role may only call
+  dsql:DbConnect on the ledger clusters; it maps to the stub_app database role through
+  AWS IAM GRANT (npm run db:app-role -- grant <role arn>).
+
+Parameters:
+  VercelTeamSlug:
+    Type: String
+    AllowedPattern: "[a-z0-9-]+"
+    Description: Path segment of the Vercel team URL; the token issuer is https://oidc.vercel.com/<slug>.
+  VercelProject:
+    Type: String
+    Default: stub
+    AllowedPattern: "[a-z0-9._-]+"
+    Description: Vercel project name, pinned in the token's sub claim.
+  VercelEnvironment:
+    Type: String
+    Default: production
+    AllowedValues: [production, preview]
+  ClusterArns:
+    Type: CommaDelimitedList
+    Description: ARNs of every Aurora DSQL cluster the app connects to (both peers).
+  CreateOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set to false when the account already has the provider for this team.
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  VercelOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: !Sub https://oidc.vercel.com/${VercelTeamSlug}
+      ClientIdList:
+        - !Sub https://vercel.com/${VercelTeamSlug}
+      Tags:
+        - Key: wa-best-practice
+          Value: SEC02-BP02
+        - Key: managed-by
+          Value: aws-well-architected-review
+
+  StubAppRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stub-app
+      Description: Stub production functions on Vercel; connects to Aurora DSQL as stub_app only.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": { "Federated": "${ProviderArn}" },
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {
+                  "StringEquals": {
+                    "oidc.vercel.com/${VercelTeamSlug}:aud": "https://vercel.com/${VercelTeamSlug}",
+                    "oidc.vercel.com/${VercelTeamSlug}:sub": "owner:${VercelTeamSlug}:project:${VercelProject}:environment:${VercelEnvironment}"
+                  }
+                }
+              }
+            ]
+          }
+        - ProviderArn: !If
+            - CreateProvider
+            - !Ref VercelOidcProvider
+            - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/oidc.vercel.com/${VercelTeamSlug}
+      Policies:
+        - PolicyName: dsql-connect-as-app
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: dsql:DbConnect
+                Resource: !Ref ClusterArns
+      Tags:
+        - Key: wa-best-practice
+          Value: SEC03-BP01
+        - Key: managed-by
+          Value: aws-well-architected-review
+
+Outputs:
+  RoleArn:
+    Description: Set as AWS_ROLE_ARN in the Vercel project, and map it with AWS IAM GRANT.
+    Value: !GetAtt StubAppRole.Arn

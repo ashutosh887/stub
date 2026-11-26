@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { randomUUID } from "node:crypto";
-import { limits, security } from "@/config";
+import { db, dsql, limits, security } from "@/config";
 import { log } from "@/lib/log";
 import { rateLimit } from "@/lib/rate-limit";
 import { ValidationError } from "@/lib/validate";
@@ -48,6 +48,10 @@ function cookie(request: Request, name: string): string | null {
 function clientIp(request: Request): string {
   const fwd = request.headers.get("x-forwarded-for");
   return fwd ? fwd.split(",")[0].trim() : "unknown";
+}
+
+export function drillsAllowed(): boolean {
+  return db.driver === "postgres" || dsql.user === dsql.adminUser;
 }
 
 export function isAdmin(request: Request): boolean {

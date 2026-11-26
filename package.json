@@ -17,6 +17,7 @@
     "db:down": "docker compose down",
     "check:db": "tsx scripts/check-connection.ts",
     "migrate": "tsx scripts/migrate.ts",
+    "db:app-role": "tsx scripts/app-role.ts",
     "seed": "tsx scripts/seed.ts",
     "seed:activity": "tsx scripts/seed-activity.ts",
     "demo:agent": "tsx scripts/demo-agent.ts",
@@ -52,6 +53,7 @@
   },
   "dependencies": {
     "@aws-sdk/dsql-signer": "^3.1075.0",
+    "@vercel/oidc-aws-credentials-provider": "^3.3.21",
     "geist": "^1.7.2",
     "next": "^16.2.9",
     "openai": "^6.45.0",

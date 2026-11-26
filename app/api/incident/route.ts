@@ -4,7 +4,7 @@ import { createDriverPool, query } from "@/db/client";
 import { PgStore } from "@/db/pg-store";
 import { spend, type SpendResult } from "@/core/ledger";
 import { GENESIS_HASH } from "@/core/hash";
-import { HttpError, isAdmin, readJson, withRoute } from "@/lib/api";
+import { HttpError, drillsAllowed, isAdmin, readJson, withRoute } from "@/lib/api";
 import { findScenario } from "@/lib/incidents";
 
 export const runtime = "nodejs";
@@ -12,6 +12,9 @@ export const dynamic = "force-dynamic";
 
 export const POST = withRoute({ name: "incident" }, async ({ request }) => {
   if (!isAdmin(request)) throw new HttpError(401, "unauthorized");
+  if (!drillsAllowed()) {
+    throw new HttpError(403, "drills delete their own rows, so they never run on the app's role");
+  }
   const body = await readJson<{ scenarioId?: string }>(request).catch(
     () => ({}) as { scenarioId?: string },
   );

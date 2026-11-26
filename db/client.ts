@@ -1,6 +1,7 @@
 import { DsqlSigner } from "@aws-sdk/dsql-signer";
+import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { Pool, type PoolClient } from "pg";
-import { db, dsql } from "@/config";
+import { aws, db, dsql } from "@/config";
 
 export interface DsqlConfig {
   endpoint: string;
@@ -15,7 +16,13 @@ export function createPool(config: DsqlConfig): Pool {
   const database = config.database ?? dsql.database;
   const user = config.user ?? dsql.user;
 
-  const signer = new DsqlSigner({ hostname: endpoint, region });
+  const signer = new DsqlSigner({
+    hostname: endpoint,
+    region,
+    ...(aws.roleArn && {
+      credentials: awsCredentialsProvider({ roleArn: aws.roleArn, clientConfig: { region } }),
+    }),
+  });
 
   const created = new Pool({
     host: endpoint,
@@ -24,7 +31,9 @@ export function createPool(config: DsqlConfig): Pool {
     user,
     ssl: { rejectUnauthorized: true },
     password: async () =>
-      user === "admin" ? signer.getDbConnectAdminAuthToken() : signer.getDbConnectAuthToken(),
+      user === dsql.adminUser
+        ? signer.getDbConnectAdminAuthToken()
+        : signer.getDbConnectAuthToken(),
     max: config.max ?? dsql.poolMax,
     idleTimeoutMillis: dsql.idleTimeoutMs,
     connectionTimeoutMillis: dsql.connectionTimeoutMs,
@@ -56,16 +65,20 @@ export function createPostgresPool(url: string, max?: number): Pool {
   return created;
 }
 
-export function createDriverPool(max?: number): Pool {
+export function createDriverPool(max?: number, user: string = dsql.user): Pool {
   const url = db.url;
   if (url) return createPostgresPool(url, max);
   return createPool({
     endpoint: dsql.endpoint,
     region: dsql.region,
     database: dsql.database,
-    user: dsql.user,
+    user,
     max,
   });
+}
+
+export function createAdminPool(): Pool {
+  return createDriverPool(1, dsql.adminUser);
 }
 
 let pool: Pool | undefined;

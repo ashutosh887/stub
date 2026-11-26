@@ -38,12 +38,17 @@ export const dsql = {
   region: env("DSQL_REGION") ?? "us-east-1",
   peerRegion: env("DSQL_REGION_PEER") ?? "us-east-2",
   database: env("DSQL_DATABASE") ?? "postgres",
-  user: env("DSQL_USER") ?? "admin",
+  user: env("DSQL_USER") ?? "stub_app",
+  adminUser: "admin",
   port: int("DSQL_PORT", 5432),
   poolMax: int("DSQL_POOL_MAX", 5),
   idleTimeoutMs: int("DSQL_IDLE_TIMEOUT_MS", 30_000),
   connectionTimeoutMs: int("DSQL_CONNECTION_TIMEOUT_MS", 10_000),
   maxLifetimeSeconds: int("DSQL_MAX_LIFETIME_SECONDS", 600),
+};
+
+export const aws = {
+  roleArn: env("AWS_ROLE_ARN"),
 };
 
 export const openai = {
