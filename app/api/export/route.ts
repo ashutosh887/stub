@@ -1,4 +1,6 @@
+import { NextResponse } from "next/server";
 import { listEntries } from "@/lib/data";
+import { withRoute } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -6,7 +8,7 @@ export const dynamic = "force-dynamic";
 const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 const usd = (micro: bigint) => (Number(micro < 0n ? -micro : micro) / 1_000_000).toFixed(6);
 
-export async function GET() {
+export const GET = withRoute({ name: "export", admin: true }, async () => {
   const entries = await listEntries(5000);
   const header = [
     "recorded_at",
@@ -35,11 +37,11 @@ export async function GET() {
   );
 
   const body = [header, ...lines].join("\n");
-  return new Response(body, {
+  return new NextResponse(body, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": 'attachment; filename="stub-ledger.csv"',
       "cache-control": "no-store",
     },
   });
-}
+});

@@ -5,7 +5,7 @@ import { withRoute } from "@/lib/api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const GET = withRoute({ name: "audit-verify" }, async () => {
+export const GET = withRoute({ name: "audit-verify", admin: true }, async () => {
   const report = await auditReport();
   return NextResponse.json(report);
 });

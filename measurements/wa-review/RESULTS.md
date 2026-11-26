@@ -492,3 +492,86 @@ an import only records them). Deployed templates were read back with `GetTemplat
 Still outside code: the account's AWS Backup opt-in for DSQL (already on, an account setting), the
 database-side `AWS IAM GRANT stub_app` mapping (`npm run db:app-role -- grant`), the operator IAM
 user and the root key, and the Vercel project settings.
+
+---
+
+# Second review gaps, closed and measured (26 Nov 2026)
+
+The second Well-Architected pass (same day) left F02 open in branch code and added F26, F27 and
+F28; F07 kept two drifting stacks and no pipeline. Each section below was measured before and after
+with the same command. AWS work went through the AWS MCP server as the operator; nothing used the
+root key.
+
+## F02: every admin and export route is gated, and the token compare is constant time (SEC03-BP01, SEC01-BP06)
+
+What changed in code:
+
+- `/api/export` and `/api/export/journal` were bare `export async function GET` handlers with no
+  check; both now run through `withRoute({ admin: true })`, the same gate as every admin route, so
+  production with `ADMIN_TOKEN` unset answers 401 (fail closed).
+- `/api/audit/verify` returned every account's name, id, entry count and chain head to anyone; it
+  is admin now (its only caller is the admin-gated `/audit` page).
+- `/api/audit/tamper-demo`, `/api/harness`, `/api/incident` and `/api/stress` checked
+  `isAdmin(request)` inside the handler; they now use the `admin: true` option, so the gate is in
+  one place and the guardrail below can see it.
+- `lib/api.ts` `tokenMatches`: SHA-256 of the supplied and the configured token, compared with
+  `crypto.timingSafeEqual` (equal-length digests, so no length leak and no throw on a length
+  mismatch). `isAdmin`, `adminPageAllowed` and the login route all use it; the `===` compares are
+  gone.
+- `/dashboard` had its own gate that was open whenever `ADMIN_TOKEN` was unset, production
+  included, and compared with `!==`; it now calls `adminPageAllowed()`.
+- `POST /api/auth` with no `ADMIN_TOKEN` in production now answers 401 instead of
+  `{ authed: true }`.
+
+Test: `test/invariant/admin-routes.test.ts` imports each route handler and calls it in production
+mode (`VERCEL_ENV=production`) with the data layer replaced by an in-memory store. For each of the
+20 admin handlers: 401 with no token configured (with or without a bearer), 401 with no token, a
+wrong bearer, the right token plus one character and a wrong cookie, then 200 with the right bearer
+and 200 with the right cookie. For the 4 agent routes: 401 with no credential and with an unknown
+key, past the gate with the admin cookie.
+
+| Measure                                                   | Before (HEAD `038e1f3`, 12:45 UTC)                  | After (12:45 UTC) |
+| --------------------------------------------------------- | --------------------------------------------------- | ----------------- |
+| `npx vitest run test/invariant/admin-routes.test.ts`      | 8 failed, 38 passed of 46                           | 46 passed of 46   |
+| Admin or data routes answering 200 with no token, in prod | 3 (`export`, `export/journal`, `audit/verify`)      | 0                 |
+| Token compares that are not constant time                 | 4 (`isAdmin`, `adminPageAllowed`, login, dashboard) | 0                 |
+| Pages open in production with `ADMIN_TOKEN` unset         | 1 (`/dashboard`)                                    | 0                 |
+
+The 8 failures before: the three open routes, twice each (no token configured, wrong token), the
+missing `tokenMatches`, and the login route issuing `{ authed: true }` in production with no token.
+"Before" was measured by stashing `app/` and `lib/` and running the new test file against HEAD.
+
+Not closed here: the live site. Production still runs the old build with `ADMIN_TOKEN` unset, so
+the six probed routes keep answering 200 until this branch is deployed with `ADMIN_TOKEN` set
+(Vercel settings; F01 and F02 share that deploy).
+
+### Every route under `app/api`
+
+| Route                    | Methods                  | Access             | Why                                                                                    |
+| ------------------------ | ------------------------ | ------------------ | -------------------------------------------------------------------------------------- |
+| `/api/accounts`          | GET                      | admin              | balances and caps                                                                      |
+| `/api/accounts/shard`    | POST                     | admin              | rewrites an account's balance rows                                                     |
+| `/api/agents`            | GET, POST                | admin              | lists agents, issues API keys                                                          |
+| `/api/audit/tamper-demo` | POST                     | admin              | reads every entry; returns one entry's id and amount                                   |
+| `/api/audit/verify`      | GET                      | admin              | account names, ids, entry counts, chain heads                                          |
+| `/api/export`            | GET                      | admin              | the full ledger as CSV                                                                 |
+| `/api/export/journal`    | GET                      | admin              | the journal as CSV                                                                     |
+| `/api/freeze`            | POST                     | admin              | kill switch                                                                            |
+| `/api/harness`           | POST                     | admin              | runs the in-memory exactly-once harness (CPU)                                          |
+| `/api/incident`          | POST                     | admin              | drill; also refused on the app's DB role                                               |
+| `/api/ledger`            | GET                      | admin              | entries and denials                                                                    |
+| `/api/policies`          | GET, POST, PATCH, DELETE | admin              | spend policies                                                                         |
+| `/api/policies/simulate` | POST                     | admin              | replays an account's spend history                                                     |
+| `/api/query`             | POST                     | admin              | natural-language questions over the ledger                                             |
+| `/api/stress`            | POST                     | admin              | drill; also refused on the app's DB role                                               |
+| `/api/sweep`             | POST                     | admin              | releases expired holds                                                                 |
+| `/api/spend`             | POST                     | agent key or admin | the product: an agent spends with its scoped key, bound to its own budget              |
+| `/api/reserve`           | POST                     | agent key or admin | same, for holds                                                                        |
+| `/api/settle`            | POST                     | agent key or admin | same                                                                                   |
+| `/api/release`           | POST                     | agent key or admin | same                                                                                   |
+| `/api/auth`              | POST                     | public by design   | the login itself; 20 a minute per IP, constant-time compare, 401 in prod with no token |
+| `/api/auth`              | DELETE                   | public by design   | logout clears only the caller's own cookie                                             |
+| `/api/health`            | GET                      | public by design   | uptime probe; returns up/down, the active Region and latency, no ledger data           |
+| `/api/proof`             | POST                     | public by design   | the public least-privilege proof; each statement rolls back; per-IP and global limits  |
+
+20 admin handlers, 4 agent-key handlers, 4 public handlers across 23 route files.

@@ -1,11 +1,13 @@
+import { NextResponse } from "next/server";
 import { listJournalLines } from "@/lib/data";
+import { withRoute } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
-export async function GET() {
+export const GET = withRoute({ name: "export/journal", admin: true }, async () => {
   const lines = await listJournalLines(5000);
   const header = [
     "date",
@@ -32,11 +34,11 @@ export async function GET() {
     ),
   ].join("\n");
 
-  return new Response(body, {
+  return new NextResponse(body, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": 'attachment; filename="stub-journal.csv"',
       "cache-control": "no-store",
     },
   });
-}
+});

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { db, dsql, limits, security } from "@/config";
 import { log } from "@/lib/log";
 import { rateLimit } from "@/lib/rate-limit";
@@ -58,16 +58,25 @@ export function drillsAllowed(): boolean {
   return db.driver === "postgres" || dsql.user === dsql.adminUser;
 }
 
+function digest(value: string): Buffer {
+  return createHash("sha256").update(value, "utf8").digest();
+}
+
+export function tokenMatches(provided: string | null | undefined): boolean {
+  const expected = security.adminToken;
+  if (!expected || provided == null) return false;
+  return timingSafeEqual(digest(provided), digest(expected));
+}
+
 export function isAdmin(request: Request): boolean {
   if (!security.authEnabled) return openWithoutToken();
-  const provided = bearer(request) ?? cookie(request, ADMIN_COOKIE);
-  return provided != null && provided === security.adminToken;
+  return tokenMatches(bearer(request) ?? cookie(request, ADMIN_COOKIE));
 }
 
 export async function adminPageAllowed(): Promise<boolean> {
   if (!security.authEnabled) return openWithoutToken();
   const jar = await cookies();
-  return jar.get(ADMIN_COOKIE)?.value === security.adminToken;
+  return tokenMatches(jar.get(ADMIN_COOKIE)?.value);
 }
 
 function respond(body: unknown, status: number, requestId: string): NextResponse {

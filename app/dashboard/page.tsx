@@ -21,9 +21,7 @@ import { StartHere } from "@/components/start-here";
 import { StressTest } from "@/components/stress-test";
 import { ExactlyOnce } from "@/components/exactly-once";
 import { LedgerFeed } from "@/components/ledger-feed";
-import { cookies } from "next/headers";
-import { security } from "@/config";
-import { ADMIN_COOKIE } from "@/lib/api";
+import { adminPageAllowed } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,10 +61,7 @@ const BURN_TONE: Record<string, string> = {
 };
 
 export default async function Dashboard() {
-  if (security.authEnabled) {
-    const jar = await cookies();
-    if (jar.get(ADMIN_COOKIE)?.value !== security.adminToken) return <AdminLogin />;
-  }
+  if (!(await adminPageAllowed())) return <AdminLogin />;
 
   const [accounts, entries, denials, policies, fleetSpend, agents] = await Promise.all([
     listAccounts(),

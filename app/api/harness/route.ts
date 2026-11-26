@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { type ApproachResult, runHarness } from "@/core/harness";
-import { HttpError, isAdmin, withRoute } from "@/lib/api";
+import { withRoute } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,8 +23,7 @@ function view(r: ApproachResult) {
   };
 }
 
-export const POST = withRoute({ name: "harness" }, async ({ request }) => {
-  if (!isAdmin(request)) throw new HttpError(401, "unauthorized");
+export const POST = withRoute({ name: "harness", admin: true }, async () => {
   const report = await runHarness({
     capMicro: 3n * USD,
     amountMicro: 1n * USD,
