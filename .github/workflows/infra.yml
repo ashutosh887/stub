@@ -24,13 +24,13 @@ jobs:
     name: Validate templates (cfn-lint and the infra guardrails)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install cfn-lint
       - run: cfn-lint infra/*.yaml
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -59,8 +59,8 @@ jobs:
           - { stack: stub-detection, template: stub-detection.yaml, region: us-east-1 }
           - { stack: stub-detection, template: stub-detection.yaml, region: us-east-2 }
     steps:
-      - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_INFRA_DEPLOY_ROLE_ARN }}
           role-session-name: stub-infra-${{ github.run_id }}

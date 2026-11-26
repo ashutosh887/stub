@@ -4,12 +4,23 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    groups:
+      app:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: typescript
+        versions: ["7.x"]
   - package-ecosystem: npm
     directory: /sdk
     schedule:
       interval: weekly
+    groups:
+      sdk:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

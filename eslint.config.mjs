@@ -4,7 +4,14 @@ import prettier from "eslint-config-prettier";
 
 const eslintConfig = [
   {
-    ignores: [".next/**", "node_modules/**", "sdk/dist/**", "next-env.d.ts", "*.tsbuildinfo"],
+    ignores: [
+      ".claude/**",
+      ".next/**",
+      "node_modules/**",
+      "sdk/dist/**",
+      "next-env.d.ts",
+      "*.tsbuildinfo",
+    ],
   },
   ...coreWebVitals,
   ...typescript,
