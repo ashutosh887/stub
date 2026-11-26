@@ -10,20 +10,33 @@ published verbatim as the body of the matching
 
 ## [Unreleased]
 
-### Changed
-
-- **Stub server: a write the database refuses is a denial, not a `500`.** When a balance `CHECK`
-  fails with `23514` after the server's own budget check passed, `spend()` and `reserve()` come back
-  `denied` with reason `db_refused`, and the denial is recorded like any other. Nothing is retried
-  and no balance moves. `settle()` and `release()` come back `invalid` with the same reason and the
-  hold stays in place.
-
-## [1.3.0] - 2026-11-26
+## [2.0.0] - 2026-11-27
 
 The database now enforces the budget. Before this release the overspend check lived in the server's
 code, so any path that skipped it could overdraw a budget: ten writers took a $3.00 budget to
--$7.00. Now the same race stops at $0.00, and the database refuses the other seven writes with
-`23514`. The SDK's API is unchanged.
+-$7.00 on Aurora DSQL. Now the same race stops at $0.00, and the database refuses the other seven
+writes with `23514`. The SDK's method signatures are unchanged. It is a major version because four
+server changes can break an existing caller or deployment; they are listed first.
+
+### Breaking
+
+- **Payees must be vendor accounts.** A spend or reserve whose vendor is unknown, is not a vendor
+  account, or is the budget itself is denied with `unknown_vendor`, `payee_not_vendor` or
+  `payee_is_budget`. Before, an agent could name its own account as the vendor and raise its own
+  balance.
+- **Stub server: admin routes fail closed in production.** With `ADMIN_TOKEN` unset, a production
+  deployment answers admin routes with `401` instead of letting every caller through. The ledger
+  exports (`/api/export`, `/api/export/journal`) and `/api/audit/verify` are admin routes now too.
+  Set `ADMIN_TOKEN` before upgrading a production server.
+- **Stub server: the app connects as `stub_app` by default.** The role from `npm run db:app-role`
+  cannot update or delete a ledger entry, create an account or change the schema. Set
+  `DSQL_USER=admin` to keep the old behaviour. On Vercel, set `AWS_ROLE_ARN` to sign with
+  short-lived OIDC credentials instead of a stored key.
+- **Stub server: drills run as `stub_app`.** `/api/stress` and `/api/incident` hold and release
+  against fixed drill budgets instead of creating and deleting accounts, so they work on the
+  least-privilege role and put every balance back where it started. Their holds and
+  denials stay on record. Run `npm run seed:drills` once as
+  `admin` to create them.
 
 ### Changed
 
@@ -32,23 +45,11 @@ code, so any path that skipped it could overdraw a budget: ten writers took a $3
   `CHECK (cap_micro IS NULL OR balance_micro <= cap_micro)`. A write that breaks either fails with
   `23514`, whoever sends it. Run `npm run migrate` to add them; on Aurora DSQL it adds each one
   `NOT VALID` and validates it with `ALTER TABLE ASYNC`.
-- **Stub server: the app connects as `stub_app` by default.** The role from `npm run db:app-role`
-  cannot update or delete a ledger entry, create an account or change the schema. Set
-  `DSQL_USER=admin` to keep the old behaviour. On Vercel, set `AWS_ROLE_ARN` to sign with
-  short-lived OIDC credentials instead of a stored key.
-- **Stub server: admin routes fail closed in production.** With `ADMIN_TOKEN` unset, a production
-  deployment answers admin routes with `401` instead of letting every caller through. The ledger
-  exports (`/api/export`, `/api/export/journal`) and `/api/audit/verify` are admin routes now too.
-  Set `ADMIN_TOKEN` before upgrading a production server.
-- **Stub server: drills run as `stub_app`.** `/api/stress` and `/api/incident` hold and release
-  against fixed drill budgets instead of creating and deleting accounts, so they work on the
-  least-privilege role and put every balance back where it started. Their holds and
-  denials stay on record. Run `npm run seed:drills` once as
-  `admin` to create them.
-- **Payees must be vendor accounts.** A spend or reserve whose vendor is unknown, is not a vendor
-  account, or is the budget itself is denied with `unknown_vendor`, `payee_not_vendor` or
-  `payee_is_budget`. Before, an agent could name its own account as the vendor and raise its own
-  balance.
+- **Stub server: a write the database refuses is a denial, not a `500`.** When a balance `CHECK`
+  fails with `23514` after the server's own budget check passed, `spend()` and `reserve()` come back
+  `denied` with reason `db_refused`, and the denial is recorded like any other. Nothing is retried
+  and no balance moves. `settle()` and `release()` come back `invalid` with the same reason and the
+  hold stays in place.
 
 ### Added
 

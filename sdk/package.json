@@ -1,6 +1,6 @@
 {
   "name": "trystub",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "description": "Drop-in budget gate for autonomous AI agents: reserve, pay once, settle. Exactly-once spend control over a strongly-consistent double-entry ledger.",
   "keywords": [
     "ai-agents",
