@@ -26,7 +26,7 @@ commands read them from the environment.
 | Create an account, as the app's DB role                                                                       | accepted                                           | refused, `42501`                                                                                  |
 | CREATE TABLE, as the app's DB role                                                                            | allowed (owner)                                    | refused, `42501 permission denied for schema public`                                              |
 | DROP TABLE entries, as the app's DB role                                                                      | allowed (owner)                                    | refused, `42501 must be owner of table entries`                                                   |
-| CHECK constraints on balance tables                                                                           | 0                                                  | 2, both `convalidated = true`                                                                     |
+| CHECK constraints on balance tables                                                                           | 0                                                  | 3, all `convalidated = true` (2 at first, plus `accounts_balance_within_cap` later the same day)  |
 | Deletion protection                                                                                           | 0 of 2 clusters                                    | 2 of 2                                                                                            |
 | Admin routes in production with `ADMIN_TOKEN` unset                                                           | open to anyone                                     | 401 (in code on this branch; not deployed)                                                        |
 | SEC03-BP01 guardrail test                                                                                     | 0 of 3 pass on `main`                              | 3 of 3 pass on this branch                                                                        |
@@ -206,7 +206,7 @@ rows, which `stub_app` may not do, and the script has no separate user for the r
   this network under parallel connects (`ETIMEDOUT` on IPv4, `EHOSTUNREACH` on IPv6); local runs
   used `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=3000`.
 
-## 5. Still needed on Vercel (not done here)
+## 5. Vercel switch (done 26 Nov 2026 17:20 UTC, see "Live after deploy")
 
 1. Set `AWS_ROLE_ARN` to the stack output `RoleArn`, `AWS_REGION=us-east-1`, `DSQL_USER=stub_app`
    (or remove `DSQL_USER`), and a long random `ADMIN_TOKEN`, for Production.
@@ -756,3 +756,83 @@ $0.
 Not done here: a tabletop run of a playbook, a second responder, and an on-call rota (one operator
 exists); alarms for the two app signals (the failover log line and `23514`) need a log drain or a
 published metric first. No AWS resource was tagged with its class.
+
+---
+
+# Live after deploy (26 Nov 2026)
+
+Production switched at 17:20 UTC: the Vercel project lost `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` and gained `AWS_ROLE_ARN`, `DSQL_USER=stub_app`, the peer endpoint and
+`ADMIN_TOKEN`; `main` was fast-forwarded to the fix and deployed. Measured against
+`https://trystub.vercel.app` at 17:22 UTC.
+
+| Measure                                                                                 | Before deploy              | After deploy                                      |
+| --------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------- |
+| `GET /api/accounts`, `/api/ledger`, `/api/export`, `/api/export/journal`, no credential | 200 (re-review, 12:22 UTC) | 401 on all 4                                      |
+| The same 4 routes with the admin token                                                  | n/a                        | 200 on all 4                                      |
+| `POST /api/proof`: role the app connects as                                             | `admin` (refused to probe) | `stub_app`, `ran: true`                           |
+| `POST /api/proof`: the 5 statements                                                     | not run                    | 5 of 5 refused: `23514`, `42501` ×4, 110 ms total |
+| `GET /api/health`                                                                       | ok                         | ok, `us-east-1`, 3 ms                             |
+| `AssumeRoleWithWebIdentity` for `stub-app` (CloudTrail, 17:15 to 17:30 UTC)             | 0 ever                     | 2, first at 17:22:10 UTC, no errors               |
+
+`/api/proof` output, 17:22:15 UTC:
+
+```
+negative-balance  refused  23514  new row for relation "accounts" violates check constraint "accounts_balance_nonnegative"
+rewrite-entry     refused  42501  permission denied for table entries
+delete-entry      refused  42501  permission denied for table entries
+create-table      refused  42501  permission denied for schema public
+drop-entries      refused  42501  must be owner of table entries
+```
+
+### A bug the live check found
+
+`npm run demo:agent` against production reserved and settled, but every `POST /api/settle`
+answered 500: `TypeError: Do not know how to serialize a BigInt`. The settle committed (the log
+shows `settle_settled`), then the response failed, and the SDK's retry came back `duplicate`. The
+route had returned `bigint` fields since settlement shipped; `/api/release` had the same bug. Both
+now return the amounts as strings, which the SDK's types already allowed.
+
+The same check found two more: the demo agent called the now-gated admin routes without a token,
+and every Vercel preview build failed with `Missing required env var: DSQL_ENDPOINT`, because
+`lib/data.ts` opened the pool when the module loaded. The store now resolves its pool on first use,
+so `next build` needs no database variable and CI no longer sets a placeholder endpoint.
+
+# A second database invariant: no balance above its cap (26 Nov 2026)
+
+The review's one open limit was that `stub_app` can raise a balance, because every spend, settle and
+release writes that column. `CHECK (cap_micro IS NULL OR balance_micro <= cap_micro)`
+(`accounts_balance_within_cap`) bounds it from above: a capped balance only falls on a spend or
+hold and rises by no more than a settle or release refunds, nothing in the app writes `cap_micro`,
+and vendors carry no cap. `account_shards` keeps only the lower bound, because a cap covers the sum
+of an account's shards and a row CHECK sees one row.
+
+Applied to the live cluster as `admin` through `npm run migrate`, 17:35:02 to 17:35:39 UTC, after a
+precheck that returned 0 accounts above their cap and 0 vendors with a cap. `convalidated = true`
+read back from both Regional endpoints. `/proof` gains a sixth statement, "Raise a budget above its
+cap", expected `23514`.
+
+# The bypass race: what the CHECK adds (26 Nov 2026)
+
+`npm run race:bypass` (`scripts/bypass-race.ts`, `lib/bypass-race.ts`): 10 writers race one $3.00
+budget, each spending $1.00 with the raw `UPDATE accounts SET balance_micro = balance_micro - …`
+that any code path skipping `guard()` would send (a script, a hotfix, a new route), retrying only on
+`40001`. Local Postgres 17, `SERIALIZABLE` as the app runs it.
+
+| Schema and role                                                         | Committed | Refused     | Final balance | Overspend |
+| ----------------------------------------------------------------------- | --------- | ----------- | ------------- | --------- |
+| Before: schema at `202c4c8` (no CHECK), writers as the table owner      | 10        | 0           | −$7.00        | $7.00     |
+| Before schema, writers as `stub_app` with today's grants                | 10        | 0           | −$7.00        | $7.00     |
+| After: `npm run migrate` + `npm run db:app-role`, writers as `stub_app` | 3         | 7 × `23514` | $0.00         | $0.00     |
+| After, writers as the table owner                                       | 3         | 7 × `23514` | $0.00         | $0.00     |
+
+Measured 17:29:32 to 17:30:14 UTC. The second row is the point: the least-privilege role alone
+does not stop the overspend, because the app must be able to write balances. The constraint does,
+for every role, including the owner. The live clusters cannot reproduce the before rows any more,
+because the CHECK is validated on both; the live before is the 09:10 UTC probe in section 1b
+(`balance = -1` accepted as `admin`).
+
+`test/local/db-guardrail.test.ts` asserts the after rows and the 5 `/proof` refusals as `stub_app`
+on a real Postgres. CI's `db-proof` job runs it on `postgres:17` on every push and pull request.
+Against the pre-fix schema with today's grants it fails for the right reason: the negative-balance
+probe is `accepted`, and the race ends at `-7000000` micro-dollars instead of `0`.

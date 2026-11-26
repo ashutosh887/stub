@@ -8,14 +8,13 @@
 [![types](https://img.shields.io/npm/types/trystub.svg)](https://www.npmjs.com/package/trystub)
 [![license](https://img.shields.io/npm/l/trystub.svg)](https://github.com/ashutosh887/stub/blob/main/sdk/LICENSE)
 
-A drop-in budget gate for AI agents that spend real money: paid APIs, x402 micropayments, and LLM
-tokens. Put one enforceable budget in front of your whole fleet and keep an exact, double-entry
-record of what every agent spent. Zero dependencies, TypeScript-first, works with any runtime that
-has `fetch`.
+A budget gate for AI agents that spend real money: paid APIs, x402 micropayments and LLM tokens.
+Put one budget in front of your whole fleet and keep a double-entry record of what every agent
+spent. No dependencies, written in TypeScript, runs anywhere `fetch` exists.
 
-The hard part it solves: a naive retry around an irreversible payment double-charges. `trystub` uses
-a **reserve → pay → settle** flow, so the payment fires exactly once, even under concurrent writers,
-conflict retries, or a crash mid-flight.
+A naive retry around an irreversible payment double-charges. `trystub` uses a **reserve, pay,
+settle** flow, so the payment fires exactly once, even with concurrent writers, conflict retries or
+a crash mid-flight.
 
 ```bash
 npm install trystub
@@ -61,8 +60,8 @@ for the actual amount and refunds the difference. If the reservation is denied i
 
 ## Metering LLM tokens
 
-Tokens are the spend most fleets actually have. `meterLLM` holds an estimate, runs the call once,
-then settles the real token cost:
+LLM calls go through the same budget. `meterLLM` holds an estimate, runs the call once, then
+settles the real token cost:
 
 ```ts
 import { StubClient } from "trystub";
@@ -86,12 +85,12 @@ const response = await meterLLM(
 `usageFrom` reads both OpenAI-shaped (`prompt_tokens` / `completion_tokens`) and Anthropic-shaped
 (`input_tokens` / `output_tokens`) responses, including cached-input tokens, and `costUsd` prices
 them. **You supply the rates.** This package ships no price table on purpose: published prices go
-stale, and a stale number in a dependency silently mis-bills you. If the response carries no usage,
+stale, and a stale number in a dependency bills you wrong. If the response carries no usage,
 the hold settles at the full estimate rather than guessing low.
 
 ## Reliability
 
-Every call has a timeout and bounded retries on network errors, `429`, and `5xx`. Retries are safe
+Every call has a timeout and bounded retries on network errors, `429` and `5xx`. Retries are safe
 because the client attaches a generated `idempotencyKey` to each `spend` and `reserve`, so a request
 that is retried after the server already committed it resolves to that same single ledger entry
 instead of charging twice. Denials and `4xx` are never retried.
@@ -118,8 +117,8 @@ await admin.provisionShards(accountId); // split a hot budget across shard rows 
 ```
 
 `provisionShards` shards whatever the account's balance is right now, and refuses to run twice on
-the same account. If you shard a budget account, shard every vendor account it pays too — a sharded
-spend errors if either side of the pair isn't sharded.
+the same account. The vendors a sharded budget pays do not need shards: a vendor without them is
+credited on its own balance row.
 
 ## API
 

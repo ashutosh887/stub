@@ -78,6 +78,7 @@ drives, and delete it when the reconciliation it was for is done.
   Internal log lines above are written.
 - **The operator's machine**: CSV exports and the `ledger:fingerprint` script's output.
 
-Nothing else leaves: the SDK talks only to the Stub deployment it is pointed at. The only rows
-ever deleted from the ledger tables are the drills' own throwaway accounts (`/api/stress`,
-`/api/incident`), and those routes refuse to run on the app's role.
+Nothing else leaves: the SDK talks only to the Stub deployment it is pointed at. No route deletes
+ledger rows. The drills (`/api/stress`, `/api/incident`) run against their own accounts
+(`drill-*`, from `npm run seed:drills`). They place holds and release them, so they add only reservations and
+denials, and the dashboard and query box leave those accounts out.

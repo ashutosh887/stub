@@ -35,11 +35,11 @@ audit trail. Tagline: _"One budget your agents can't break."_
 
 ```
 Agent (x402 / AgentCore adapter)
-  → 3-line SDK · guard()
-  → Stub API (Next.js route, withRoute: auth · rate-limit · request id)
+  → 3-line SDK, guard()
+  → Stub API (Next.js route, withRoute: auth, rate-limit, request id)
       → policy + hierarchy + velocity check
       → atomic double-entry write under DSQL OCC ── on 40001 → retry / deny + denial entry
-  → immutable, hash-chained ledger → dashboard (live) · natural-language query
+  → immutable, hash-chained ledger → dashboard (live), natural-language query
 ```
 
 ### Data model (deliberate double-entry)
@@ -59,7 +59,7 @@ Agent (x402 / AgentCore adapter)
   (`sweepExpiredReservations`, `npm run sweep` or `POST /api/sweep`): it releases the hold via the
   same `release()` path an agent would call, so it contends on the reservation row under OCC exactly
   like any other release and can never double-refund a hold another process is settling.
-- `policies`: layered ceilings (per-transaction · rolling window · cumulative), vendor
+- `policies`: layered ceilings (per-transaction, rolling window, cumulative), vendor
   allow/blocklists, approval thresholds, evaluated against each spend at runtime.
 - `agents` / `sessions`: identity, session budgets, scoped API keys (SHA-256 hashed).
 - `query_cache`: caches NL-query answers, keyed on question + a ledger fingerprint (entry/denial
@@ -131,8 +131,9 @@ normalization, CDC→Kinesis live feed.
   release + `sweepExpiredReservations`, all exactly-once), `payment.ts` (gateway interface +
   counting mock), `harness.ts` (naive-vs-Stub exactly-once proof), `store.ts` (`Store`/`Tx`
   interface), `mem-store.ts` (in-memory OCC model for offline tests), `sharded.ts` (per-account
-  opt-in sharded balances for hot-row contention: `provisionShards` flips an account's `sharded`
-  flag, and `spendAuto` — used by `/api/spend` — dispatches to `shardedSpend` or the plain `spend()`
+  opt-in sharded balances for hot-row contention: `provisionShards` (leaf accounts only; it refuses
+  an account with children) flips an account's `sharded` flag, and `spendAuto`, which `/api/spend`
+  uses, dispatches to `shardedSpend` or the plain `spend()`
   based on that flag, with full policy/frozen/velocity/hierarchy parity either way), `policy.ts`,
   `query.ts`, `audit.ts`, `hash.ts`, `burn.ts`, `forecast.ts`, `apikey.ts`. No `pg`/AWS imports here.
 - `db/`: the **Postgres-family adapter**. `client.ts` (`createPool` for DSQL + IAM,
@@ -163,9 +164,9 @@ normalization, CDC→Kinesis live feed.
   `POST /api/sweep` / `POST /api/accounts/shard` routes. Dependency-free; dual ESM + CJS build
   (`tsconfig.json` → `dist/esm`, `tsconfig.cjs.json` → `dist/cjs`); **published to npm as
   `trystub`**, shipped by the `Publish SDK` workflow on a `sdk-v*` tag (builds, publishes with
-  provenance over npm trusted publishing, so no npm token is stored, then creates the GitHub
-  Release from that version's `sdk/CHANGELOG.md` section — the workflow does this itself now,
-  nothing to create by hand). Release steps live in `CONTRIBUTING.md` → "Releasing the SDK":
+  provenance over npm trusted publishing, so no npm token is stored). The workflow does not
+  create the GitHub Release: the maintainer creates it from their own account with that version's
+  `sdk/CHANGELOG.md` section, so it never shows a bot as the releaser. Release steps live in `CONTRIBUTING.md` → "Releasing the SDK":
   rename `## [Unreleased]` to the version, bump
   `sdk/package.json` to match (the workflow fails if they disagree), commit, tag `sdk-vX.Y.Z`,
   push the tag.
@@ -175,11 +176,14 @@ normalization, CDC→Kinesis live feed.
   App pages: `/dashboard` (overview), `/incident` (replay), `/settlement` (reserve→pay→settle),
   `/audit` (chain verification + journal export), `/attribution` (chargeback/showback), all sharing
   the `AppTabs` sub-nav. Marketing pages `/`, `/how-it-works` and `/proof` share `SiteNav` (logo mark +
-  `NpmStatsLink` hover tooltip showing latest npm version + GitHub stars) and `SiteFooter`. Every
+  `NpmStatsLink` hover tooltip showing latest npm version + GitHub stars) and `SiteFooter`, and
+  build from `components/site-kit.tsx` (`SiteSection` with its margin column of source files,
+  `Stamp` for a refused SQLSTATE, link and code primitives). Marketing copy cites only numbers in
+  `measurements/wa-review/RESULTS.md`, with no em/en dashes or interpuncts. Every
   route runs through `lib/api.ts` `withRoute` (request id, sanitized errors, admin auth, rate
   limit); page-level gating via `adminPageAllowed`. Auth is enforced when `ADMIN_TOKEN` is set;
   unset, it is open in development and closed in production. `/proof` is public: its button posts to
-  `POST /api/proof` (`lib/proof.ts` `runProof`), which sends five statements as the app's own
+  `POST /api/proof` (`lib/proof.ts` `runProof`), which sends six statements as the app's own
   connection, each in its own `BEGIN … ROLLBACK`, and returns the SQLSTATE per statement; it refuses
   to probe unless `current_user` is `stub_app` and does not own the tables, and is rate limited per
   IP and overall. Its before/after table copies numbers only from `measurements/wa-review/RESULTS.md`.
@@ -196,18 +200,27 @@ normalization, CDC→Kinesis live feed.
 
 ## Commands
 
-- Dev: `npm run dev` · Build: `npm run build` · Typecheck: `npm run typecheck`
-- Lint/format: `npm run lint` · `npm run format` · `npm run verify` (lint + typecheck + invariant).
+- Dev: `npm run dev`, Build: `npm run build`, Typecheck: `npm run typecheck`
+- Lint/format: `npm run lint`, `npm run format`, `npm run verify` (lint + typecheck + invariant).
   Husky hooks run lint-staged on pre-commit and commitlint on commit-msg (Conventional Commits).
-- Local DB (no AWS): `npm run db:up` · `npm run db:down` (needs `DATABASE_URL` set)
-- DB: `npm run check:db` · `npm run migrate` · `npm run db:app-role` · `npm run seed` ·
-  `npm run seed:activity`
+- Local DB (no AWS): `npm run db:up`, `npm run db:down` (needs `DATABASE_URL` set)
+- DB: `npm run check:db`, `npm run migrate`, `npm run db:app-role`, `npm run seed`,
+  `npm run seed:activity`, `npm run seed:drills` (once, as `admin`: the root-level `drill-*`
+  accounts the `/api/stress` and `/api/incident` drills run against, with fixed ids from
+  `lib/drills.ts`. Drills reserve then release, so they run as `stub_app`, delete nothing and
+  restore the balance; `lib/data.ts` leaves the drill accounts out of accounts, denials,
+  reservations and NL queries)
 - **Least privilege:** the app connects as `stub_app` (the `DSQL_USER` default), never `admin`;
   `db/app-role.sql` holds its grants (no UPDATE/DELETE on `entries`, no DDL) and
   `infra/stub-app-role.yaml` the OIDC-assumed IAM role (only `dsql:DbConnect`).
   `test/invariant/least-privilege.test.ts` fails CI if either widens. Balances carry
-  `CHECK (balance_micro >= 0)`; DSQL accepts it only as `ADD CONSTRAINT … NOT VALID` followed by
-  `ALTER TABLE ASYNC … VALIDATE CONSTRAINT`, which `npm run migrate` does.
+  `CHECK (balance_micro >= 0)` (`accounts`, `account_shards`) and `accounts` also
+  `CHECK (cap_micro IS NULL OR balance_micro <= cap_micro)`, so the app role can neither overspend
+  nor mint budget past a cap (vendors have no cap; shards have no cap column, so a shard is bounded
+  below only). DSQL accepts a CHECK only as `ADD CONSTRAINT … NOT VALID` followed by
+  `ALTER TABLE ASYNC … VALIDATE CONSTRAINT`, which `npm run migrate` does for every constraint in
+  `db/schema.sql`. Before adding one on a live cluster, count the rows that break it: a `NOT VALID`
+  constraint already refuses new writes to such a row.
 - **Infrastructure as code** (`infra/`, CloudFormation, every stack with termination protection;
   change live resources only through these templates and confirm with drift detection):
   `stub-app-role.yaml` (OIDC provider + app role), `stub-clusters.yaml` (one stack per Region,
@@ -231,12 +244,16 @@ normalization, CDC→Kinesis live feed.
 - Offline invariant gate (in-memory OCC, no database): `npm test` / `npm run test:invariant`
 - **Local overspend proof** (real `40001`s on local Postgres, auto-skips without `DATABASE_URL`):
   `npm run test:local`
+- **Bypass race** (writers that skip `guard()` and `UPDATE` the balance directly, as `stub_app` by
+  default; `--as owner` to compare): `npm run race:bypass`. Only the `CHECK` stops it.
+  `test/local/db-guardrail.test.ts` runs it plus the `/proof` probes as `stub_app`; the `db-proof`
+  CI job runs it on `postgres:17` (local Postgres logs in with `STUB_APP_PASSWORD`).
 - **Exactly-once harness** (naive double-pay vs Stub, prints pass/fail): `npm run harness`
 - **Contention benchmark** (single balance row vs sharded, sweeps 1→32 writers): `npm run bench`
 - **Reservation TTL sweep** (reclaims holds stuck past `RESERVATION_TTL_SECONDS`, default 900s):
   `npm run sweep`, or `POST /api/sweep` (admin-gated) for an external scheduler to call
 - **Provision a sharded account**: `POST /api/accounts/shard` (admin-gated) or SDK
-  `stub.provisionShards(accountId, shards?)` — shards the account's current balance, refuses to
+  `stub.provisionShards(accountId, shards?)`. It shards the account's current balance, refuses to
   run twice on the same account
 - **Live cross-region overspend proof:** `npm run test:live` (`test/live/cross-region.test.ts`):
   6 agents across two regions race one near-empty budget on the real cluster → exactly what fits

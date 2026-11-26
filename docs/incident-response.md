@@ -44,7 +44,8 @@ repeating). Unfreeze (`"frozen": false`) only after the playbook's verify step p
 ### OCC conflicts above normal (SEV3)
 
 **What fired.** CloudWatch alarm `wa-dsql-occ-conflicts-<region>`: the cluster's `OccConflicts`
-reached 50 or more in five minutes. A normal six-writer cross-Region race produces about ten.
+reached 50 or more in five minutes. For scale, the measured run of the six-writer cross-Region race
+(`npm run test:live`) saw 9 `40001` conflicts.
 
 **First 5 minutes.**
 
@@ -208,19 +209,23 @@ timeout, 4.55 s when the primary's name stopped resolving.
 
 ### Budget balance check refused a write (SEV1)
 
-**What fired.** No alarm exists for this yet. A transaction that would make a balance negative is
-refused by the database with SQLSTATE `23514` (`accounts_balance_nonnegative` or
-`account_shards_balance_nonnegative`). The route answers 500 and logs `unhandled_error` with the
-constraint name in the message. The app checks the cap before writing, so this refusal means the
-app's own check was bypassed or wrong.
+**What fired.** No alarm exists for this yet. A transaction that would make a balance negative, or
+raise a capped account's balance above its cap, is refused by the database with SQLSTATE `23514`
+(`accounts_balance_nonnegative`, `account_shards_balance_nonnegative` or
+`accounts_balance_within_cap`). The route answers 500 and logs `unhandled_error` with the
+constraint name in the message. The app checks the cap before writing and only ever returns to a
+budget what a hold took from it, so this refusal means the app's own check was bypassed or wrong.
+For `accounts_balance_within_cap`, look for a write that credited a capped account: the app denies
+any payee that is not a vendor account (`payee_not_vendor`) or is the budget itself
+(`payee_is_budget`), so that write skipped those checks.
 
 **First 5 minutes.**
 
 1. Freeze the account named in the log line (or all, if the account is unclear).
 2. Keep the request id and the route from the log line.
 
-**Verify.** `GET /api/accounts`: no negative balance (the constraint guarantees it). `GET
-/api/audit/verify`: `ok: true`. The refused spend has no ledger entry.
+**Verify.** `GET /api/accounts`: no balance below zero or above its cap (the constraints guarantee
+it). `GET /api/audit/verify`: `ok: true`. The refused spend has no ledger entry.
 
 **Rollback.** Nothing to undo in the data: the write never happened. Find why the app reached the
 database with an overspend (a code change, a sharded account, a policy edit) and fix that before
