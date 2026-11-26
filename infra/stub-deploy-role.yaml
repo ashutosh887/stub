@@ -1,0 +1,400 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Stub infrastructure pipeline identity (WA SEC02-BP02, SEC03-BP02, REL08-BP01, SEC01-BP06).
+  Deployed once, by an operator, never by the pipeline it serves. GitHub Actions on one repository
+  and one branch assume stub-infra-deploy through GitHub's OIDC provider, with no stored AWS key.
+  That role may only run CloudFormation change sets on the named Stub stacks, and only through
+  stub-infra-cfn-exec, which CloudFormation alone can assume. The execution role holds what the
+  stacks' resource handlers need and explicitly cannot stop or delete the trail, delete the
+  ledger clusters or their backups, delete GuardDuty, disable the alert key or delete audit logs.
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    AllowedPattern: "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
+    Description: owner/name of the repository whose workflow may deploy.
+  GitHubBranch:
+    Type: String
+    Default: main
+    AllowedPattern: "[A-Za-z0-9_./-]+"
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set to false when the account already has token.actions.githubusercontent.com.
+  PeerRegion:
+    Type: String
+    Default: us-east-2
+  LogBucketName:
+    Type: String
+    Description: The audit log bucket from stub-audit.yaml.
+  AppRoleName:
+    Type: String
+    Default: stub-app
+
+Conditions:
+  CreateProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      Tags:
+        - { Key: wa-best-practice, Value: SEC02-BP02 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stub-infra-cfn-exec
+      Description: CloudFormation applies the Stub stacks with this role; nothing else can assume it.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudformation.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+      Policies:
+        - PolicyName: stub-stack-resources
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadEverythingTheStacksHold
+                Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:ListAttachedRolePolicies
+                  - iam:ListRoles
+                  - iam:GetOpenIDConnectProvider
+                  - iam:ListOpenIDConnectProviders
+                  - iam:ListOpenIDConnectProviderTags
+                  - dsql:GetCluster
+                  - dsql:GetClusterPolicy
+                  - dsql:GetVpcEndpointServiceName
+                  - dsql:ListClusters
+                  - dsql:ListTagsForResource
+                  - backup:DescribeBackupVault
+                  - backup:GetBackupVaultAccessPolicy
+                  - backup:GetBackupVaultNotifications
+                  - backup:GetBackupPlan
+                  - backup:GetBackupSelection
+                  - backup:ListBackupPlans
+                  - backup:ListBackupSelections
+                  - backup:ListBackupVaults
+                  - backup:ListTags
+                  - cloudtrail:DescribeTrails
+                  - cloudtrail:GetTrail
+                  - cloudtrail:GetTrailStatus
+                  - cloudtrail:GetEventSelectors
+                  - cloudtrail:GetInsightSelectors
+                  - cloudtrail:GetEventConfiguration
+                  - cloudtrail:ListTags
+                  - cloudtrail:ListTrails
+                  - organizations:DescribeOrganization
+                  - organizations:ListAWSServiceAccessForOrganization
+                  - guardduty:GetDetector
+                  - guardduty:ListDetectors
+                  - guardduty:ListTagsForResource
+                  - kms:DescribeKey
+                  - kms:GetKeyPolicy
+                  - kms:GetKeyRotationStatus
+                  - kms:ListKeys
+                  - kms:ListResourceTags
+                  - sns:GetTopicAttributes
+                  - sns:GetDataProtectionPolicy
+                  - sns:ListSubscriptionsByTopic
+                  - sns:ListTagsForResource
+                  - sns:ListTopics
+                  - cloudwatch:DescribeAlarms
+                  - cloudwatch:ListTagsForResource
+                  - events:DescribeRule
+                  - events:ListRules
+                  - events:ListTargetsByRule
+                  - events:ListTagsForResource
+                  - config:DescribeConfigurationRecorders
+                  - config:DescribeDeliveryChannels
+                  - config:DescribeConfigRules
+                  - config:DescribeComplianceByConfigRule
+                  - config:ListConfigurationRecorders
+                  - config:ListTagsForResource
+                  - s3:ListAllMyBuckets
+                Resource: "*"
+              - Sid: AppAndBackupRolesOnly
+                Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:UpdateAssumeRolePolicy
+                  - iam:UpdateRole
+                  - iam:UpdateRoleDescription
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${AppRoleName}
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/stub-backup-*
+              - Sid: BackupRolesTakeOnlyTheBackupPolicies
+                Effect: Allow
+                Action: [iam:AttachRolePolicy, iam:DetachRolePolicy]
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/stub-backup-*
+                Condition:
+                  ArnEquals:
+                    iam:PolicyARN:
+                      - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup
+                      - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores
+              - Sid: VercelOidcProvider
+                Effect: Allow
+                Action:
+                  - iam:CreateOpenIDConnectProvider
+                  - iam:TagOpenIDConnectProvider
+                  - iam:UntagOpenIDConnectProvider
+                  - iam:AddClientIDToOpenIDConnectProvider
+                  - iam:RemoveClientIDFromOpenIDConnectProvider
+                  - iam:UpdateOpenIDConnectProviderThumbprint
+                Resource: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/oidc.vercel.com/*
+              - Sid: ServiceLinkedRolesTheStacksUse
+                Effect: Allow
+                Action: iam:CreateServiceLinkedRole
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    iam:AWSServiceName:
+                      - config.amazonaws.com
+                      - guardduty.amazonaws.com
+                      - dsql.amazonaws.com
+                      - backup.amazonaws.com
+              - Sid: PassOnlyTheBackupAndConfigRoles
+                Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/stub-backup-*
+                  - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/config.amazonaws.com/*
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: [backup.amazonaws.com, config.amazonaws.com]
+              - Sid: LedgerClusterSettings
+                Effect: Allow
+                Action:
+                  - dsql:UpdateCluster
+                  - dsql:PutClusterPolicy
+                  - dsql:DeleteClusterPolicy
+                  - dsql:PutMultiRegionProperties
+                  - dsql:PutWitnessRegion
+                  - dsql:AddPeerCluster
+                  - dsql:TagResource
+                  - dsql:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:dsql:*:${AWS::AccountId}:cluster/*
+              - Sid: ClusterEncryptionThroughDsqlOnly
+                Effect: Allow
+                Action: [kms:Decrypt, kms:Encrypt, kms:GenerateDataKey]
+                Resource: "*"
+                Condition:
+                  StringLike: { kms:ViaService: "dsql.*.amazonaws.com" }
+              - Sid: BackupVaultsAndPlans
+                Effect: Allow
+                Action:
+                  - backup:CreateBackupVault
+                  - backup:PutBackupVaultAccessPolicy
+                  - backup:PutBackupVaultLockConfiguration
+                  - backup:PutBackupVaultNotifications
+                  - backup:CreateBackupPlan
+                  - backup:UpdateBackupPlan
+                  - backup:CreateBackupSelection
+                  - backup:DeleteBackupSelection
+                  - backup:TagResource
+                  - backup:UntagResource
+                  - backup-storage:MountCapsule
+                Resource: "*"
+              - Sid: AuditLogBucketSettings
+                Effect: Allow
+                Action:
+                  - s3:Get*
+                  - s3:ListBucket
+                  - s3:PutBucketPolicy
+                  - s3:PutBucketVersioning
+                  - s3:PutBucketPublicAccessBlock
+                  - s3:PutBucketOwnershipControls
+                  - s3:PutEncryptionConfiguration
+                  - s3:PutLifecycleConfiguration
+                  - s3:PutBucketTagging
+                  - s3:TagResource
+                  - s3:UntagResource
+                Resource: !Sub arn:${AWS::Partition}:s3:::${LogBucketName}
+              - Sid: AuditTrailSettings
+                Effect: Allow
+                Action:
+                  - cloudtrail:CreateTrail
+                  - cloudtrail:UpdateTrail
+                  - cloudtrail:StartLogging
+                  - cloudtrail:PutEventSelectors
+                  - cloudtrail:PutInsightSelectors
+                  - cloudtrail:PutEventConfiguration
+                  - cloudtrail:AddTags
+                  - cloudtrail:RemoveTags
+                Resource: !Sub arn:${AWS::Partition}:cloudtrail:*:${AWS::AccountId}:trail/wa-stub-*
+              - Sid: DetectionAndAlerts
+                Effect: Allow
+                Action:
+                  - guardduty:CreateDetector
+                  - guardduty:UpdateDetector
+                  - guardduty:TagResource
+                  - guardduty:UntagResource
+                  - kms:CreateKey
+                  - kms:PutKeyPolicy
+                  - kms:EnableKey
+                  - kms:EnableKeyRotation
+                  - kms:UpdateKeyDescription
+                  - kms:TagResource
+                  - kms:UntagResource
+                  - sns:CreateTopic
+                  - sns:SetTopicAttributes
+                  - sns:PutDataProtectionPolicy
+                  - sns:TagResource
+                  - sns:UntagResource
+                  - cloudwatch:PutMetricAlarm
+                  - cloudwatch:DeleteAlarms
+                  - cloudwatch:TagResource
+                  - cloudwatch:UntagResource
+                  - events:PutRule
+                  - events:PutTargets
+                  - events:RemoveTargets
+                  - events:DeleteRule
+                  - events:TagResource
+                  - events:UntagResource
+                  - config:PutConfigurationRecorder
+                  - config:StartConfigurationRecorder
+                  - config:PutDeliveryChannel
+                  - config:PutConfigRule
+                  - config:TagResource
+                  - config:UntagResource
+                Resource: "*"
+              - Sid: NeverStopTheAuditOrLoseTheLedger
+                Effect: Deny
+                Action:
+                  - cloudtrail:StopLogging
+                  - cloudtrail:DeleteTrail
+                  - dsql:DeleteCluster
+                  - dsql:RemovePeerCluster
+                  - backup:DeleteBackupVault
+                  - backup:DeleteBackupVaultLockConfiguration
+                  - backup:DeleteBackupPlan
+                  - backup:DeleteRecoveryPoint
+                  - guardduty:DeleteDetector
+                  - kms:ScheduleKeyDeletion
+                  - kms:DisableKey
+                  - kms:DisableKeyRotation
+                  - s3:DeleteBucket
+                  - s3:DeleteBucketPolicy
+                  - s3:DeleteObject*
+                  - s3:PutBucketObjectLockConfiguration
+                  - config:StopConfigurationRecorder
+                  - config:DeleteConfigurationRecorder
+                  - config:DeleteDeliveryChannel
+                  - config:DeleteConfigRule
+                  - iam:DeleteRole
+                  - iam:DeleteOpenIDConnectProvider
+                  - iam:PutRolePermissionsBoundary
+                  - iam:DeleteRolePermissionsBoundary
+                Resource: "*"
+              - Sid: NeverRemoveTheTamperAlert
+                Effect: Deny
+                Action: [events:DeleteRule, events:DisableRule, events:RemoveTargets]
+                Resource: !Sub arn:${AWS::Partition}:events:*:${AWS::AccountId}:rule/wa-audit-tampering
+      Tags:
+        - { Key: wa-best-practice, Value: SEC03-BP02 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: stub-infra-deploy
+      Description: GitHub Actions on the main branch; change sets on the Stub stacks only.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Principal": { "Federated": "${ProviderArn}" },
+                "Action": "sts:AssumeRoleWithWebIdentity",
+                "Condition": {
+                  "StringEquals": {
+                    "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+                    "token.actions.githubusercontent.com:sub": "repo:${GitHubRepository}:ref:refs/heads/${GitHubBranch}"
+                  }
+                }
+              }
+            ]
+          }
+        - ProviderArn: !If
+            - CreateProvider
+            - !Ref GitHubOidcProvider
+            - !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+      Policies:
+        - PolicyName: stub-stack-change-sets
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ChangeSetsOnTheNamedStacksThroughTheExecutionRole
+                Effect: Allow
+                Action: cloudformation:CreateChangeSet
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-app-identity/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-clusters/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-backup/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-audit/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-detection/*
+                Condition:
+                  StringEquals:
+                    cloudformation:RoleArn: !GetAtt ExecutionRole.Arn
+                    aws:RequestedRegion: [!Ref AWS::Region, !Ref PeerRegion]
+              - Sid: ReviewAndRunThoseChangeSets
+                Effect: Allow
+                Action:
+                  - cloudformation:DescribeChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DeleteChangeSet
+                  - cloudformation:ListChangeSets
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:GetTemplate
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-app-identity/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-clusters/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-backup/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-audit/*
+                  - !Sub arn:${AWS::Partition}:cloudformation:*:${AWS::AccountId}:stack/stub-detection/*
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: [!Ref AWS::Region, !Ref PeerRegion]
+              - Sid: ValidateTemplates
+                Effect: Allow
+                Action: cloudformation:ValidateTemplate
+                Resource: "*"
+              - Sid: HandTheExecutionRoleToCloudFormationOnly
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt ExecutionRole.Arn
+                Condition:
+                  StringEquals: { iam:PassedToService: cloudformation.amazonaws.com }
+      Tags:
+        - { Key: wa-best-practice, Value: SEC02-BP02 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+Outputs:
+  DeployRoleArn:
+    Description: Set as the repository variable AWS_INFRA_DEPLOY_ROLE_ARN.
+    Value: !GetAtt DeployRole.Arn
+  ExecutionRoleArn:
+    Description: Set as the repository variable AWS_INFRA_EXEC_ROLE_ARN.
+    Value: !GetAtt ExecutionRole.Arn

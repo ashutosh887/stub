@@ -641,3 +641,87 @@ Organizations log-archive account with Object Lock is the full fix and needs AWS
 
 Cost: EventBridge rules on AWS service events, the bucket policy and the SNS publishes at this
 volume are free. New monthly cost: $0.
+
+## F07: drift closed, and the stacks deploy from `main` through a narrow OIDC role (SEC01-BP06, REL08-BP01, SEC02-BP02)
+
+### GuardDuty drift
+
+GuardDuty adds `AI_PROTECTION`, `AI_ANALYST` and `EKS_RUNTIME_MONITORING` (all `DISABLED`) to every
+detector, which drift reported on both `stub-detection` stacks. The intended setting is the one
+running: foundational sources only, every paid feature off, because nothing here runs EC2, EKS,
+Lambda or AI workloads. So the template now lists all nine features as `DISABLED`.
+
+A normal update cannot apply that: the first change set (14:53, both Regions) failed with "The
+request was rejected because EKS_RUNTIME_MONITORING and RUNTIME_MONITORING cannot be provided in the
+same request" and rolled back cleanly (`UPDATE_ROLLBACK_COMPLETE`). The detector was instead moved
+under the full template without a GuardDuty write, each step its own reviewed change set:
+
+1. 14:55 add `DeletionPolicy: Retain` to the detector, and the F28 rule (change set: rule `Add`,
+   detector `Modify` scope `DeletionPolicy`/`UpdateReplacePolicy` only).
+2. 14:57 remove the detector from the stack (change set: `Remove`, `PolicyAction: Retain`);
+   GuardDuty read straight after: 1 detector, `ENABLED`, in each Region.
+3. 14:58 import it back with the nine-feature definition (change set: `Import` only;
+   `IMPORT_COMPLETE`).
+4. 14:58 the final template (change set: no resource changes; puts back the `DetectorId` output).
+
+`cfn-lint` 1.46 rejects `AI_PROTECTION` and `AI_ANALYST` (E3030, its own list of names), while the
+live `AWS::GuardDuty::Detector` schema (`DescribeType`) types `Name` as any string up to 128
+characters; the detector carries a `cfn-lint` `ignore_checks: [E3030]` metadata entry for that.
+Consequence to know: any future template change to the detector's properties will hit the same
+GuardDuty refusal; repeat steps 1 to 4 for it (the incident-response guide links here).
+
+### Pipeline: `infra.yml` and `stub-deploy-role.yaml`
+
+- `.github/workflows/infra.yml`: on a pull request touching `infra/`, runs `cfn-lint infra/*.yaml`
+  and `test/invariant/infrastructure.test.ts`. On a push to `main`, after both pass, deploys the
+  eight stack instances one at a time: change set with the stack's previous parameter values,
+  printed, refused if any change removes or replaces a resource (left for an operator), executed,
+  then the deployed template's SHA-256 compared with the file. No AWS key is stored: the job gets
+  an OIDC token (`id-token: write`, that job only) and assumes the role named by the repository
+  variable `AWS_INFRA_DEPLOY_ROLE_ARN`.
+- `infra/stub-deploy-role.yaml`, stack `stub-deploy-role` (us-east-1, termination protection on,
+  deployed by the operator and never by the pipeline): GitHub's OIDC provider; `stub-infra-deploy`,
+  trusted only for `aud = sts.amazonaws.com` and `sub = repo:<owner>/<repo>:ref:refs/heads/main`,
+  allowed only to create, review and run change sets on the five named stacks in the two Regions,
+  and only with `cloudformation:RoleArn` set to `stub-infra-cfn-exec`; and `stub-infra-cfn-exec`,
+  which only CloudFormation can assume, holding the permissions listed by each resource type's own
+  handler schema (`DescribeType`), scoped to the app and backup roles, the log bucket and the trail,
+  with explicit denies on stopping or deleting the trail, deleting clusters, vaults, plans, recovery
+  points, the detector, the bucket, its policy or any object, disabling or deleting the alert key,
+  stopping or deleting Config, and deleting or disabling `wa-audit-tampering`.
+
+Setup left for the owner, outside code: set repository variables `AWS_INFRA_DEPLOY_ROLE_ARN` and
+`AWS_INFRA_EXEC_ROLE_ARN` from the stack outputs. The workflow has not run: the branch is not
+pushed. Its first run on `main` also records `stub-infra-cfn-exec` as each stack's service role.
+
+IAM policy simulation of the two roles (15:03 UTC, 28 cases, every result as designed):
+
+| Principal             | Call                                                                                                                                                                      | Decision               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `stub-infra-deploy`   | `CreateChangeSet` on `stub-detection` (us-east-1) and `stub-clusters` (us-east-2) through the execution role                                                              | allowed                |
+| `stub-infra-deploy`   | `CreateChangeSet` with its own credentials (no execution role)                                                                                                            | implicitDeny           |
+| `stub-infra-deploy`   | `CreateChangeSet` on `stub-deploy-role`, or in eu-west-1                                                                                                                  | implicitDeny           |
+| `stub-infra-deploy`   | `ExecuteChangeSet` on `stub-audit`                                                                                                                                        | allowed                |
+| `stub-infra-deploy`   | `DeleteStack`, `UpdateTerminationProtection`                                                                                                                              | implicitDeny           |
+| `stub-infra-deploy`   | `iam:PassRole` of the execution role to CloudFormation / to Lambda                                                                                                        | allowed / implicitDeny |
+| `stub-infra-deploy`   | `s3:GetObject` on audit logs, `dsql:DbConnectAdmin`                                                                                                                       | implicitDeny           |
+| `stub-infra-cfn-exec` | `guardduty:UpdateDetector`, `s3:PutBucketPolicy` on the log bucket, `events:PutRule`, attach a backup policy to a `stub-backup-*` role                                    | allowed                |
+| `stub-infra-cfn-exec` | attach `AdministratorAccess` to a backup role or to `stub-app`, `PutRolePolicy` on another role, `PutUserPolicy`                                                          | implicitDeny           |
+| `stub-infra-cfn-exec` | `StopLogging`, `DeleteTrail`, `DeleteCluster`, `DeleteDetector`, `DeleteRecoveryPoint`, `s3:DeleteObject` on logs, `DeleteRule wa-audit-tampering`, `ScheduleKeyDeletion` | explicitDeny           |
+
+Residual risk, stated: whoever can merge to `main` can change the app role's inline policy or trust
+through a template (the execution role may write `stub-app`'s inline policy). Branch protection on
+`main` (F25) is the control for that; it is not set yet.
+
+| Measure                                                | Before (re-review, 12:23 UTC) | After (15:02 UTC)                                                                                                                                                                |
+| ------------------------------------------------------ | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Drift detection                                        | 6 of 8 `IN_SYNC`              | 9 of 9 `IN_SYNC` (the 8 plus `stub-deploy-role`)                                                                                                                                 |
+| Deployed template = file in `infra/` (SHA-256)         | 8 of 8                        | 9 of 9                                                                                                                                                                           |
+| Stacks with termination protection                     | 8 of 8                        | 9 of 9                                                                                                                                                                           |
+| How stacks are applied                                 | by hand                       | `infra.yml` from `main` through OIDC (not yet run)                                                                                                                               |
+| AWS keys stored in GitHub                              | 0                             | 0                                                                                                                                                                                |
+| `npx vitest run test/invariant/infrastructure.test.ts` | 6 tests                       | 12 passed of 12; each of 4 break tests fails 1 or 2 (rule without `StopLogging`, role allowed its own stack, a static key in the workflow, execution role allowed `StopLogging`) |
+| `cfn-lint infra/*.yaml`                                | 0 findings (5 templates)      | 0 findings (6 templates)                                                                                                                                                         |
+
+Cost: IAM roles, the OIDC provider, CloudFormation and drift detection are free. New monthly cost:
+$0.

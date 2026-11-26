@@ -1,0 +1,110 @@
+name: Infrastructure
+
+on:
+  pull_request:
+    paths:
+      - infra/**
+      - test/invariant/infrastructure.test.ts
+      - .github/workflows/infra.yml
+  push:
+    branches: [main]
+    paths:
+      - infra/**
+      - .github/workflows/infra.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infrastructure-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate templates (cfn-lint and the infra guardrails)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install cfn-lint
+      - run: cfn-lint infra/*.yaml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npx vitest run test/invariant/infrastructure.test.ts
+
+  deploy:
+    name: Deploy ${{ matrix.stack }} (${{ matrix.region }})
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        include:
+          - { stack: stub-app-identity, template: stub-app-role.yaml, region: us-east-1 }
+          - { stack: stub-clusters, template: stub-clusters.yaml, region: us-east-2 }
+          - { stack: stub-clusters, template: stub-clusters.yaml, region: us-east-1 }
+          - { stack: stub-backup, template: stub-backup.yaml, region: us-east-2 }
+          - { stack: stub-backup, template: stub-backup.yaml, region: us-east-1 }
+          - { stack: stub-audit, template: stub-audit.yaml, region: us-east-1 }
+          - { stack: stub-detection, template: stub-detection.yaml, region: us-east-1 }
+          - { stack: stub-detection, template: stub-detection.yaml, region: us-east-2 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_INFRA_DEPLOY_ROLE_ARN }}
+          role-session-name: stub-infra-${{ github.run_id }}
+          aws-region: ${{ matrix.region }}
+      - name: Change set, refuse removals and replacements, execute, confirm the deployed template
+        env:
+          STACK: ${{ matrix.stack }}
+          TEMPLATE: infra/${{ matrix.template }}
+          EXEC_ROLE: ${{ vars.AWS_INFRA_EXEC_ROLE_ARN }}
+          CHANGE_SET: ci-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          params=$(aws cloudformation describe-stacks --stack-name "$STACK" \
+            --query 'Stacks[0].Parameters[].ParameterKey' --output text \
+            | tr '\t' '\n' | sed '/^$/d; s/.*/ParameterKey=&,UsePreviousValue=true/' | tr '\n' ' ')
+          aws cloudformation create-change-set --stack-name "$STACK" --change-set-name "$CHANGE_SET" \
+            --change-set-type UPDATE --template-body "file://$TEMPLATE" --role-arn "$EXEC_ROLE" \
+            --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM ${params:+--parameters $params} >/dev/null
+          if ! aws cloudformation wait change-set-create-complete --stack-name "$STACK" --change-set-name "$CHANGE_SET"; then
+            reason=$(aws cloudformation describe-change-set --stack-name "$STACK" --change-set-name "$CHANGE_SET" --query StatusReason --output text)
+            aws cloudformation delete-change-set --stack-name "$STACK" --change-set-name "$CHANGE_SET"
+            case "$reason" in
+              *"didn't contain changes"*|*"No updates are to be performed"*) echo "No changes for $STACK."; exit 0 ;;
+            esac
+            echo "::error::$reason"
+            exit 1
+          fi
+          aws cloudformation describe-change-set --stack-name "$STACK" --change-set-name "$CHANGE_SET" \
+            --query 'Changes[].ResourceChange.[Action,LogicalResourceId,ResourceType,Replacement]' --output table
+          risky=$(aws cloudformation describe-change-set --stack-name "$STACK" --change-set-name "$CHANGE_SET" \
+            --query "length(Changes[?ResourceChange.Action=='Remove' || ResourceChange.Replacement=='True' || ResourceChange.Replacement=='Conditional'])" \
+            --output text)
+          if [ "$risky" != "0" ]; then
+            aws cloudformation delete-change-set --stack-name "$STACK" --change-set-name "$CHANGE_SET"
+            echo "::error::$STACK: the change set removes or replaces $risky resource(s); an operator applies it by hand after review."
+            exit 1
+          fi
+          aws cloudformation execute-change-set --stack-name "$STACK" --change-set-name "$CHANGE_SET"
+          aws cloudformation wait stack-update-complete --stack-name "$STACK"
+          deployed=$(aws cloudformation get-template --stack-name "$STACK" --template-stage Original --output json \
+            | python3 -c 'import hashlib, json, sys; print(hashlib.sha256(json.load(sys.stdin)["TemplateBody"].encode()).hexdigest())')
+          expected=$(sha256sum "$TEMPLATE" | cut -d' ' -f1)
+          if [ "$deployed" != "$expected" ]; then
+            echo "::error::$STACK: deployed template $deployed differs from $TEMPLATE $expected"
+            exit 1
+          fi
+          echo "$STACK ($AWS_REGION) deployed; template sha256 $deployed"
