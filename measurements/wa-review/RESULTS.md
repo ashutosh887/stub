@@ -1,0 +1,228 @@
+# Well-Architected fix: the database enforces the budget
+
+Finding F01 of the Well-Architected review (Security and Reliability pillars, 26 Nov 2026):
+SEC03-BP01, "Each of your workload components or services runs under a distinct identity scoped to
+the permissions its function requires." Before this change the overspend check lived only in app
+code (`core/ledger.ts`), the app connected to Aurora DSQL as `admin`, and the only principal allowed
+to connect was a shared IAM user with AdministratorAccess and a long-lived key. Also covered: F02
+(admin routes open when `ADMIN_TOKEN` is unset) and the deletion-protection half of F03.
+
+Account IDs, cluster IDs, the Vercel team slug and IAM user names are left out on purpose; the
+commands read them from the environment.
+
+## Before and after
+
+| Measure                                                                                                       | Before                                             | After                                                                                             |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| App's AWS principal: destructive DSQL actions allowed (3 actions × 2 clusters)                                | 6 of 6 (shared IAM user)                           | 0 of 6 (`stub-app` role)                                                                          |
+| App's AWS principal: `dsql:DbConnect` on both clusters                                                        | 2 of 2                                             | 2 of 2                                                                                            |
+| Other actions on the app role (CreateCluster, Put/DeleteClusterPolicy, PassRole, CreateAccessKey, AssumeRole) | not simulated (the user holds AdministratorAccess) | 0 of 6                                                                                            |
+| App's credentials                                                                                             | long-lived access key                              | Vercel OIDC, 1-hour sessions, trusted only for `owner:<team>:project:stub:environment:production` |
+| App's database role                                                                                           | `admin` (owns every table)                         | `stub_app` (no ownership, column-level UPDATE)                                                    |
+| Balance below zero, as the app's DB role                                                                      | accepted                                           | refused, `23514 accounts_balance_nonnegative`                                                     |
+| Balance below zero, as `admin`                                                                                | accepted                                           | refused, `23514`                                                                                  |
+| Rewrite an `entries` row, as the app's DB role                                                                | accepted                                           | refused, `42501 permission denied for table entries`                                              |
+| Delete an `entries` row, as the app's DB role                                                                 | accepted                                           | refused, `42501`                                                                                  |
+| Create an account, as the app's DB role                                                                       | accepted                                           | refused, `42501`                                                                                  |
+| CREATE TABLE, as the app's DB role                                                                            | allowed (owner)                                    | refused, `42501 permission denied for schema public`                                              |
+| DROP TABLE entries, as the app's DB role                                                                      | allowed (owner)                                    | refused, `42501 must be owner of table entries`                                                   |
+| CHECK constraints on balance tables                                                                           | 0                                                  | 2, both `convalidated = true`                                                                     |
+| Deletion protection                                                                                           | 0 of 2 clusters                                    | 2 of 2                                                                                            |
+| Admin routes in production with `ADMIN_TOKEN` unset                                                           | open to anyone                                     | 401 (in code on this branch; not deployed)                                                        |
+| SEC03-BP01 guardrail test                                                                                     | 0 of 3 pass on `main`                              | 3 of 3 pass on this branch                                                                        |
+
+What still passes, by design: `stub_app` can raise a balance (`UPDATE accounts SET balance_micro`),
+because every spend, settle and release writes that column. The CHECK bounds it from below only.
+Closing that needs balance changes to go through a function the role may execute, which DSQL
+supports (`GRANT … ON ROUTINE`) but this change does not attempt.
+
+## 1. Before
+
+### 1a. IAM simulation of the app's principal
+
+`iam:SimulatePrincipalPolicy`, PolicySourceArn = the shared IAM user, both cluster ARNs, run through
+the AWS MCP server on 26 Nov 2026 about 09:08 UTC:
+
+| Action                | us-east-1 | us-east-2 |
+| --------------------- | --------- | --------- |
+| `dsql:DbConnectAdmin` | allowed   | allowed   |
+| `dsql:DeleteCluster`  | allowed   | allowed   |
+| `dsql:UpdateCluster`  | allowed   | allowed   |
+| `dsql:DbConnect`      | allowed   | allowed   |
+
+`dsql:GetCluster`: `deletionProtectionEnabled = false` on both. `iam:ListOpenIDConnectProviders`: 0.
+
+### 1b. What the database accepts from the app's connection
+
+`npx tsx scripts/wa-probe.ts` with `DSQL_USER=admin` (as the app ran), 09:10:24 UTC. Every probe
+runs in its own `BEGIN … ROLLBACK`; row counts and the balance total were read again afterwards and
+had not moved (30 entries, 2 denials, total balance 1,101.76 USD).
+
+```
+{"user":"admin","ownsEntries":true}
+{"probe":"drive a budget balance below zero","result":"accepted","rows":1}
+{"probe":"raise a budget balance by $1,000","result":"accepted","rows":1}
+{"probe":"rewrite an entries row","result":"accepted","rows":1}
+{"probe":"delete an entries row","result":"accepted","rows":1}
+{"probe":"create an account","result":"accepted","rows":1}
+{"probe":"create a table","result":"skipped","message":"role owns the tables"}
+{"probe":"drop the entries table","result":"skipped","message":"role owns the tables"}
+```
+
+The DDL probes are skipped for a role that owns the tables, so the probe never drops a live table.
+
+### 1c. Live cross-region proof
+
+`npm run test:live` failed before any change: `error: column "sharded" does not exist`. The live
+schema had never received `accounts.sharded`, `entries.shard_index` or `account_shards`, because
+`npm run migrate` stops at `ALTER TABLE accounts ADD COLUMN … sharded BOOLEAN NOT NULL DEFAULT
+false`, which DSQL refuses (`0A000 ALTER TABLE ADD COLUMN with constraint not supported`).
+
+## 2. The fix
+
+| Piece                                                                   | Where                                                                                            | State                                      |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `CHECK (balance_micro >= 0)` on `accounts` and `account_shards`         | `db/schema.sql`, `scripts/migrate.ts`                                                            | applied to the live clusters               |
+| `stub_app` role and grants                                              | `db/app-role.sql`, `scripts/app-role.ts`                                                         | applied to the live clusters               |
+| OIDC provider + `stub-app` IAM role                                     | `infra/stub-app-role.yaml`, CloudFormation stack `stub-app-identity` (termination protection on) | deployed                                   |
+| `AWS IAM GRANT stub_app TO stub-app`                                    | `npm run db:app-role -- grant <arn>`                                                             | applied                                    |
+| App connects as `stub_app`, OIDC credentials when `AWS_ROLE_ARN` is set | `config/index.ts`, `db/client.ts`                                                                | branch only                                |
+| Admin routes closed in production without `ADMIN_TOKEN`                 | `lib/api.ts`                                                                                     | branch only                                |
+| Drills refuse on the app role                                           | `app/api/stress`, `app/api/incident`                                                             | branch only                                |
+| Deletion protection                                                     | `dsql:UpdateCluster deletionProtectionEnabled=true`                                              | applied to both clusters                   |
+| SEC03-BP01 guardrail                                                    | `test/invariant/least-privilege.test.ts`                                                         | branch only (runs in `npm test`, so in CI) |
+
+### The CHECK constraint on DSQL
+
+DSQL refuses `ALTER TABLE … ADD CONSTRAINT … CHECK (…)` (`0A000 unsupported ALTER TABLE ADD
+CONSTRAINT statement`, tested inside `BEGIN … ROLLBACK`). Its ALTER TABLE page says a CHECK added
+to an existing table must use `NOT VALID`, then `ALTER TABLE ASYNC … VALIDATE CONSTRAINT`, an
+asynchronous job that scans the table and marks the constraint valid. `npm run migrate` now does
+exactly that: it adds the constraint only when `pg_constraint` lacks it, validates it when
+`convalidated` is false, and waits until it is (on Postgres it runs a plain `VALIDATE`). No
+table swap was needed. Before applying: `SELECT count(*) FROM accounts WHERE balance_micro < 0`
+returned 0 (7 accounts, lowest balance 0.82 USD); `account_shards` did not exist yet. The second
+`npm run migrate` was a no-op.
+
+The same run fixed the `sharded` column: `ADD COLUMN IF NOT EXISTS sharded BOOLEAN` followed by
+`ALTER COLUMN sharded SET DEFAULT false`. Existing rows read null, which the store already treats
+as not sharded.
+
+### The grants, derived from what the routes execute
+
+| Table              | SELECT | INSERT | UPDATE                                              | DELETE                             |
+| ------------------ | ------ | ------ | --------------------------------------------------- | ---------------------------------- |
+| `accounts`         | yes    | no     | `balance_micro, last_entry_hash, frozen, sharded`   | no                                 |
+| `entries`          | yes    | yes    | no                                                  | no                                 |
+| `denials`          | yes    | yes    | no                                                  | no                                 |
+| `idempotency_keys` | yes    | yes    | no                                                  | no                                 |
+| `reservations`     | yes    | yes    | `status, settled_micro, transaction_id, settled_at` | no                                 |
+| `account_shards`   | yes    | yes    | `balance_micro, last_entry_hash`                    | no                                 |
+| `policies`         | yes    | yes    | `enabled`                                           | yes (admin route deletes a policy) |
+| `agents`           | yes    | yes    | no                                                  | no                                 |
+| `query_cache`      | yes    | yes    | no                                                  | no                                 |
+
+`sessions` gets nothing: no route reads it. Column-level `GRANT UPDATE (…)` works on DSQL. No
+`GRANT USAGE ON SCHEMA public` was needed: PostgreSQL 16 gives PUBLIC usage but not CREATE.
+
+### `/api/stress` and `/api/incident`
+
+Both drills insert two accounts and then `DELETE` their entries, denials and accounts from the
+production tables. `stub_app` has neither INSERT on `accounts` nor DELETE on ledger tables, so the
+routes now answer 403 unless the app runs on local Postgres or as `admin`. They stay off the
+production role; a separate drill cluster (review F06) is the way to bring them back in production.
+
+## 3. After
+
+### 3a. IAM simulation of the `stub-app` role, 09:23:10 UTC
+
+| Action                | us-east-1    | us-east-2    |
+| --------------------- | ------------ | ------------ |
+| `dsql:DbConnectAdmin` | implicitDeny | implicitDeny |
+| `dsql:DeleteCluster`  | implicitDeny | implicitDeny |
+| `dsql:UpdateCluster`  | implicitDeny | implicitDeny |
+| `dsql:DbConnect`      | allowed      | allowed      |
+
+Also implicitDeny on `*`: `dsql:CreateCluster`, `dsql:PutClusterPolicy`, `dsql:DeleteClusterPolicy`,
+`iam:PassRole`, `iam:CreateAccessKey`, `sts:AssumeRole`. Trust policy: only
+`sts:AssumeRoleWithWebIdentity` from `oidc.vercel.com/<team>`, with `aud` and `sub` pinned by
+`StringEquals` to the team audience and `owner:<team>:project:stub:environment:production`.
+`dsql:GetCluster` after `UpdateCluster`: both `ACTIVE`, `deletionProtectionEnabled = true`.
+
+### 3b. What the database accepts from `stub_app`
+
+The `stub-app` role trusts only Vercel, so the probe used a throwaway role `stub-wa-probe`
+(inline policy: `dsql:DbConnect` on the two clusters; trust: the operator's IAM user), mapped with
+`npm run db:app-role -- grant`, assumed for 15 minutes from a local script, then unmapped
+(`AWS IAM REVOKE`, `sys.iam_pg_role_mappings` shows only `stub-app` afterwards) and deleted
+(`GetRole` → `NoSuchEntity`). 09:19:53 UTC:
+
+```
+{"user":"stub_app","ownsEntries":false}
+{"probe":"drive a budget balance below zero","result":"refused","code":"23514","message":"new row for relation \"accounts\" violates check constraint \"accounts_balance_nonnegative\""}
+{"probe":"raise a budget balance by $1,000","result":"accepted","rows":1}
+{"probe":"rewrite an entries row","result":"refused","code":"42501","message":"permission denied for table entries"}
+{"probe":"delete an entries row","result":"refused","code":"42501","message":"permission denied for table entries"}
+{"probe":"create an account","result":"refused","code":"42501","message":"permission denied for table accounts"}
+{"probe":"create a table","result":"refused","code":"42501","message":"permission denied for schema public"}
+{"probe":"drop the entries table","result":"refused","code":"42501","message":"must be owner of table entries"}
+```
+
+As `admin`, 09:20:07 UTC: the negative balance is refused with `23514` too; the other probes are
+accepted, as expected for the owner.
+
+The grants are enough for the app. Under the same throwaway role, every write path ran inside one
+transaction that was rolled back: spend committed, spend refused by a policy (denial row written),
+reserve, settle, reserve then release, freeze toggle, policy insert, update and delete, agent
+insert, query-cache insert, provisioning 8 shards on two accounts, and a sharded spend: 11 of 11
+succeeded. Counts afterwards matched the counts before.
+
+### 3c. Repository checks
+
+| Command                                                                               | Result                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`                                                                            | 16 files, 94 tests passed                                                                                                                                              |
+| `npm run verify` (lint, typecheck, tests)                                             | passed                                                                                                                                                                 |
+| `npm run build`                                                                       | passed                                                                                                                                                                 |
+| guardrail test on `main` (temp worktree)                                              | 0 of 3: `expected 'admin' to be 'stub_app'`, `db/app-role.sql` and `infra/stub-app-role.yaml` missing                                                                  |
+| guardrail test on this branch                                                         | 3 of 3                                                                                                                                                                 |
+| guardrail test with `GRANT UPDATE ON entries` and `Action: dsql:DbConnectAdmin` added | 2 of 3 fail, then restored                                                                                                                                             |
+| `npm run test:live` after the migration                                               | passed: 6 agents across us-east-1 and us-east-2 against a 2.00 USD budget, 2 committed, 4 denied, 9 OCC `40001` conflicts, budget floored at 0.00 USD, vendor 2.00 USD |
+
+`test:live` ran as configured (`admin`): its setup inserts accounts and its cleanup deletes ledger
+rows, which `stub_app` may not do, and the script has no separate user for the racing writers.
+
+## 4. Problems hit
+
+- DSQL accepts CHECK on an existing table only as `NOT VALID` plus an asynchronous `VALIDATE`.
+- DSQL refuses `ADD COLUMN` with `NOT NULL` or `DEFAULT`, which had silently left production a
+  schema behind the code: the live cross-region test failed on a missing column before any change.
+- Passing `credentials: undefined` to `DsqlSigner` does not fall back to the default chain; it
+  fails with "Resolved credential object is not valid". The key is now set only when a role ARN is.
+- The local default AWS credential chain resolves to the account root key (STS: "Roles may not be
+  assumed by root accounts"), so local scripts have been signing DSQL tokens as root. The probe
+  used a named profile instead.
+- Node's happy-eyeballs default (250 ms per address family) timed out reaching the clusters from
+  this network under parallel connects (`ETIMEDOUT` on IPv4, `EHOSTUNREACH` on IPv6); local runs
+  used `NODE_OPTIONS=--network-family-autoselection-attempt-timeout=3000`.
+
+## 5. Still needed on Vercel (not done here)
+
+1. Set `AWS_ROLE_ARN` to the stack output `RoleArn`, `AWS_REGION=us-east-1`, `DSQL_USER=stub_app`
+   (or remove `DSQL_USER`), and a long random `ADMIN_TOKEN`, for Production.
+2. Confirm the project issues OIDC tokens in Team issuer mode (the local development token's issuer
+   is `https://oidc.vercel.com/<team>`).
+3. Remove any `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` from the project, then deactivate the
+   key that served production.
+4. Merge and deploy, then measure: `GET /api/accounts` without a credential should answer 401, and a
+   spend should commit.
+
+## Rollback
+
+- Code: `DSQL_USER=admin` restores the old database identity; unset `AWS_ROLE_ARN` to use the
+  default chain.
+- Database: `ALTER TABLE accounts DROP CONSTRAINT accounts_balance_nonnegative` (same for
+  `account_shards`); `AWS IAM REVOKE stub_app FROM '<role arn>'`; `DROP ROLE stub_app` after
+  revoking its grants.
+- IAM: disable termination protection on `stub-app-identity`, then delete the stack.
+- Clusters: `UpdateCluster deletionProtectionEnabled=false`.
