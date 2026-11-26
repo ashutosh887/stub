@@ -841,28 +841,102 @@ probe is `accepted`, and the race ends at `-7000000` micro-dollars instead of `0
 
 The bypass race above ran on local Postgres, because both live clusters already refuse it. To
 measure it on DSQL, a temporary single-Region cluster was created in us-east-1, used, and deleted
-the same hour. One cluster, one identity (`admin`, the role the old app used), one protocol; the
-only thing that changes between the two columns is the schema.
+13 minutes after it was created. One cluster, one identity (`admin`, the role the old app used),
+one protocol; the only thing that changes between the two columns is the schema.
+
+This replaces a 10-run measurement taken earlier the same day on another temporary cluster with
+the same protocol. That one showed the same result in every run (10 committed, -$7.00 before; 3
+committed, $0.00 after). It was repeated with 20 runs per side so the count is larger.
+
+Times in UTC, 26 Nov 2026 (27 Nov in IST):
+
+| Step                              | UTC                  |
+| --------------------------------- | -------------------- |
+| Cluster created, ACTIVE           | 19:07:15, 19:07:21   |
+| Before: old migrate, then 20 runs | 19:07:29 to 19:11:57 |
+| After: current migrate (88 s)     | 19:12:04 to 19:13:32 |
+| After: 20 runs                    | 19:13:44 to 19:15:50 |
+| Delete requested, cluster gone    | 19:17:35, 19:19:51   |
 
 1. Before: the schema from `202c4c8` (the last commit before the fix), applied by that commit's own
    `scripts/migrate.ts` from a worktree. It created `accounts` with no CHECK, then stopped at the
    same `ADD COLUMN` error described under "Problems hit".
-2. `npm run race:bypass -- --as owner --runs 10 --out measurements/wa-review/dsql-race-before.json`
+2. `npm run race:bypass -- --as owner --runs 20 --out measurements/wa-review/dsql-race-before.json`
 3. After: the current `npm run migrate` on the same cluster (adds the three CHECKs `NOT VALID`,
-   validates with `ALTER TABLE ASYNC`; 46 s in all).
+   validates with `ALTER TABLE ASYNC`; 88 s in all). All three read `convalidated = true` after.
 4. The same race again, `--out measurements/wa-review/dsql-race-after.json`.
 
 Protocol, fixed for every run: 10 writers, a $3.00 budget, $1.00 each, each writer in its own
 transaction retrying `40001` up to 25 times.
 
-| Measure, 10 runs each, connected as `admin` | Before (no CHECK)       | After (CHECKs validated) |
-| ------------------------------------------- | ----------------------- | ------------------------ |
-| Writes committed per run                    | 10 in all 10 runs       | 3 in all 10 runs         |
-| Writes refused per run                      | 0                       | 7, all `23514`           |
-| OCC retries (`40001`) per run               | 45 in all 10 runs       | 24 in all 10 runs        |
-| Final balance                               | -$7.00 in all 10 runs   | $0.00 in all 10 runs     |
-| Money spent that was not in the budget      | $70.00 over the 10 runs | $0.00                    |
+| Measure, 20 runs each, connected as `admin` | Before (no CHECK)                         | After (CHECKs validated) |
+| ------------------------------------------- | ----------------------------------------- | ------------------------ |
+| Runs that overspent                         | 20 of 20                                  | 0 of 20                  |
+| Writes committed per run                    | 10 in all 20 runs                         | 3 in all 20 runs         |
+| Writes refused per run                      | 0                                         | 7, all `23514`           |
+| OCC retries (`40001`) per run               | 45 in 18 runs; 37 in run 12, 26 in run 13 | 24 in all 20 runs        |
+| Final balance                               | -$7.00 in all 20 runs                     | $0.00 in all 20 runs     |
+| Money spent that was not in the budget      | $140.00 over the 20 runs                  | $0.00                    |
 
-DSQL's OCC serialised all ten writers in both columns (45 = 9 + 8 + … + 1 retries). OCC decides the
-order; it never decided whether a write was affordable. The CHECK does. Each run's per-writer
+When all ten writers overlap, DSQL's OCC lets one commit at a time and the rest retry: 45 = 9 + 8 +
+… + 1 retries before, 24 = 9 + 8 + 7 after, where the seven left over are refused by the CHECK on
+their next attempt. In before runs 12 and 13 some writers started after others had committed, so
+fewer collided; every write still committed. The retry count moved; the outcome did not. OCC decides
+the order; it never decided whether a write was affordable. The CHECK does. Each run's per-writer
 timeline (finish time, outcome, SQLSTATE, running balance) is in the two JSON files.
+
+# After the second review: the last gaps (26 Nov 2026, UTC)
+
+## F25: `main` is protected (SEC11-BP08, REL08-BP01)
+
+Turned on at 19:06:54 UTC through the GitHub API as the repository owner. Read back the same minute:
+
+| Setting                | Before       | After                                                                                          |
+| ---------------------- | ------------ | ---------------------------------------------------------------------------------------------- |
+| Branch protection      | none (`404`) | on                                                                                             |
+| Force pushes, deletion | allowed      | refused                                                                                        |
+| Required status checks | none         | `verify`, `db-proof`, `Secret scan (gitleaks, full history)`, `CodeQL (javascript-typescript)` |
+
+`enforce_admins` is off, so the owner can still push a fix directly in an incident; every pull
+request, including Dependabot's, must pass the four checks.
+
+## A refusal that reaches the app is a recorded denial
+
+Before, nothing in `core/` handled `23514`: if the app's check and the database ever disagreed, the
+spend threw and the route answered 500 with no audit record. Now `spend`, `shardedSpend` and
+`reserve` treat `23514` as terminal (never retried like `40001`), return `denied` with reason
+`db_refused`, and write the denial in its own transaction after the failed one rolls back. `settle`
+and `release` return `invalid` with the same reason and leave the hold in place.
+`test/invariant/db-refusal.test.ts` proves it on the in-memory model, which now enforces both
+CHECKs like Postgres does; a one-off spend on Postgres 17 against a capped vendor returned
+`denied`/`db_refused`, wrote one denial and left the budget at its starting balance.
+
+## The guardrail as a reusable GitHub Action
+
+`.github/actions/db-guardrail` sends each statement in a JSON file inside `BEGIN … ROLLBACK` and
+fails unless the database refuses it with the expected SQLSTATE. It refuses to run as a superuser
+or as a member of a probed table's owner. CI's `db-proof` job runs it on Postgres 17 as
+`stub_app` with `test/guardrail/probes.json`, which an invariant test keeps identical to the
+`/proof` statements.
+
+On Aurora DSQL, on the temporary cluster from the 20-run race before it was deleted, with a
+non-admin role mapped to the operator's IAM identity and given the `stub_app` grants, and an IAM
+auth token over `sslmode=verify-full`:
+
+| Connected as       | Exit | Result                                                                                     |
+| ------------------ | ---- | ------------------------------------------------------------------------------------------ |
+| the non-admin role | 0    | 6 of 6 refused with the expected code: `23514` ×2, `42501` ×4                              |
+| `admin`            | 1    | refused to run: "admin owns public.accounts, public.entries, and an owner bypasses grants" |
+
+## `/proof` visitor counter: `proof_runs`
+
+`npm run migrate` and `npm run db:app-role` on the production cluster as `admin`, 19:17:49 to
+19:18:04 UTC (idempotent; every other statement was a no-op). Read back as `admin`:
+
+| `stub_app` on `proof_runs` | SELECT | INSERT | UPDATE | DELETE |
+| -------------------------- | ------ | ------ | ------ | ------ |
+| granted                    | yes    | yes    | no     | no     |
+
+`/proof` records one row per run (region, statements, refused, accepted; no IP), after the probes
+and outside their transactions, and shows "N runs by visitors since …". If the table cannot be
+read or written the page still runs the probes and hides the counter.
