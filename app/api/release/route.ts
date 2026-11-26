@@ -30,5 +30,5 @@ export const POST = withRoute({ name: "release" }, async ({ request, requestId }
   log.info("release_settled", { requestId, status: result.status, conflicts: result.conflicts });
 
   const status = result.status === "not_found" ? 404 : result.status === "invalid" ? 409 : 200;
-  return NextResponse.json(result, { status });
+  return NextResponse.json({ ...result, refundMicro: result.refundMicro.toString() }, { status });
 });

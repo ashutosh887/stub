@@ -1,11 +1,14 @@
 import "dotenv/config";
 import { StubClient } from "@/sdk/index";
 import { BudgetDeniedError, mockX402Resource, payThroughStub } from "@/sdk/x402";
-import { app, demo } from "@/config";
+import { app, demo, security } from "@/config";
 
 const baseUrl = app.baseUrl;
 const SPENDS = demo.spends;
 const PRICE_USD = demo.priceUsd;
+const adminHeaders: Record<string, string> = security.adminToken
+  ? { authorization: `Bearer ${security.adminToken}` }
+  : {};
 
 interface AccountDto {
   id: string;
@@ -15,7 +18,7 @@ interface AccountDto {
 }
 
 async function getAccounts(): Promise<AccountDto[]> {
-  const res = await fetch(`${baseUrl}/api/accounts`).catch(() => null);
+  const res = await fetch(`${baseUrl}/api/accounts`, { headers: adminHeaders }).catch(() => null);
   if (!res || !res.ok) {
     throw new Error(`could not reach Stub at ${baseUrl}. Is \`npm run dev\` running?`);
   }
@@ -25,7 +28,7 @@ async function getAccounts(): Promise<AccountDto[]> {
 async function mintKey(name: string, accountId: string): Promise<string> {
   const res = await fetch(`${baseUrl}/api/agents`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...adminHeaders },
     body: JSON.stringify({ name, accountId }),
   });
   const data = await res.json();
@@ -55,11 +58,11 @@ async function main() {
     try {
       await payThroughStub(stub, vendor.id, buyData());
       committed += 1;
-      console.log(`  #${String(i).padStart(2)}  ✅ paid $${PRICE_USD} for data`);
+      console.log(`  #${String(i).padStart(2)}  paid $${PRICE_USD} for data`);
     } catch (err) {
       if (err instanceof BudgetDeniedError) {
         denied += 1;
-        console.log(`  #${String(i).padStart(2)}  ⛔ blocked: ${err.result.reason}`);
+        console.log(`  #${String(i).padStart(2)}  blocked: ${err.result.reason}`);
       } else {
         throw err;
       }
@@ -68,17 +71,17 @@ async function main() {
 
   try {
     await payThroughStub(stub, vendor.id, mockX402Resource("100000.00", { rows: 1 })());
-    console.log("  #!!  ✅ (unexpected) a $100k spend committed");
+    console.log("  #!!  unexpected: a $100k spend committed");
   } catch (err) {
     if (err instanceof BudgetDeniedError) {
       denied += 1;
-      console.log(`  #!!  ⛔ $100k spend blocked: ${err.result.reason}`);
+      console.log(`  #!!  $100k spend blocked: ${err.result.reason}`);
     } else {
       throw err;
     }
   }
 
-  console.log(`\n  ${committed} committed · ${denied} blocked by the gate.`);
+  console.log(`\n  ${committed} committed, ${denied} blocked by the gate.`);
   console.log("  The agent never overspent. The ledger refused.\n");
 }
 

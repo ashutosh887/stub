@@ -43,5 +43,12 @@ export const POST = withRoute({ name: "settle" }, async ({ request, requestId })
   });
 
   const status = result.status === "not_found" ? 404 : result.status === "invalid" ? 409 : 200;
-  return NextResponse.json(result, { status });
+  return NextResponse.json(
+    {
+      ...result,
+      settledMicro: result.settledMicro.toString(),
+      refundMicro: result.refundMicro.toString(),
+    },
+    { status },
+  );
 });
