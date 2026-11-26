@@ -1,0 +1,38 @@
+[
+  {
+    "id": "negative-balance",
+    "description": "Drive a budget balance below zero",
+    "sql": "UPDATE accounts SET balance_micro = -1 WHERE id = (SELECT id FROM accounts WHERE type = 'agent' ORDER BY id LIMIT 1)",
+    "expect": "23514"
+  },
+  {
+    "id": "above-cap",
+    "description": "Raise a budget above its cap",
+    "sql": "UPDATE accounts SET balance_micro = cap_micro + 1 WHERE id = (SELECT id FROM accounts WHERE type = 'agent' AND cap_micro IS NOT NULL ORDER BY id LIMIT 1)",
+    "expect": "23514"
+  },
+  {
+    "id": "rewrite-entry",
+    "description": "Rewrite a ledger entry",
+    "sql": "UPDATE entries SET amount_micro = 0 WHERE id = (SELECT id FROM entries ORDER BY id LIMIT 1)",
+    "expect": "42501"
+  },
+  {
+    "id": "delete-entry",
+    "description": "Delete a ledger entry",
+    "sql": "DELETE FROM entries WHERE id = (SELECT id FROM entries ORDER BY id LIMIT 1)",
+    "expect": "42501"
+  },
+  {
+    "id": "create-table",
+    "description": "Create a table",
+    "sql": "CREATE TABLE stub_proof_probe (id INT PRIMARY KEY)",
+    "expect": "42501"
+  },
+  {
+    "id": "drop-entries",
+    "description": "Drop the entries table",
+    "sql": "DROP TABLE entries",
+    "expect": "42501"
+  }
+]

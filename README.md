@@ -86,6 +86,9 @@ Agent (x402 / AgentCore)
   `/proof` statements as `stub_app`, and has ten writers skip the app's check and send raw
   `UPDATE`s at a $3 budget: three commit and seven get `23514`. CI's `db-proof` job runs this on
   Postgres 17 for every push to `main` and every pull request.
+- **[`db-guardrail`](./.github/actions/db-guardrail)** is that probe run as a reusable GitHub
+  Action. Point it at your own Postgres or Aurora DSQL app role with a JSON file of statements and
+  the SQLSTATE each must return. `db-proof` runs it on Stub's own six probes.
 - **`npm run race:bypass`** runs that raw-writer race on its own. On the schema from before the
   CHECK, all ten committed and the budget ended at −$7.00, as the table owner and as `stub_app`
   alike. The role alone does not stop an overspend, because the app must be able to write balances.

@@ -1,0 +1,37 @@
+name: Database guardrail
+description: Connect as your application role, send statements it must never be allowed to run, and fail if the database accepts any of them.
+author: ashutosh887
+branding:
+  icon: shield
+  color: yellow
+
+inputs:
+  database-url:
+    description: Connection URL for the role to test, such as postgres://app@host:5432/db?sslmode=verify-full. For Aurora DSQL, put an IAM auth token in the password or pass it as `password`.
+    required: true
+  password:
+    description: Optional password that overrides the one in database-url. Use it for an IAM auth token, which would otherwise need URL encoding.
+    required: false
+    default: ""
+  probes:
+    description: Path, relative to the workspace, of a JSON file of probes. Each probe is {"id", "sql", "expect"}, where expect is the SQLSTATE the database must return.
+    required: true
+  require-non-owner:
+    description: Refuse to run when the role is a superuser or owns a table a probe names, because grants do not bind an owner and a pass would mean nothing.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install the runner
+      shell: bash
+      run: npm ci --prefix "$GITHUB_ACTION_PATH" --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error
+    - name: Run the probes
+      shell: bash
+      env:
+        GUARDRAIL_DATABASE_URL: ${{ inputs.database-url }}
+        GUARDRAIL_PASSWORD: ${{ inputs.password }}
+        GUARDRAIL_PROBES: ${{ inputs.probes }}
+        GUARDRAIL_REQUIRE_NON_OWNER: ${{ inputs.require-non-owner }}
+      run: node "$GITHUB_ACTION_PATH/runner.mjs"

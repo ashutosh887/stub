@@ -248,6 +248,13 @@ normalization, CDC→Kinesis live feed.
   default; `--as owner` to compare): `npm run race:bypass`. Only the `CHECK` stops it.
   `test/local/db-guardrail.test.ts` runs it plus the `/proof` probes as `stub_app`; the `db-proof`
   CI job runs it on `postgres:17` (local Postgres logs in with `STUB_APP_PASSWORD`).
+- **Database guardrail action** (`.github/actions/db-guardrail`, composite; `runner.mjs` depends
+  only on `pg`, pinned in its own lockfile): sends each probe from a JSON file inside
+  `BEGIN … ROLLBACK` and fails on any probe not refused with its `expect` SQLSTATE; refuses to run
+  as a superuser or an owner of a probed table. Public as
+  `uses: ashutosh887/stub/.github/actions/db-guardrail@<ref>`. `db-proof` runs it after
+  `npm run seed` with `test/guardrail/probes.json`, which
+  `test/invariant/guardrail-probes.test.ts` keeps identical to `PROOF_PROBES`.
 - **Exactly-once harness** (naive double-pay vs Stub, prints pass/fail): `npm run harness`
 - **Contention benchmark** (single balance row vs sharded, sweeps 1→32 writers): `npm run bench`
 - **Reservation TTL sweep** (reclaims holds stuck past `RESERVATION_TTL_SECONDS`, default 900s):

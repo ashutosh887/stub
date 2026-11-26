@@ -50,3 +50,9 @@ jobs:
       - run: npm run migrate
       - run: npm run db:app-role
       - run: npm run test:local
+      - run: npm run seed
+      - uses: ./.github/actions/db-guardrail
+        with:
+          database-url: postgres://stub_app@localhost:5432/stub
+          password: ${{ env.STUB_APP_PASSWORD }}
+          probes: test/guardrail/probes.json
