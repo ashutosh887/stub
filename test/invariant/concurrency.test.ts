@@ -42,9 +42,6 @@ describe("invariant: a near-empty budget cannot be overspent under concurrency",
     store.seedAccount(budget(cap));
     store.seedAccount(vendor());
 
-    // Force every writer to take its snapshot before any of them commit: this is the
-    // cross-region race the demo is built on. Without OCC, all 10 would read "$1.00 left"
-    // and overspend to -$2.00 (DynamoDB last-writer-wins). With it, the losers get 40001.
     store.arm(writers);
 
     const results = await Promise.all(
@@ -65,7 +62,6 @@ describe("invariant: a near-empty budget cannot be overspent under concurrency",
     const finalBudget = store.getAccount("budget")!;
     const finalVendor = store.getAccount("vendor")!;
 
-    // The whole product in assertions:
     expect(committed).toHaveLength(affordable);
     expect(denied).toHaveLength(writers - affordable);
     expect(finalBudget.balanceMicro).toBe(cap - price * BigInt(affordable));
@@ -73,17 +69,14 @@ describe("invariant: a near-empty budget cannot be overspent under concurrency",
     expect(finalBudget.balanceMicro).toBeLessThanOrEqual(cap); // never exceeds cap
     expect(finalVendor.balanceMicro).toBe(price * BigInt(affordable));
 
-    // OCC actually fired: the invariant was enforced by conflicts, not luck.
     const totalConflicts = results.reduce((sum, r) => sum + r.conflicts, 0);
     expect(totalConflicts).toBeGreaterThan(0);
 
-    // Double-entry holds: every signed amount sums to zero.
     const sum = store.entries.reduce((acc, e) => acc + e.amountMicro, 0n);
     expect(sum).toBe(0n);
     expect(store.entries).toHaveLength(affordable * 2);
     expect(store.denials).toHaveLength(writers - affordable);
 
-    // Ledger is tamper-evident: the hash chain verifies clean.
     expect(verifyChain(store.entries)).toEqual([]);
   });
 

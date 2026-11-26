@@ -68,14 +68,14 @@ async function main() {
     const constraint = statement.match(ADD_CONSTRAINT);
     if (constraint) await applyConstraint(statement, constraint[1], constraint[2]);
     else await query(statement);
-    console.log(`  ✅ ${statement.slice(0, 60).replace(/\s+/g, " ")}...`);
+    console.log(`  ok  ${statement.slice(0, 60).replace(/\s+/g, " ")}...`);
   }
-  console.log(`✅ Schema applied to ${target}.`);
+  console.log(`Schema applied to ${target}.`);
 }
 
 main()
   .catch((err) => {
-    console.error("❌ Migration failed:", err.message);
+    console.error("Migration failed:", err.message);
     process.exit(1);
   })
   .finally(() => pool.end());

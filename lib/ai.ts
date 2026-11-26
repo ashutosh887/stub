@@ -129,7 +129,7 @@ function fallbackAnswer(rows: AskResultRow[], query: LedgerQuery): string {
     .map((r) =>
       query.metric === "count" ? `${r.label}: ${r.count}` : `${r.label}: $${r.amountUsd}`,
     )
-    .join(" · ");
+    .join(", ");
 }
 
 function describeError(err: unknown): Error {

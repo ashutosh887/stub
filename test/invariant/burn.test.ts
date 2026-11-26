@@ -24,7 +24,6 @@ describe("burn status: soft alert thresholds over a hard cap", () => {
 describe("forecast: projected runway from recent burn", () => {
   it("projects depletion from the active spend span", () => {
     const now = 10 * 86_400_000;
-    // $10 spent evenly over the last 2 days → $5/day → $50 balance lasts ~10 days.
     const events = [
       { amountMicro: 5n * USD, atMs: now - 2 * 86_400_000 },
       { amountMicro: 5n * USD, atMs: now },

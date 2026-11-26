@@ -29,8 +29,8 @@ async function main() {
 
   console.log("Stub concurrency harness");
   console.log(
-    `  budget ${usd(report.config.capMicro)} · ${usd(report.config.amountMicro)}/spend · ` +
-      `${report.config.writers} concurrent writers · ${Math.round(report.config.crashRate * 100)}% crash after pay`,
+    `  budget ${usd(report.config.capMicro)}, ${usd(report.config.amountMicro)}/spend, ` +
+      `${report.config.writers} concurrent writers, ${Math.round(report.config.crashRate * 100)}% crash after pay`,
   );
   console.log(`  affordable spends: ${report.affordable}`);
   console.log("");
@@ -39,11 +39,11 @@ async function main() {
   console.log("");
 
   if (report.naive.doublePaid && report.stub.invariantsHold) {
-    console.log("✅ Naive retry double-pays real money. Stub holds exactly-once + no overspend.");
+    console.log("PASS: the naive retry double-pays; Stub pays exactly once and never overspends.");
     process.exit(0);
   }
 
-  console.error("❌ Unexpected result: invariants did not separate as expected.");
+  console.error("FAIL: the naive and Stub results did not separate as expected.");
   process.exit(1);
 }
 

@@ -141,8 +141,8 @@ describe.skipIf(!PEER_ENDPOINT)(
         `\n  ${WRITERS} agents across ${REGION_A} + ${REGION_B} hit a ${formatUsd(
           BigInt(AFFORDABLE) * AMOUNT,
         )} budget:` +
-          `\n    committed ${committed} · denied ${denied} · OCC 40001 conflicts ${totalConflicts}` +
-          `\n    budget floored at ${formatUsd(balanceMicro)} (never negative) · vendor ${formatUsd(
+          `\n    committed ${committed}, denied ${denied}, OCC 40001 conflicts ${totalConflicts}` +
+          `\n    budget floored at ${formatUsd(balanceMicro)} (never negative), vendor ${formatUsd(
             vendorMicro,
           )}\n`,
       );

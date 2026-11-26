@@ -17,7 +17,6 @@ function acct(over: Partial<Account> & Pick<Account, "id" | "type">): Account {
   };
 }
 
-// org → team → agent: the agent has room but the team is the tightest ceiling.
 function seedTree(store: MemStore, opts: { org: bigint; team: bigint; agent: bigint }) {
   store.seedAccount(acct({ id: "org", type: "org", balanceMicro: opts.org, capMicro: opts.org }));
   store.seedAccount(
@@ -91,7 +90,6 @@ describe("invariant: a spend is bound by the tightest cap up the hierarchy", () 
 
   it("the org budget can't be overspent by agents in different teams racing it", async () => {
     const store = new MemStore();
-    // org has room for exactly 2 of these; each team/agent has ample local budget.
     store.seedAccount(acct({ id: "org", type: "org", balanceMicro: 2n * USD, capMicro: 2n * USD }));
     const vendors = acct({ id: "vendor", type: "vendor" });
     store.seedAccount(vendors);
@@ -143,7 +141,6 @@ describe("velocity circuit-breaker: runaway spend auto-freezes the account", () 
     expect(tripped.status).toBe("denied");
     expect(tripped.reason).toBe("velocity_tripped");
 
-    // The breaker froze the account, so even an affordable spend is now denied.
     expect(store.getAccount("agent")!.frozen).toBe(true);
     const after = await spendOnce();
     expect(after.status).toBe("denied");

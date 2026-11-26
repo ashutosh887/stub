@@ -104,7 +104,7 @@ async function main() {
   if (cancelled.status === "reserved") await release(store, cancelled.reservationId);
 
   console.log(
-    `\n  ${committed} committed · ${denied} denied · 2 reservations (1 settled, 1 released)`,
+    `\n  ${committed} committed, ${denied} denied, 2 reservations (1 settled, 1 released)`,
   );
   console.log("  Ledger now has attributed double-entry history, denials, and reservations.\n");
 }

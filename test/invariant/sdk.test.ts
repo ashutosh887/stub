@@ -129,7 +129,6 @@ describe("SDK + x402 gate", () => {
       },
     };
     await expect(payThroughStub(flaky, "vendor", exchange)).rejects.toThrow("network down");
-    // release is best-effort; the client attempted it
     released = true;
     expect(released).toBe(true);
   });
