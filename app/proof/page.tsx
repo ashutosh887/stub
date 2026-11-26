@@ -1,6 +1,7 @@
 import { ProofRunner } from "@/components/proof-runner";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
+import { CodeBlock, TextLink } from "@/components/site-kit";
 import { GITHUB_URL } from "@/config/seo";
 
 export const dynamic = "force-static";
@@ -31,6 +32,25 @@ const results = (anchor: string): Source => ({ label: "RESULTS.md", path: `${RES
 const file = (path: string): Source => ({ label: path, path });
 
 const ROWS: Row[] = [
+  {
+    measure: "Ten writers skip the app's check and race a $3 budget",
+    before: "10 committed, balance -$7.00",
+    after: "3 committed, 7 refused 23514, balance $0.00",
+    sources: [
+      file("lib/bypass-race.ts"),
+      file("test/local/db-guardrail.test.ts"),
+      results("the-bypass-race-what-the-check-adds-26-nov-2026"),
+    ],
+  },
+  {
+    measure: "Raise a budget above its cap, as the app's DB role",
+    before: "accepted",
+    after: "refused, 23514 accounts_balance_within_cap",
+    sources: [
+      file("db/schema.sql"),
+      results("a-second-database-invariant-no-balance-above-its-cap-26-nov-2026"),
+    ],
+  },
   {
     measure: "App's database role",
     before: "admin (owns every table)",
@@ -94,7 +114,7 @@ const ROWS: Row[] = [
   {
     measure: "CHECK constraints on balance tables",
     before: "0",
-    after: "2, both convalidated = true",
+    after: "3, all convalidated = true",
     sources: [file("db/schema.sql"), file("scripts/migrate.ts"), results("before-and-after")],
   },
   {
@@ -149,62 +169,62 @@ export default function Proof() {
     <>
       <SiteNav current="proof" />
 
-      <main className="mx-auto max-w-4xl px-6 py-16">
-        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">Proof</div>
-        <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight text-fg">
-          The database, not the code, refuses the overspend.
-        </h1>
-        <p className="mt-5 text-lg leading-relaxed text-fg-dim">
-          The budget check used to live only in application code, and the app connected as the
-          database owner. Now the balance column carries a CHECK constraint, and the app&apos;s role
-          cannot rewrite the ledger or change the schema. Don&apos;t take that on trust: send the
-          statements yourself.
-        </p>
+      <main>
+        <header className="mx-auto max-w-5xl px-4 pt-14 pb-10 sm:px-6 sm:pt-20">
+          <h1 className="max-w-3xl font-display text-[2.6rem] font-medium leading-[1.04] tracking-[-0.03em] text-fg sm:text-6xl">
+            The database, not the code, refuses the overspend.
+          </h1>
+          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-fg-dim">
+            The budget check used to live only in application code, and the app connected as the
+            database owner. Now two CHECK constraints keep every budget between zero and its cap,
+            and the app&apos;s role cannot rewrite the ledger or change the schema. Send the
+            statements yourself and read what the database answers.
+          </p>
+        </header>
 
-        <div className="mt-10">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <ProofRunner />
         </div>
 
-        <section className="mt-14">
-          <h2 className="font-display text-2xl font-semibold text-fg">Before and after</h2>
-          <p className="mt-2 text-sm text-fg-dim">
+        <section className="mx-auto mt-20 max-w-5xl px-4 sm:px-6">
+          <h2 className="font-display text-[2rem] font-medium leading-tight tracking-[-0.02em] text-fg">
+            Before and after
+          </h2>
+          <p className="mt-3 max-w-2xl leading-relaxed text-fg-dim">
             Measured on 26 Nov 2026 against the live clusters. Every number is copied from{" "}
-            <a
-              href={`${BLOB}/${RESULTS}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-fg underline decoration-line-bright underline-offset-2 hover:decoration-fg"
-            >
-              RESULTS.md
-            </a>
-            ; each row links the files that enforce it.
+            <TextLink href={`${BLOB}/${RESULTS}`}>RESULTS.md</TextLink>, and each row links the
+            files that enforce it. Struck-through values are the old state.
           </p>
-          <div className="mt-5 overflow-hidden rounded-2xl border border-line">
-            <div className="hidden grid-cols-[2fr_1.2fr_1.6fr_1.3fr] gap-4 bg-surface px-4 py-3 text-[11px] uppercase tracking-[0.14em] text-fg-mute sm:grid">
+          <div className="mt-8 border-y border-line-bright">
+            <div className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_minmax(0,1.3fr)] gap-5 border-b border-line py-3 text-sm text-fg-mute md:grid">
               <div>Measure</div>
               <div>Before</div>
               <div>After</div>
-              <div>Proof</div>
+              <div>Enforced in</div>
             </div>
             <ul className="divide-y divide-line">
               {ROWS.map((row) => (
                 <li
                   key={row.measure}
-                  className="grid gap-2 px-4 py-4 text-sm sm:grid-cols-[2fr_1.2fr_1.6fr_1.3fr] sm:gap-4 sm:py-3"
+                  className="grid gap-2 py-4 text-[15px] md:grid-cols-[minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1.6fr)_minmax(0,1.3fr)] md:gap-5"
                 >
-                  <div className="font-medium text-fg sm:font-normal">{row.measure}</div>
-                  <Cell label="Before" value={row.before} tone="text-deny" />
+                  <div className="font-medium text-fg md:font-normal">{row.measure}</div>
+                  <Cell
+                    label="Before"
+                    value={row.before}
+                    tone="text-fg-mute line-through decoration-deny/70"
+                  />
                   <Cell label="After" value={row.after} tone="text-commit" />
-                  <ul className="flex flex-wrap gap-x-3 gap-y-1 sm:block sm:space-y-1">
+                  <ul className="flex flex-wrap gap-x-4 gap-y-1 md:block md:space-y-1">
                     {row.sources.map((source) => (
                       <li key={source.path} className="min-w-0">
                         <a
                           href={`${BLOB}/${source.path}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="tabular break-all text-xs text-fg-dim hover:text-fg"
+                          className="break-all font-mono text-xs text-fg-dim transition-colors hover:text-brand"
                         >
-                          {source.label} ↗
+                          {source.label}
                         </a>
                       </li>
                     ))}
@@ -213,25 +233,31 @@ export default function Proof() {
               ))}
             </ul>
           </div>
-          <p className="mt-4 text-sm text-fg-mute">
-            Still allowed, by design: the app&apos;s role can raise a balance, because every spend,
-            settle and release writes that column. The CHECK bounds it from below only.
+          <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-fg-mute">
+            The app&apos;s role must write balances, so a role alone cannot stop an overspend. The
+            two CHECK constraints can: a budget stays between zero and its cap whoever sends the
+            write. Sharded balances keep only the lower bound, because a cap covers the sum of the
+            shards.
           </p>
         </section>
 
-        <section className="mt-14">
-          <h2 className="font-display text-2xl font-semibold text-fg">Reproduce it yourself</h2>
-          <p className="mt-2 text-sm text-fg-dim">
+        <section className="mx-auto mt-20 mb-20 max-w-5xl px-4 sm:px-6">
+          <h2 className="font-display text-[2rem] font-medium leading-tight tracking-[-0.02em] text-fg">
+            Reproduce it yourself
+          </h2>
+          <p className="mt-3 max-w-2xl leading-relaxed text-fg-dim">
             The guardrail tests run offline, with no database. Against Aurora DSQL, map an IAM role
-            to the app&apos;s database role and run the same probes this button sends; each prints
-            the SQLSTATE the database returned.
+            to the app&apos;s database role and run the probe script, which prints the SQLSTATE for
+            each statement it sends. On local Postgres, the local test suite sends the six
+            statements above as stub_app, and CI runs it on every push to main and every pull
+            request.
           </p>
-          <pre className="mt-4 overflow-x-auto rounded-xl border border-line bg-ink p-5 text-sm leading-relaxed text-fg-dim">
-            <code>{`npm test
+          <div className="mt-6">
+            <CodeBlock>{`npm test
 npm run migrate && npm run db:app-role
 npm run db:app-role -- grant <iam-role-arn>
-DSQL_USER=stub_app npx tsx scripts/wa-probe.ts`}</code>
-          </pre>
+DSQL_USER=stub_app npx tsx scripts/wa-probe.ts`}</CodeBlock>
+          </div>
         </section>
       </main>
 
@@ -243,10 +269,12 @@ DSQL_USER=stub_app npx tsx scripts/wa-probe.ts`}</code>
 function Cell({ label, value, tone }: { label: string; value: string; tone: string }) {
   return (
     <div className="min-w-0">
-      <span className="mr-2 text-[11px] uppercase tracking-[0.14em] text-fg-mute sm:hidden">
-        {label}
+      <span className="mr-2 text-xs text-fg-mute md:hidden">{label}</span>
+      <span
+        className={`break-words text-sm [font-variant-numeric:tabular-nums] md:text-[15px] ${tone}`}
+      >
+        {value}
       </span>
-      <span className={`tabular break-words ${tone}`}>{value}</span>
     </div>
   );
 }

@@ -2,22 +2,25 @@ import Image from "next/image";
 import Link from "next/link";
 import { FaGithub, FaNpm } from "react-icons/fa6";
 import { NpmStatsLink } from "@/components/npm-stats-link";
-
-const GITHUB_URL = "https://github.com/ashutosh887/stub";
+import { GITHUB_URL } from "@/config/seo";
 
 export function SiteNav({ current }: { current?: "home" | "how" | "proof" | "dashboard" }) {
   return (
-    <nav className="sticky top-0 z-40 border-b border-line bg-ink/80 backdrop-blur">
+    <nav className="sticky top-0 z-40 border-b border-line bg-ink/85 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
-        <Link href="/" aria-label="Stub home" className="flex items-center gap-2.5">
-          <Image src="/logo.png" alt="" width={26} height={26} className="rounded-md" priority />
-          <span className="font-display text-xl font-semibold text-fg">Stub</span>
+        <Link
+          href="/"
+          aria-label="Stub home"
+          aria-current={current === "home" ? "page" : undefined}
+          className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        >
+          <Image src="/logo.png" alt="" width={26} height={26} className="rounded-[5px]" priority />
+          <span className="font-display text-[1.35rem] font-medium tracking-[-0.02em] text-fg">
+            Stub
+          </span>
         </Link>
 
         <div className="flex min-w-0 items-center gap-0.5 text-sm sm:gap-1">
-          <NavLink href="/" active={current === "home"} className="hidden sm:inline-block">
-            Product
-          </NavLink>
           <NavLink href="/how-it-works" active={current === "how"}>
             How it works
           </NavLink>
@@ -37,16 +40,16 @@ export function SiteNav({ current }: { current?: "home" | "how" | "proof" | "das
             rel="noreferrer"
             aria-label="Source on GitHub"
             title="Source on GitHub"
-            className="rounded-md p-2 text-fg-dim transition-colors hover:text-fg"
+            className="hidden rounded-md p-2 text-fg-dim transition-colors hover:text-fg min-[400px]:inline-flex"
           >
             <FaGithub className="h-[18px] w-[18px]" />
           </a>
           <Link
             href="/dashboard"
-            className="ml-1 shrink-0 whitespace-nowrap rounded-md border border-brand-dim bg-brand/10 px-2 sm:px-3 py-1.5 font-medium text-brand transition-colors hover:bg-brand/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="ml-1 shrink-0 whitespace-nowrap rounded-md border border-line-bright px-2.5 py-1.5 font-medium text-fg transition-colors hover:border-brand-dim hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:px-3"
           >
             <span className="sm:hidden">Dashboard</span>
-            <span className="hidden sm:inline">Open dashboard</span>
+            <span className="hidden sm:inline">Open the dashboard</span>
           </Link>
         </div>
       </div>
@@ -57,19 +60,18 @@ export function SiteNav({ current }: { current?: "home" | "how" | "proof" | "das
 function NavLink({
   href,
   active,
-  className = "",
   children,
 }: {
   href: string;
   active?: boolean;
-  className?: string;
   children: React.ReactNode;
 }) {
   return (
     <Link
       href={href}
-      className={`whitespace-nowrap rounded-md px-2 py-1.5 transition-colors hover:text-fg sm:px-3 ${className} ${
-        active ? "text-fg" : "text-fg-dim"
+      aria-current={active ? "page" : undefined}
+      className={`whitespace-nowrap rounded-md px-2 py-1.5 underline-offset-[18px] transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:px-3 ${
+        active ? "text-fg underline decoration-brand decoration-2" : "text-fg-dim"
       }`}
     >
       {children}

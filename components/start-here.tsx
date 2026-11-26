@@ -1,52 +1,31 @@
-import Link from "next/link";
+const STEPS = [
+  { href: "#simulate", head: "Try a spend", body: "A small amount commits and books two lines." },
+  { href: "#simulate", head: "Trip a limit", body: "Ask for more than an agent has left." },
+  { href: "#ask", head: "Ask the ledger", body: "Plain English in, a query over the entries out." },
+];
 
 export function StartHere() {
   return (
-    <section className="rounded-2xl border border-brand-dim bg-brand/[0.06] p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-display text-lg font-semibold text-fg">
-            New here? Try it in 60 seconds.
-          </h2>
-          <p className="mt-1 text-sm text-fg-dim">
-            Live sample data on a real Aurora DSQL cluster, and nothing spends real money.
-          </p>
-        </div>
-        <Link href="/how-it-works" className="text-sm text-brand hover:underline">
-          How it works →
-        </Link>
-      </div>
-      <ol className="mt-4 grid gap-3 sm:grid-cols-3">
-        <Step
-          n="1"
-          head="Run a spend"
-          body="Authorize a small amount below and it commits to the ledger instantly."
-        />
-        <Step
-          n="2"
-          head="Trip a limit"
-          body="Spend more than an agent has left. It's denied, and the balance holds."
-        />
-        <Step
-          n="3"
-          head="Ask the ledger"
-          body="Ask a question in plain English and get an answer from the entries."
-        />
+    <div>
+      <p>New here? Three things to try, in this order.</p>
+      <ol className="mt-4 grid gap-x-6 gap-y-3 sm:grid-cols-3">
+        {STEPS.map((step, i) => (
+          <li key={step.head} className="grid grid-cols-[1.25rem_minmax(0,1fr)] gap-2">
+            <span className="font-display text-lg leading-6 text-brand [font-variant-numeric:lining-nums]">
+              {i + 1}
+            </span>
+            <div className="min-w-0">
+              <a
+                href={step.href}
+                className="text-[15px] font-medium text-fg underline decoration-brand-dim underline-offset-4 transition-colors hover:decoration-brand"
+              >
+                {step.head}
+              </a>
+              <p className="mt-0.5 text-sm leading-relaxed text-fg-mute">{step.body}</p>
+            </div>
+          </li>
+        ))}
       </ol>
-    </section>
-  );
-}
-
-function Step({ n, head, body }: { n: string; head: string; body: string }) {
-  return (
-    <li className="rounded-lg border border-line bg-surface p-3">
-      <div className="flex items-center gap-2">
-        <span className="tabular flex h-5 w-5 items-center justify-center rounded-full border border-brand-dim text-[11px] text-brand">
-          {n}
-        </span>
-        <span className="text-sm font-medium text-fg">{head}</span>
-      </div>
-      <p className="mt-1.5 text-xs leading-relaxed text-fg-dim">{body}</p>
-    </li>
+    </div>
   );
 }

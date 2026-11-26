@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { FOCUS } from "@/components/site-kit";
 
 export function LiveRefresh({ intervalMs = 12000 }: { intervalMs?: number }) {
   const router = useRouter();
@@ -26,7 +27,8 @@ export function LiveRefresh({ intervalMs = 12000 }: { intervalMs?: number }) {
   return (
     <button
       onClick={() => setLive((v) => !v)}
-      className="flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 transition-colors hover:border-line-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      aria-pressed={live}
+      className={`flex items-center gap-2 rounded-md border border-line-bright px-3 py-1.5 text-[13px] text-fg-dim transition-colors hover:border-fg-mute hover:text-fg ${FOCUS}`}
       title={live ? "Pause live updates" : "Resume live updates"}
     >
       <span className="relative flex h-2 w-2">
@@ -41,7 +43,7 @@ export function LiveRefresh({ intervalMs = 12000 }: { intervalMs?: number }) {
           className={`relative inline-flex h-2 w-2 rounded-full ${live ? "bg-commit" : "bg-fg-mute"}`}
         />
       </span>
-      <span className="tabular text-xs text-fg-dim">{live ? "Live" : "Paused"}</span>
+      {live ? `Live, every ${Math.round(intervalMs / 1000)}s` : "Paused"}
     </button>
   );
 }

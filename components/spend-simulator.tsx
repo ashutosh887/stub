@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { BUTTON, Field, INPUT, Notice, reasonLabel } from "@/components/console-kit";
+import { Stamp } from "@/components/site-kit";
 
 interface AccountOption {
   id: string;
@@ -68,14 +70,19 @@ export function SpendSimulator({
     }
   }
 
+  const conflictNote =
+    outcome && outcome.conflicts > 0
+      ? ` It lost ${outcome.conflicts} write conflict${outcome.conflicts > 1 ? "s" : ""} first and retried.`
+      : "";
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Budget account">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+        <Field label="Spend from">
           <select
             value={budgetAccountId}
             onChange={(e) => setBudgetAccountId(e.target.value)}
-            className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+            className={INPUT}
           >
             {budgets.map((b) => (
               <option key={b.id} value={b.id}>
@@ -84,11 +91,11 @@ export function SpendSimulator({
             ))}
           </select>
         </Field>
-        <Field label="Vendor account">
+        <Field label="Pay vendor">
           <select
             value={vendorAccountId}
             onChange={(e) => setVendorAccountId(e.target.value)}
-            className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+            className={INPUT}
           >
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
@@ -97,26 +104,22 @@ export function SpendSimulator({
             ))}
           </select>
         </Field>
-        <Field label="Amount (USD)">
+        <Field label="Amount in USD">
           <input
             value={amountUsd}
             onChange={(e) => setAmountUsd(e.target.value)}
             inputMode="decimal"
-            className="tabular w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+            className={`tabular ${INPUT}`}
           />
         </Field>
-        <Field label="Intent">
-          <input
-            value={intent}
-            onChange={(e) => setIntent(e.target.value)}
-            className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
-          />
+        <Field label="Memo">
+          <input value={intent} onChange={(e) => setIntent(e.target.value)} className={INPUT} />
         </Field>
         <Field label="Cost center">
           <input
             value={costCenter}
             onChange={(e) => setCostCenter(e.target.value)}
-            className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
+            className={INPUT}
           />
         </Field>
       </div>
@@ -124,57 +127,40 @@ export function SpendSimulator({
       <button
         onClick={() => authorize()}
         disabled={busy || !budgetAccountId || !vendorAccountId}
-        className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-40"
+        className={BUTTON.primary}
       >
         {busy ? "Authorizing…" : "Authorize spend"}
       </button>
 
-      {outcome && (
-        <div
-          className={`rise rounded-md border px-3 py-2.5 text-sm ${
-            outcome.status === "committed"
-              ? "border-commit-dim bg-commit-dim/20 text-commit"
-              : outcome.status === "denied"
-                ? "border-deny-dim bg-deny-dim/20 text-deny"
-                : "border-warn/40 bg-warn/10 text-warn"
-          }`}
-        >
-          {outcome.status === "needs_approval" ? (
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span>Over the approval threshold. A human must sign off.</span>
-              <button
-                onClick={() => authorize(true)}
-                disabled={busy}
-                className="rounded-md border border-warn/50 px-3 py-1 text-xs font-medium text-warn transition-colors hover:bg-warn/15 disabled:opacity-50"
-              >
-                {busy ? "Approving…" : "Approve & authorize"}
-              </button>
-            </div>
-          ) : (
-            <>
-              <span className="font-medium uppercase tracking-wide">{outcome.status}</span>
-              {outcome.reason ? `: ${outcome.reason}` : ""}
-              {outcome.conflicts > 0
-                ? `, resolved ${outcome.conflicts} write conflict${outcome.conflicts > 1 ? "s" : ""}`
-                : ""}
-            </>
-          )}
+      {outcome?.status === "committed" && (
+        <Notice tone="commit">Committed. Two lines booked in the journal.{conflictNote}</Notice>
+      )}
+      {outcome?.status === "denied" && (
+        <div className="rise flex flex-wrap items-center gap-x-4 gap-y-3 py-1">
+          <Stamp code={reasonLabel(outcome.reason ?? "denied")} delay={0} className="text-sm" />
+          <span className="text-sm text-fg-dim">Nothing was paid. The refusal is on record.</span>
         </div>
       )}
-      {error && (
-        <div className="rise rounded-md border border-deny-dim bg-deny-dim/20 px-3 py-2.5 text-sm text-deny">
-          {error}
-        </div>
+      {outcome?.status === "needs_approval" && (
+        <Notice tone="warn">
+          <p>This is over the approval threshold, so a person has to sign off.</p>
+          <button
+            onClick={() => authorize(true)}
+            disabled={busy}
+            className="mt-2 rounded-md border border-warn/60 px-3 py-1 text-[13px] font-medium text-warn transition-colors hover:bg-warn/10 disabled:opacity-50"
+          >
+            {busy ? "Approving…" : "Approve and authorize"}
+          </button>
+        </Notice>
       )}
+      {outcome && !["committed", "denied", "needs_approval"].includes(outcome.status) && (
+        <Notice tone="warn">
+          {outcome.status === "duplicate"
+            ? "Already booked under this idempotency key. Nothing new was charged."
+            : outcome.status}
+        </Notice>
+      )}
+      {error && <Notice tone="deny">{error}</Notice>}
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium uppercase tracking-wide text-fg-mute">{label}</span>
-      {children}
-    </label>
   );
 }

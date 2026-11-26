@@ -53,7 +53,7 @@ export default async function OpengraphImage() {
           <span>agents can&apos;t break.</span>
         </div>
         <div style={{ fontSize: 30, color: "#98a4b2", maxWidth: 900, lineHeight: 1.35 }}>
-          A strongly-consistent, double-entry spend ledger on Amazon Aurora DSQL.
+          A double-entry spend ledger on Amazon Aurora DSQL. The database refuses the overspend.
         </div>
       </div>
 

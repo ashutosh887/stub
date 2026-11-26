@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { BUTTON, INPUT, Notice } from "@/components/console-kit";
+import { FOCUS } from "@/components/site-kit";
 
 interface ResultRow {
   label: string;
@@ -60,74 +62,76 @@ export function NlQuery() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
+      <form
+        className="flex flex-col gap-2 sm:flex-row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          ask(question);
+        }}
+      >
         <input
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && ask(question)}
-          placeholder="Ask about your fleet's spend…"
-          className="flex-1 rounded-md border bg-ink px-3 py-2.5 text-sm text-fg placeholder:text-fg-mute focus:border-brand focus:outline-none"
+          placeholder="What did the fleet spend on LLM tokens?"
+          aria-label="Question about the ledger"
+          className={`${INPUT} py-2.5 sm:flex-1`}
         />
-        <button
-          onClick={() => ask(question)}
-          disabled={busy || !question.trim()}
-          className="rounded-md bg-brand px-4 py-2.5 text-sm font-medium text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-40"
-        >
+        <button type="submit" disabled={busy || !question.trim()} className={BUTTON.primary}>
           {busy ? "Asking…" : "Ask"}
         </button>
-      </div>
+      </form>
 
-      <div className="flex flex-wrap gap-2">
-        {EXAMPLES.map((ex) => (
-          <button
-            key={ex}
-            onClick={() => {
-              setQuestion(ex);
-              ask(ex);
-            }}
-            disabled={busy}
-            className="rounded-full border border-line bg-ink px-3 py-1 text-xs text-fg-dim transition-colors hover:border-line-bright hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
-          >
-            {ex}
-          </button>
-        ))}
+      <div className="text-sm text-fg-mute">
+        <span>Or try one of these:</span>
+        <ul className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:gap-x-5">
+          {EXAMPLES.map((ex) => (
+            <li key={ex}>
+              <button
+                onClick={() => {
+                  setQuestion(ex);
+                  ask(ex);
+                }}
+                disabled={busy}
+                className={`rounded-sm text-left text-fg-dim underline decoration-line-bright underline-offset-4 transition-colors hover:text-fg hover:decoration-brand disabled:opacity-40 ${FOCUS}`}
+              >
+                {ex}
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {result && (
-        <div className="rise flex flex-col gap-4 rounded-lg border border-line bg-surface-2 p-4">
-          <p className="text-sm leading-relaxed text-fg">{result.answer}</p>
-          <div className="text-xs uppercase tracking-wide text-fg-mute">{result.description}</div>
+        <div className="rise mt-2 border-t border-line pt-5">
+          <p className="max-w-2xl font-display text-xl leading-snug text-fg">{result.answer}</p>
+          <p className="mt-2 text-[13px] text-fg-mute">{result.description}</p>
           {result.rows.length > 0 && result.query.groupBy !== "none" && (
-            <div className="flex flex-col gap-2">
+            <ul className="mt-5 divide-y divide-line border-y border-line">
               {result.rows.map((r) => {
                 const value = byCount ? r.count : Number(r.amountUsd);
                 const max = byCount ? maxCount : maxAmount;
                 const pct = max > 0 ? (value / max) * 100 : 0;
                 return (
-                  <div key={r.label} className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 truncate text-sm text-fg-dim">{r.label}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-ink">
-                      <div
-                        className="h-full rounded-full bg-brand"
-                        style={{ width: `${Math.max(pct, 2)}%` }}
-                      />
+                  <li
+                    key={r.label}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 py-2.5 sm:grid-cols-[12rem_minmax(0,1fr)_7rem]"
+                  >
+                    <span className="truncate text-sm text-fg">{r.label}</span>
+                    <div className="order-last col-span-2 h-1.5 bg-line sm:order-none sm:col-span-1">
+                      <div className="h-full bg-brand" style={{ width: `${Math.max(pct, 1)}%` }} />
                     </div>
-                    <span className="tabular w-24 shrink-0 text-right text-sm text-fg">
+                    <span className="tabular text-right text-sm text-fg">
                       {byCount ? r.count : `$${r.amountUsd}`}
                     </span>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </div>
       )}
 
-      {error && (
-        <div className="rise rounded-md border border-deny-dim bg-deny-dim/20 px-3 py-2.5 text-sm text-deny">
-          {error}
-        </div>
-      )}
+      {error && <Notice tone="deny">{error}</Notice>}
     </div>
   );
 }

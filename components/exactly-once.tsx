@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { BUTTON, Notice } from "@/components/console-kit";
+import { Stamp } from "@/components/site-kit";
 
 interface Approach {
   approach: string;
@@ -44,84 +46,66 @@ export function ExactlyOnce() {
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-line bg-surface">
-      <div className="flex flex-wrap items-start justify-between gap-4 p-6">
+    <div>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="max-w-xl">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">
-            Exactly-once settlement
-          </h2>
-          <p className="mt-2 text-sm leading-relaxed text-fg-dim">
-            A naive retry around an irreversible payment double-charges: every OCC conflict re-sends
-            the money. Stub reserves, pays once behind an idempotency key, then settles, so retries
-            replay only the ledger. Run both side by side under {report?.writers ?? 16} concurrent
-            writers with crashes injected after payment.
+          <h3 className="font-display text-xl font-medium text-fg">Retry without paying twice</h3>
+          <p className="mt-2 text-[15px] leading-relaxed text-fg-dim">
+            A naive retry around a payment that can&apos;t be undone sends the money again on every
+            write conflict. Stub reserves first, pays once behind an idempotency key, then settles,
+            so a retry replays only the ledger. Both run side by side with {report?.writers ?? 16}{" "}
+            concurrent writers and crashes injected after payment.
           </p>
         </div>
-        <button
-          onClick={run}
-          disabled={busy}
-          className="shrink-0 rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50"
-        >
-          {busy ? "Running both…" : "Run the comparison"}
+        <button onClick={run} disabled={busy} className={`${BUTTON.primary} shrink-0`}>
+          {busy ? "Running both…" : "Run both"}
         </button>
       </div>
 
       {error && (
-        <div className="border-t border-deny-dim bg-deny-dim/10 px-6 py-3 text-sm text-deny">
-          {error}
+        <div className="mt-5">
+          <Notice tone="deny">{error}</Notice>
         </div>
       )}
 
       {report && (
-        <div className="rise grid gap-px border-t border-line bg-line sm:grid-cols-2">
+        <div className="rise mt-6 grid border-t border-line sm:grid-cols-2 sm:divide-x sm:divide-line">
           <Column title="Naive retry" a={report.naive} />
           <Column title="Stub" a={report.stub} />
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
 function Column({ title, a }: { title: string; a: Approach }) {
   return (
-    <div className="bg-surface p-6">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-fg">{title}</span>
-        <span
-          className={`rounded-md border px-2 py-0.5 text-[11px] uppercase tracking-[0.14em] ${
-            a.invariantsHold ? "border-commit-dim text-commit" : "border-deny-dim text-deny"
-          }`}
-        >
-          {a.invariantsHold ? "invariants hold" : "double-pay"}
-        </span>
+    <div className="border-b border-line py-5 sm:border-b-0 sm:px-5 sm:first:pl-0 sm:last:pr-0">
+      <div className="flex min-h-8 items-center justify-between gap-3">
+        <span className="font-display text-lg text-fg">{title}</span>
+        {a.invariantsHold ? (
+          <span className="text-[13px] text-commit">Paid once, balance held</span>
+        ) : (
+          <Stamp code="Paid twice" label="" delay={0.15} className="text-xs" />
+        )}
       </div>
-      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
+      <dl className="mt-3 text-sm">
         <Row k="Spends committed" v={String(a.committedSpends)} />
-        <Row
-          k="Payments sent"
-          v={String(a.paymentsSent)}
-          tone={a.doublePaid ? "deny" : "default"}
-        />
+        <Row k="Payments sent" v={String(a.paymentsSent)} deny={a.doublePaid} />
         <Row k="Money charged" v={`$${a.chargedUsd.toFixed(2)}`} />
-        <Row k="OCC conflicts" v={String(a.occConflicts)} />
-        <Row
-          k="Final balance"
-          v={`$${a.finalBalanceUsd.toFixed(2)}`}
-          tone={a.overspend ? "deny" : "default"}
-        />
+        <Row k="Write conflicts" v={String(a.occConflicts)} />
+        <Row k="Final balance" v={`$${a.finalBalanceUsd.toFixed(2)}`} deny={a.overspend} />
         <Row k="Stuck holds" v={String(a.stuckHolds)} />
       </dl>
     </div>
   );
 }
 
-function Row({ k, v, tone = "default" }: { k: string; v: string; tone?: "default" | "deny" }) {
+function Row({ k, v, deny = false }: { k: string; v: string; deny?: boolean }) {
   return (
-    <div>
-      <dt className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">{k}</dt>
-      <dd className={`tabular mt-0.5 text-base ${tone === "deny" ? "text-deny" : "text-fg"}`}>
-        {v}
-      </dd>
+    <div className="flex items-baseline justify-between gap-4 border-b border-line py-1.5 last:border-b-0">
+      <dt className="text-fg-dim">{k}</dt>
+      <dd className={`tabular ${deny ? "text-deny" : "text-fg"}`}>{v}</dd>
     </div>
   );
 }

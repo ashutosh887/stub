@@ -1,6 +1,6 @@
-import { SiteNav } from "@/components/site-nav";
-import { AppTabs } from "@/components/app-tabs";
+import { ConsoleShell } from "@/components/app-tabs";
 import { AdminLogin } from "@/components/admin-login";
+import { ConsoleHeader, Empty, LedgerSection } from "@/components/console-kit";
 import { adminPageAllowed } from "@/lib/api";
 import { type AttributionRow, listAttribution } from "@/lib/data";
 import { formatUsd } from "@/lib/money";
@@ -15,6 +15,9 @@ export const metadata = {
   alternates: { canonical: "/attribution" },
 };
 
+const LINK =
+  "text-fg underline decoration-brand-dim underline-offset-4 transition-colors hover:decoration-brand";
+
 export default async function AttributionPage() {
   if (!(await adminPageAllowed())) return <AdminLogin />;
 
@@ -27,78 +30,67 @@ export default async function AttributionPage() {
   const total = byCostCenter.reduce((sum, r) => sum + r.totalMicro, 0n);
 
   return (
-    <>
-      <SiteNav current="dashboard" />
-      <AppTabs current="attribution" />
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <span className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-              Chargeback &amp; showback
-            </span>
-            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-fg">
-              Where the money went
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-dim">
-              Every spend carries the cost center it belongs to, so finance can answer the two
-              questions cloud bills can&apos;t: which team or customer drove the spend, and on what.
-            </p>
-          </div>
-          <a
-            href="/api/export/journal"
-            className="rounded-md border border-line px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-fg-mute transition-colors hover:border-line-bright hover:text-fg"
-          >
-            Export journal CSV ↓
-          </a>
-        </header>
+    <ConsoleShell tab="attribution">
+      <ConsoleHeader
+        title="Where the money went"
+        note={
+          <>
+            Journal lines import into QuickBooks or NetSuite.
+            <a href="/api/export/journal" className={`mt-3 block w-fit ${LINK}`}>
+              Export journal CSV
+            </a>
+          </>
+        }
+        intro="Every spend carries the cost center it belongs to. Finance can see which team or customer drove the spend, and which vendor it went to."
+      />
 
-        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
-          <div className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-            Total attributed spend
-          </div>
-          <div className="tabular mt-1 text-3xl font-semibold text-fg">{formatUsd(total)}</div>
-        </section>
+      <LedgerSection title="Total attributed" note="Committed spend across every cost center.">
+        <p className="w-fit border-b-[3px] border-double border-fg-mute pb-0.5 font-display text-[2.8rem] font-medium leading-none tracking-[-0.02em] text-fg [font-variant-numeric:lining-nums_tabular-nums] sm:text-[3.4rem]">
+          {formatUsd(total)}
+        </p>
+      </LedgerSection>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-3">
-          <Rollup title="By cost center" rows={byCostCenter} />
-          <Rollup title="By team" rows={byTeam} />
-          <Rollup title="By vendor" rows={byVendor} />
-        </div>
-      </main>
-    </>
+      <Rollup
+        title="By cost center"
+        note="The cost center tag sent with each spend."
+        rows={byCostCenter}
+      />
+      <Rollup title="By team" note="Agents roll up into the team above them." rows={byTeam} />
+      <Rollup title="By vendor" note="Who got paid." rows={byVendor} />
+    </ConsoleShell>
   );
 }
 
-function Rollup({ title, rows }: { title: string; rows: AttributionRow[] }) {
+function Rollup({ title, note, rows }: { title: string; note: string; rows: AttributionRow[] }) {
   return (
-    <section className="rounded-2xl border border-line bg-surface p-6">
-      <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">{title}</h2>
-      <div className="mt-4 flex flex-col gap-3">
-        {rows.length === 0 && (
-          <div className="py-6 text-center text-sm text-fg-mute">No spend recorded yet.</div>
-        )}
-        {rows.map((r) => (
-          <div key={r.label}>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-sm text-fg">{r.label}</span>
-              <span className="tabular shrink-0 text-sm text-fg-dim">
-                {formatUsd(r.totalMicro)}
-              </span>
-            </div>
-            <div className="mt-1.5 flex items-center gap-2">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink">
+    <LedgerSection title={title} note={note}>
+      {rows.length === 0 ? (
+        <Empty>No spend booked yet.</Empty>
+      ) : (
+        <ul className="divide-y divide-line border-y border-line">
+          {rows.map((r) => (
+            <li
+              key={r.label}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-2 py-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)_3.5rem_7rem]"
+            >
+              <span className="truncate text-[15px] text-fg">{r.label}</span>
+              <div className="order-last col-span-2 h-1.5 bg-line sm:order-none sm:col-span-1">
                 <div
-                  className="h-full rounded-full bg-brand transition-[width] duration-500"
+                  className="h-full bg-brand transition-[width] duration-500"
                   style={{ width: `${Math.min(r.pct, 100)}%` }}
                 />
               </div>
-              <span className="tabular w-12 shrink-0 text-right text-[11px] text-fg-mute">
+              <span className="tabular hidden text-right text-xs text-fg-mute sm:block">
                 {r.pct}%
               </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
+              <span className="tabular text-right text-[15px] text-fg">
+                {formatUsd(r.totalMicro)}
+                <span className="ml-2 text-xs text-fg-mute sm:hidden">{r.pct}%</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </LedgerSection>
   );
 }

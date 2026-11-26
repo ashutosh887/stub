@@ -10,9 +10,9 @@ export const SITE_NAME = "Stub";
 export const TITLE = "Stub: the general ledger for agent spend";
 export const TAGLINE = "One budget your agents can't break.";
 export const DESCRIPTION =
-  "One budget your agents can't break. A strongly-consistent, double-entry spend ledger on Amazon Aurora DSQL that fails any transaction which would breach your cap. Governs paid APIs, x402 micropayments, and LLM tokens across a whole fleet of AI agents.";
+  "One budget your agents can't break. A double-entry spend ledger on Amazon Aurora DSQL where the database refuses any write that would take a budget below zero or above its cap, and the app's own role cannot rewrite the ledger. Governs paid APIs, x402 micropayments and LLM tokens across a whole fleet of AI agents.";
 export const SHORT_DESCRIPTION =
-  "One budget your agents can't break. A double-entry spend ledger for AI agents, on Amazon Aurora DSQL.";
+  "One budget your agents can't break. A double-entry spend ledger for AI agents on Amazon Aurora DSQL, where the database refuses the overspend. Try to break it yourself.";
 
 const PRODUCT_TERMS = [
   "Stub",
@@ -61,6 +61,9 @@ const TECH_TERMS = [
   "Aurora DSQL budget",
   "optimistic concurrency control",
   "SQLSTATE 40001",
+  "SQLSTATE 23514",
+  "CHECK constraint",
+  "least-privilege database role",
   "serialization failure",
   "multi-region strong consistency",
   "active-active database",
@@ -80,12 +83,17 @@ export const FAQS: Faq[] = [
   {
     question: "How do you stop an AI agent from overspending?",
     answer:
-      "Give the whole fleet one budget and let the database enforce it. Every spend is a double-entry transaction that also decrements the budget, so one that would go below zero never commits. Alerts only tell you after the money is gone.",
+      "Give the whole fleet one budget and let the database enforce it. Every spend is a double-entry transaction that decrements the budget, and the balance column carries CHECK (balance_micro >= 0), so a write that would go below zero fails with SQLSTATE 23514 and never commits. A second CHECK refuses a balance above its cap. Both hold for any code path, a script or the admin, not only for the app's own check. An alert tells you after the money is gone.",
   },
   {
     question: "What happens when two agents spend the same dollars at once?",
     answer:
-      "One of them loses. Both read the same balance and try to write it, so Aurora DSQL commits exactly one and returns SQLSTATE 40001 to the other. Stub retries against the fresh balance, or records a denial. The balance never goes negative.",
+      "One of them loses. Both read the same balance and try to write it, so Aurora DSQL commits exactly one and returns SQLSTATE 40001 to the other. Stub retries against the fresh balance, or records a denial. The balance never goes negative: OCC settles the race, and the CHECK constraint refuses any write below zero with 23514.",
+  },
+  {
+    question: "What if a bug or a script skips the app's budget check?",
+    answer:
+      "The database still refuses it. A balance below zero or above its cap breaks a CHECK constraint (SQLSTATE 23514) whoever sends the write. The app also connects as stub_app, a role that cannot rewrite or delete ledger entries or change the schema (SQLSTATE 42501), using one-hour IAM credentials from Vercel OIDC with no stored keys. You can send those statements to production yourself on the proof page.",
   },
   {
     question: "Can a retry double-charge a vendor?",
@@ -95,17 +103,17 @@ export const FAQS: Faq[] = [
   {
     question: "Do I need an AWS account to try it?",
     answer:
-      "No. Set DATABASE_URL and Stub runs on local Postgres, console and ledger included. Transactions run at SERIALIZABLE, so you hit the same 40001 conflicts as production.",
+      "No. Set DATABASE_URL and Stub runs on local Postgres, console and ledger included. Transactions run at SERIALIZABLE, so you hit the same 40001 conflicts as production, and the same CHECK constraints refuse a balance below zero or above its cap.",
   },
   {
     question: "Does it track LLM token costs, or only API payments?",
     answer:
-      "Both. The SDK holds an estimate, runs the call once, then settles the real token cost. It reads OpenAI and Anthropic usage fields. You supply the rates, because a price table shipped inside a package goes stale and quietly mis-bills you.",
+      "Both. The SDK holds an estimate, runs the call once, then settles the real token cost. It reads OpenAI and Anthropic usage fields. You supply the rates, because a price table shipped inside a package goes stale and bills you wrong.",
   },
   {
     question: "Why Aurora DSQL instead of regular Postgres or DynamoDB?",
     answer:
-      "Because the guarantee is the database's consistency model, not your code. One budget across regions needs active-active strong consistency. Aurora PostgreSQL Global is single-writer, and DynamoDB global tables are eventually consistent, so last-writer-wins means silent overspend. Stub runs on plain Postgres too, single-region.",
+      "One budget across Regions needs both Regions to write the same balance and agree on the result, which takes active-active strong consistency. Aurora PostgreSQL Global has one writer Region. DynamoDB global tables are eventually consistent, so the last writer wins and the overspend goes unnoticed. Stub also runs on plain Postgres, in one Region.",
   },
 ];
 
@@ -127,11 +135,13 @@ const softwareSchema = {
   operatingSystem: "Web, Node.js",
   url: SITE_URL,
   description: DESCRIPTION,
-  softwareVersion: "1.1.0",
+  softwareVersion: "1.3.0",
   downloadUrl: NPM_URL,
   codeRepository: GITHUB_URL,
   license: "https://opensource.org/licenses/MIT",
   featureList: [
+    "Database-enforced budget bounds: CHECK constraints refuse a balance below zero or above its cap",
+    "Least-privilege database role that cannot rewrite or delete ledger entries",
     "Hierarchical budgets enforced in one database transaction",
     "Exactly-once settlement around irreversible payments",
     "LLM token metering with hold and settle",
@@ -173,7 +183,8 @@ const breadcrumbSchema = {
   itemListElement: [
     { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
     { "@type": "ListItem", position: 2, name: "How it works", item: `${SITE_URL}/how-it-works` },
-    { "@type": "ListItem", position: 3, name: "Dashboard", item: `${SITE_URL}/dashboard` },
+    { "@type": "ListItem", position: 3, name: "Proof", item: `${SITE_URL}/proof` },
+    { "@type": "ListItem", position: 4, name: "Dashboard", item: `${SITE_URL}/dashboard` },
   ],
 };
 
@@ -186,7 +197,7 @@ export const DEFAULT_METADATA: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: TITLE,
-    template: "%s · Stub",
+    template: "%s | Stub",
   },
   description: DESCRIPTION,
   applicationName: SITE_NAME,

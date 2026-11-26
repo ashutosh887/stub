@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { BUTTON, Empty, Field, INPUT, Notice } from "@/components/console-kit";
 
 export interface AgentView {
   id: string;
@@ -66,23 +67,27 @@ export function AgentRegistry({
   const working = busy || pending;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="flex flex-col gap-1 text-xs text-fg-mute">
-          Agent name
+    <div className="flex flex-col gap-5">
+      <form
+        className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          create();
+        }}
+      >
+        <Field label="Agent name">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="research-agent"
-            className="w-44 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className={INPUT}
           />
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-fg-mute">
-          Budget account
+        </Field>
+        <Field label="Budget it spends from">
           <select
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
-            className="rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-sm text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className={INPUT}
           >
             {budgets.map((b) => (
               <option key={b.id} value={b.id}>
@@ -90,53 +95,50 @@ export function AgentRegistry({
               </option>
             ))}
           </select>
-        </label>
-        <button
-          onClick={create}
-          disabled={working || !name.trim()}
-          className="rounded-md border border-line bg-surface-2 px-3 py-1.5 text-sm font-medium text-brand transition-colors hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50"
-        >
-          {working ? "…" : "Issue key"}
+        </Field>
+        <button type="submit" disabled={working || !name.trim()} className={BUTTON.secondary}>
+          {working ? "Issuing…" : "Issue key"}
         </button>
-      </div>
+      </form>
 
-      {error && <p className="text-xs text-deny">{error}</p>}
+      {error && <Notice tone="deny">{error}</Notice>}
 
       {newKey && (
-        <div className="rounded-lg border border-commit-dim bg-commit-dim/10 px-3 py-2.5">
-          <div className="text-xs text-fg-dim">
-            Copy this key now. It won&apos;t be shown again.
-          </div>
-          <div className="mt-1.5 flex items-center gap-2">
-            <code className="tabular flex-1 truncate rounded bg-ink px-2 py-1 text-xs text-fg">
+        <Notice tone="commit">
+          <p className="text-fg-dim">Copy this key now. Stub stores only its hash.</p>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="tabular min-w-0 flex-1 truncate rounded-sm bg-ink px-2 py-1.5 text-xs text-fg">
               {newKey}
             </code>
-            <button
-              onClick={copyKey}
-              className="rounded border border-line px-2 py-1 text-xs text-fg-dim hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-            >
+            <button onClick={copyKey} className={BUTTON.quiet}>
               {copied ? "Copied" : "Copy"}
             </button>
           </div>
-        </div>
+        </Notice>
       )}
 
-      <div className="flex flex-col divide-y divide-line">
-        {agents.length === 0 && (
-          <div className="py-6 text-center text-sm text-fg-mute">No agents registered yet.</div>
-        )}
-        {agents.map((a) => (
-          <div key={a.id} className="flex items-center justify-between gap-3 py-2.5">
-            <div className="min-w-0">
-              <div className="truncate text-sm text-fg">{a.name}</div>
-              <div className="truncate text-xs text-fg-mute">{a.accountName ?? "no account"}</div>
-            </div>
-            <code className="tabular shrink-0 text-xs text-fg-mute">
-              {a.keyPreview ? `stub_sk_…${a.keyPreview}` : "no key"}
-            </code>
-          </div>
-        ))}
-      </div>
+      {agents.length === 0 ? (
+        <Empty>No agents yet. Issue a key above and the agent appears here.</Empty>
+      ) : (
+        <ul className="divide-y divide-line border-y border-line">
+          {agents.map((a) => (
+            <li
+              key={a.id}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 py-3"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-[15px] text-fg">{a.name}</div>
+                <div className="truncate text-[13px] text-fg-mute">
+                  {a.accountName ? `spends from ${a.accountName}` : "no budget"}
+                </div>
+              </div>
+              <code className="tabular shrink-0 text-xs text-fg-mute">
+                {a.keyPreview ? `stub_sk_…${a.keyPreview}` : "no key"}
+              </code>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

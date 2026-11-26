@@ -1,8 +1,6 @@
 @import "tailwindcss";
 
 @theme {
-  /* Ledger terminal: deep cool ink, refined surfaces, one gold brand accent.
-     Green/red are reserved strictly for credit/debit + status, muted on purpose. */
   --color-ink: #07090d;
   --color-surface: #0e131b;
   --color-surface-2: #141b25;
@@ -18,17 +16,19 @@
   --color-deny-dim: #6f2a2c;
   --color-warn: #d8a23a;
 
-  /* brand = ledger gold (accounting ink), used with restraint */
   --color-brand: #e4b363;
   --color-brand-dim: #8a6c34;
+  --color-brand-bright: #f0c67f;
 
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
 }
 
-* {
-  border-color: var(--color-line);
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
 }
 
 html {
@@ -42,7 +42,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* tabular figures: money is always mono + tabular */
 .tabular {
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
@@ -54,31 +53,54 @@ body {
   letter-spacing: -0.01em;
 }
 
-/* signature: the double-entry rule, a hairline that splits debit | credit */
-.ledger-rule {
+.margin-rule {
+  border-color: var(--color-brand-dim);
+  border-style: double;
+}
+
+.journal-paper {
+  background-color: var(--color-surface);
   background-image: linear-gradient(
-    to bottom,
-    transparent,
-    var(--color-line-bright) 12%,
-    var(--color-line-bright) 88%,
-    transparent
+    to right,
+    transparent calc(100% - 7.5rem),
+    rgba(228, 179, 99, 0.16) calc(100% - 7.5rem),
+    rgba(228, 179, 99, 0.16) calc(100% - 7.5rem + 1px),
+    transparent calc(100% - 7.5rem + 1px)
   );
 }
 
-/* hero atmosphere: a faint gold wash + grid, not a flat slab */
-.hero-veil {
-  background:
-    radial-gradient(120% 80% at 80% -10%, rgba(228, 179, 99, 0.08), transparent 60%),
-    radial-gradient(90% 60% at 0% 0%, rgba(70, 192, 138, 0.05), transparent 55%);
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  border: 3px double currentColor;
+  border-radius: 3px;
+  padding: 0.15em 0.5em;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: rotate(-4deg);
 }
 
-.grid-veil {
-  background-image:
-    linear-gradient(var(--color-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--color-line) 1px, transparent 1px);
-  background-size: 44px 44px;
-  -webkit-mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
-  mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 75%);
+@media (prefers-reduced-motion: no-preference) {
+  .stamp-in {
+    animation: stamp-in 0.36s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+    animation-delay: var(--delay, 0s);
+  }
+}
+
+@keyframes stamp-in {
+  from {
+    opacity: 0;
+    transform: rotate(-9deg) scale(1.7);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-4deg) scale(1);
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -118,7 +140,6 @@ body {
   }
 }
 
-/* skeleton shimmer: shown while a server route streams in, so navigation never feels frozen */
 .skeleton {
   background-color: var(--color-surface-2);
   background-image: linear-gradient(

@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { BUTTON, Empty, Field, INPUT, Notice } from "@/components/console-kit";
+import { FOCUS } from "@/components/site-kit";
 
 interface AccountOption {
   id: string;
@@ -155,108 +157,117 @@ export function PolicyEditor({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col divide-y divide-line">
-        {policies.length === 0 && (
-          <div className="py-6 text-center text-sm text-fg-mute">
-            No policies yet. Add a rule to cap spending, limit vendors, or require approvals.
-          </div>
-        )}
-        {policies.map((p) => (
-          <div key={p.id} className="flex items-start justify-between gap-3 py-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className={`text-sm ${p.enabled ? "text-fg" : "text-fg-mute line-through"}`}>
-                  {p.label || "Policy"}
-                </span>
-                <span className="text-xs text-fg-mute">({p.accountName})</span>
+    <div className="flex flex-col gap-5">
+      {policies.length === 0 ? (
+        <Empty>No policies yet. Add one to cap spending, limit vendors or require approval.</Empty>
+      ) : (
+        <ul className="divide-y divide-line border-y border-line">
+          {policies.map((p) => (
+            <li
+              key={p.id}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 py-3.5"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span
+                    className={`text-[15px] ${p.enabled ? "text-fg" : "text-fg-mute line-through"}`}
+                  >
+                    {p.label || "Policy"}
+                  </span>
+                  <span className="text-[13px] text-fg-mute">
+                    on {p.accountName}
+                    {p.enabled ? "" : ", off"}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {p.limitUsd && (
+                    <Chip>
+                      ≤ ${p.limitUsd} {windowLabel(p.windowSeconds)}
+                    </Chip>
+                  )}
+                  {p.approvalUsd && <Chip tone="warn">approval over ${p.approvalUsd}</Chip>}
+                  {p.vendorAllow?.length ? (
+                    <Chip>only {p.vendorAllow.map(vendorName).join(", ")}</Chip>
+                  ) : null}
+                  {p.vendorBlock?.length ? (
+                    <Chip tone="deny">blocks {p.vendorBlock.map(vendorName).join(", ")}</Chip>
+                  ) : null}
+                </div>
               </div>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {p.limitUsd && (
-                  <Chip>
-                    ≤ ${p.limitUsd} {windowLabel(p.windowSeconds)}
-                  </Chip>
-                )}
-                {p.approvalUsd && <Chip tone="warn">approval &gt; ${p.approvalUsd}</Chip>}
-                {p.vendorAllow?.length ? (
-                  <Chip>allow: {p.vendorAllow.map(vendorName).join(", ")}</Chip>
-                ) : null}
-                {p.vendorBlock?.length ? (
-                  <Chip tone="deny">block: {p.vendorBlock.map(vendorName).join(", ")}</Chip>
-                ) : null}
+              <div className="flex shrink-0 items-center gap-1">
+                <button onClick={() => toggle(p.id, !p.enabled)} className={BUTTON.quiet}>
+                  {p.enabled ? "Turn off" : "Turn on"}
+                </button>
+                <button
+                  onClick={() => remove(p.id)}
+                  className={`${BUTTON.quiet} hover:bg-deny/10 hover:text-deny`}
+                >
+                  Delete
+                </button>
               </div>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <button
-                onClick={() => toggle(p.id, !p.enabled)}
-                className="rounded px-2 py-0.5 text-xs text-fg-mute transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              >
-                {p.enabled ? "Disable" : "Enable"}
-              </button>
-              <button
-                onClick={() => remove(p.id)}
-                className="rounded px-2 py-0.5 text-xs text-fg-mute transition-colors hover:bg-deny-dim/30 hover:text-deny focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {!open ? (
-        <button
-          onClick={() => setOpen(true)}
-          className="self-start rounded-md border border-line bg-surface-2 px-3 py-1.5 text-sm text-fg transition-colors hover:border-line-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-        >
-          + Add policy
+        <button onClick={() => setOpen(true)} className={`${BUTTON.secondary} self-start`}>
+          Add a policy
         </button>
       ) : (
-        <div className="rounded-lg border border-line bg-surface-2 p-4">
-          <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-md border border-line-bright bg-surface p-5">
+          <h3 className="font-display text-xl font-medium text-fg">New policy</h3>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Field label="Applies to">
-              <Select value={accountId} onChange={setAccountId}>
+              <select
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className={INPUT}
+              >
                 {budgets.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
                   </option>
                 ))}
-              </Select>
+              </select>
             </Field>
             <Field label="Name">
               <Input value={label} onChange={setLabel} placeholder="Daily ceiling" />
             </Field>
-            <Field label="Cap (USD)">
-              <Input
-                value={capUsd}
-                onChange={setCapUsd}
-                placeholder="e.g. 10.00"
-                inputMode="decimal"
-              />
+            <Field label="Cap in USD">
+              <Input value={capUsd} onChange={setCapUsd} placeholder="10.00" inputMode="decimal" />
             </Field>
             <Field label="Window">
-              <Select value={String(windowSeconds)} onChange={(v) => setWindowSeconds(Number(v))}>
+              <select
+                value={String(windowSeconds)}
+                onChange={(e) => setWindowSeconds(Number(e.target.value))}
+                className={INPUT}
+              >
                 {WINDOWS.map((w) => (
                   <option key={w.seconds} value={w.seconds}>
                     {w.label}
                   </option>
                 ))}
-              </Select>
+              </select>
             </Field>
-            <Field label="Require approval over (USD)">
+            <Field label="Require approval over, in USD">
               <Input
                 value={approvalUsd}
                 onChange={setApprovalUsd}
-                placeholder="e.g. 5.00"
+                placeholder="5.00"
                 inputMode="decimal"
               />
             </Field>
-            <Field label="Vendor rule">
-              <Select value={vendorMode} onChange={(v) => setVendorMode(v as typeof vendorMode)}>
-                <option value="none">no vendor restriction</option>
-                <option value="allow">allow only selected</option>
-                <option value="block">block selected</option>
-              </Select>
+            <Field label="Vendors">
+              <select
+                value={vendorMode}
+                onChange={(e) => setVendorMode(e.target.value as typeof vendorMode)}
+                className={INPUT}
+              >
+                <option value="none">Any vendor</option>
+                <option value="allow">Only the ones selected</option>
+                <option value="block">Block the ones selected</option>
+              </select>
             </Field>
           </div>
 
@@ -267,13 +278,14 @@ export function PolicyEditor({
                 return (
                   <button
                     key={v.id}
+                    aria-pressed={on}
                     onClick={() =>
                       setVendorIds((ids) => (on ? ids.filter((i) => i !== v.id) : [...ids, v.id]))
                     }
-                    className={`rounded-full border px-3 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand ${
+                    className={`rounded-md border px-3 py-1.5 text-[13px] transition-colors ${FOCUS} ${
                       on
                         ? "border-brand bg-brand/10 text-brand"
-                        : "border-line bg-ink text-fg-dim hover:border-line-bright"
+                        : "border-line-bright text-fg-dim hover:border-fg-mute"
                     }`}
                   >
                     {v.name}
@@ -283,20 +295,12 @@ export function PolicyEditor({
             </div>
           )}
 
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={create}
-              disabled={busy || !accountId}
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-ink transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-40"
-            >
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <button onClick={create} disabled={busy || !accountId} className={BUTTON.primary}>
               {busy ? "Saving…" : "Save policy"}
             </button>
-            <button
-              onClick={dryRun}
-              disabled={busy || !accountId}
-              className="rounded-md border border-line bg-ink px-4 py-2 text-sm text-fg transition-colors hover:border-line-bright focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
-            >
-              Dry-run against history
+            <button onClick={dryRun} disabled={busy || !accountId} className={BUTTON.secondary}>
+              Replay past spend
             </button>
             <button
               onClick={() => {
@@ -304,35 +308,36 @@ export function PolicyEditor({
                 setError(null);
                 reset();
               }}
-              className="text-sm text-fg-mute hover:text-fg focus-visible:outline-none"
+              className={BUTTON.quiet}
             >
               Cancel
             </button>
           </div>
 
           {sim && (
-            <div className="rise mt-3 rounded-md border border-line bg-ink px-3 py-2.5 text-sm">
+            <div className="mt-4">
               {sim.evaluated === 0 ? (
-                <span className="text-fg-dim">
-                  No spend history yet for this account to replay.
-                </span>
+                <Notice tone="warn">This account has no past spend to replay yet.</Notice>
               ) : (
-                <span className="text-fg-dim">
-                  Replayed {sim.evaluated} past spend{sim.evaluated === 1 ? "" : "s"}:{" "}
-                  <span className="text-deny">{sim.blocked} blocked</span>
-                  {sim.needsApproval > 0 && (
-                    <>
-                      , <span className="text-warn">{sim.needsApproval} held for approval</span>
-                    </>
-                  )}
-                  , would have saved <span className="tabular text-commit">${sim.savedUsd}</span>.
-                </span>
+                <Notice tone="commit">
+                  <span className="text-fg-dim">
+                    Replayed {sim.evaluated} past spend{sim.evaluated === 1 ? "" : "s"}.{" "}
+                    <span className="text-deny">{sim.blocked} blocked</span>
+                    {sim.needsApproval > 0 && (
+                      <>
+                        , <span className="text-warn">{sim.needsApproval} held for approval</span>
+                      </>
+                    )}
+                    . It would have saved{" "}
+                    <span className="tabular text-commit">${sim.savedUsd}</span>.
+                  </span>
+                </Notice>
               )}
             </div>
           )}
           {error && (
-            <div className="rise mt-3 rounded-md border border-deny-dim bg-deny-dim/20 px-3 py-2 text-sm text-deny">
-              {error}
+            <div className="mt-4">
+              <Notice tone="deny">{error}</Notice>
             </div>
           )}
         </div>
@@ -352,17 +357,10 @@ function Chip({
     tone === "deny"
       ? "border-deny-dim text-deny"
       : tone === "warn"
-        ? "border-warn/40 text-warn"
-        : "border-line text-fg-dim";
-  return <span className={`tabular rounded border px-1.5 py-0.5 text-xs ${cls}`}>{children}</span>;
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+        ? "border-brand-dim text-warn"
+        : "border-line-bright text-fg-dim";
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium uppercase tracking-wide text-fg-mute">{label}</span>
-      {children}
-    </label>
+    <span className={`tabular rounded-sm border px-1.5 py-0.5 text-xs ${cls}`}>{children}</span>
   );
 }
 
@@ -383,27 +381,7 @@ function Input({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       inputMode={inputMode}
-      className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg placeholder:text-fg-mute focus:border-brand focus:outline-none"
+      className={`${inputMode ? "tabular " : ""}${INPUT}`}
     />
-  );
-}
-
-function Select({
-  value,
-  onChange,
-  children,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full rounded-md border bg-ink px-3 py-2 text-sm text-fg focus:border-brand focus:outline-none"
-    >
-      {children}
-    </select>
   );
 }

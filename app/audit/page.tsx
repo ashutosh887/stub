@@ -1,7 +1,7 @@
-import { SiteNav } from "@/components/site-nav";
-import { AppTabs } from "@/components/app-tabs";
+import { ConsoleShell } from "@/components/app-tabs";
 import { AdminLogin } from "@/components/admin-login";
 import { AuditPanel } from "@/components/audit-panel";
+import { ConsoleHeader, Empty, LedgerSection } from "@/components/console-kit";
 import { adminPageAllowed } from "@/lib/api";
 import { auditReport } from "@/lib/data";
 
@@ -15,74 +15,72 @@ export const metadata = {
   alternates: { canonical: "/audit" },
 };
 
+const LINK =
+  "text-fg underline decoration-brand-dim underline-offset-4 transition-colors hover:decoration-brand";
+
 export default async function AuditPage() {
   if (!(await adminPageAllowed())) return <AdminLogin />;
 
   const report = await auditReport();
 
   return (
-    <>
-      <SiteNav current="dashboard" />
-      <AppTabs current="audit" />
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <span className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-              Audit-grade trust
-            </span>
-            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight text-fg">
-              Tamper-evident ledger
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-fg-dim">
-              Every entry is hash-chained to the one before it, per account. Any altered or removed
-              row breaks the chain and is detected. Export the books as accounting journal lines for
-              QuickBooks or NetSuite.
-            </p>
+    <ConsoleShell tab="audit">
+      <ConsoleHeader
+        title="Tamper-evident ledger"
+        note={
+          <>
+            Journal lines import into QuickBooks or NetSuite.
+            <a href="/api/export/journal" className={`mt-3 block w-fit ${LINK}`}>
+              Export journal CSV
+            </a>
+          </>
+        }
+        intro="Each entry carries the hash of the one before it in the same account. Change or delete a row and the chain breaks at that line, and the verifier says where."
+      />
+
+      <AuditPanel
+        initial={{
+          ok: report.ok,
+          entryCount: report.entryCount,
+          accountCount: report.accountCount,
+          problems: report.problems,
+        }}
+      />
+
+      <LedgerSection id="heads" title="Chain heads" note="The latest hash in each account's chain.">
+        {report.chains.length === 0 ? (
+          <Empty>No entries yet. Book a spend and its chain starts here.</Empty>
+        ) : (
+          <div className="overflow-x-auto rounded-md border border-line-bright">
+            <table className="w-full min-w-[34rem] border-collapse text-sm">
+              <thead className="bg-surface-2 text-left text-[13px] text-fg-mute">
+                <tr>
+                  <th scope="col" className="px-4 py-2.5 font-normal">
+                    Account
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right font-normal">
+                    Lines
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 font-normal">
+                    Head hash
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {report.chains.map((c) => (
+                  <tr key={c.accountId}>
+                    <td className="px-4 py-2.5 text-fg">{c.accountName}</td>
+                    <td className="tabular px-4 py-2.5 text-right text-fg-dim">{c.entryCount}</td>
+                    <td className="tabular max-w-0 truncate px-4 py-2.5 text-xs text-fg-mute">
+                      {c.head}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <a
-            href="/api/export/journal"
-            className="rounded-md border border-line px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-fg-mute transition-colors hover:border-line-bright hover:text-fg"
-          >
-            Export journal CSV ↓
-          </a>
-        </header>
-
-        <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-          <AuditPanel
-            initial={{
-              ok: report.ok,
-              entryCount: report.entryCount,
-              accountCount: report.accountCount,
-              problems: report.problems,
-            }}
-          />
-
-          <section className="rounded-2xl border border-line bg-surface p-6">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">
-              Chain heads
-            </h2>
-            <p className="mt-1 text-xs text-fg-mute">
-              The latest hash for each account&apos;s chain.
-            </p>
-            <div className="mt-4 flex flex-col divide-y divide-line">
-              {report.chains.length === 0 && (
-                <div className="py-8 text-center text-sm text-fg-mute">
-                  No entries yet. Run some spends to build the chain.
-                </div>
-              )}
-              {report.chains.map((c) => (
-                <div key={c.accountId} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm text-fg">{c.accountName}</div>
-                    <div className="tabular truncate text-[11px] text-fg-mute">{c.head}</div>
-                  </div>
-                  <span className="tabular shrink-0 text-xs text-fg-dim">{c.entryCount} lines</span>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      </main>
-    </>
+        )}
+      </LedgerSection>
+    </ConsoleShell>
   );
 }

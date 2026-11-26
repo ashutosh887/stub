@@ -1,4 +1,5 @@
 import {
+  type AccountRow,
   listAccounts,
   listAgents,
   listDenials,
@@ -15,12 +16,21 @@ import { PolicyEditor, type PolicyView } from "@/components/policy-editor";
 import { NlQuery } from "@/components/nl-query";
 import { AgentRegistry } from "@/components/agent-registry";
 import { AdminLogin } from "@/components/admin-login";
-import { SiteNav } from "@/components/site-nav";
-import { AppTabs } from "@/components/app-tabs";
+import { ConsoleShell } from "@/components/app-tabs";
 import { StartHere } from "@/components/start-here";
 import { StressTest } from "@/components/stress-test";
 import { ExactlyOnce } from "@/components/exactly-once";
 import { LedgerFeed } from "@/components/ledger-feed";
+import {
+  ConsoleHeader,
+  Empty,
+  Figure,
+  LedgerSection,
+  Meter,
+  reasonLabel,
+  utcStamp,
+} from "@/components/console-kit";
+import { Mono, Stamp, TextLink } from "@/components/site-kit";
 import { adminPageAllowed } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -40,25 +50,8 @@ const TYPE_LABEL: Record<string, string> = {
   vendor: "Vendor",
 };
 
-const REASON_LABEL: Record<string, string> = {
-  cap_exceeded: "Over budget",
-  team_cap_exceeded: "Over team budget",
-  org_cap_exceeded: "Over org budget",
-  account_frozen: "Account frozen",
-  velocity_tripped: "Velocity breaker (auto-frozen)",
-  per_txn_limit: "Over per-transaction cap",
-  window_limit: "Over rolling-window cap",
-  vendor_blocked: "Vendor blocked",
-  vendor_not_allowed: "Vendor not allow-listed",
-  needs_approval: "Needs human approval",
-};
-
-const BURN_TONE: Record<string, string> = {
-  ok: "text-fg-mute",
-  notice: "text-fg-dim",
-  warn: "text-warn",
-  critical: "text-deny",
-};
+const LINK =
+  "text-fg-dim underline decoration-brand-dim underline-offset-4 transition-colors hover:text-fg hover:decoration-brand";
 
 export default async function Dashboard() {
   if (!(await adminPageAllowed())) return <AdminLogin />;
@@ -87,9 +80,8 @@ export default async function Dashboard() {
 
   const org = accounts.find((a) => a.type === "org");
   const cap = org?.capMicro ?? 0n;
-  const spent = accounts
-    .filter((a) => a.type === "vendor")
-    .reduce((sum, a) => sum + a.balanceMicro, 0n);
+  const vendorAccounts = accounts.filter((a) => a.type === "vendor");
+  const spent = vendorAccounts.reduce((sum, a) => sum + a.balanceMicro, 0n);
   const remaining = cap - spent;
   const pctSpent = cap > 0n ? Number((spent * 1000n) / cap) / 10 : 0;
 
@@ -97,34 +89,27 @@ export default async function Dashboard() {
   const burn = forecast({ balanceMicro: remaining, events: fleetSpend, nowMs: Date.now() });
   const runway =
     burn.daysToDepletion == null
-      ? "n/a"
+      ? "No recent burn"
       : burn.daysToDepletion >= 1
-        ? `${burn.daysToDepletion.toFixed(burn.daysToDepletion < 10 ? 1 : 0)}d`
-        : `${Math.max(1, Math.round(burn.daysToDepletion * 24))}h`;
+        ? `${burn.daysToDepletion.toFixed(burn.daysToDepletion < 10 ? 1 : 0)} days`
+        : `${Math.max(1, Math.round(burn.daysToDepletion * 24))} hours`;
 
   const budgets = accounts
     .filter((a) => a.type === "org" || a.type === "team" || a.type === "agent")
     .map((a) => ({ id: a.id, name: a.name, type: a.type }));
-  const vendors = accounts
-    .filter((a) => a.type === "vendor")
-    .map((a) => ({ id: a.id, name: a.name, type: a.type }));
+  const vendors = vendorAccounts.map((a) => ({ id: a.id, name: a.name, type: a.type }));
 
-  const grouped = {
-    team: accounts.filter((a) => a.type === "team"),
-    agent: accounts.filter((a) => a.type === "agent"),
-    vendor: accounts.filter((a) => a.type === "vendor"),
-  };
-
+  const tree = budgetTree(accounts);
   const anyActive = accounts.some((a) => a.type !== "vendor" && !a.frozen);
+  const refusedMicro = denials.reduce((sum, d) => sum + d.attemptedMicro, 0n);
 
   const feedEntries = entries.map((e) => ({
     id: e.id,
+    transactionId: e.transactionId,
     intent: e.intent ?? "spend",
     accountName: e.accountName,
     kind: e.kind,
-    amountLabel: `${e.kind === "debit" ? "−" : "+"}${formatUsd(
-      e.amountMicro < 0n ? -e.amountMicro : e.amountMicro,
-    )}`,
+    amount: formatUsd(e.amountMicro < 0n ? -e.amountMicro : e.amountMicro),
     hash: e.hash,
     prevHash: e.prevHash,
     agentId: e.agentId,
@@ -133,290 +118,303 @@ export default async function Dashboard() {
   }));
 
   return (
-    <>
-      <SiteNav current="dashboard" />
-      <AppTabs current="overview" />
-      <main className="mx-auto max-w-6xl px-6 py-8">
-        <header className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-                Fleet overview
-              </span>
-              <span className="rounded-full border border-line bg-surface px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-fg-mute">
-                Demo workspace
-              </span>
-            </div>
-            <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-fg">
-              {org?.name ?? "Your fleet"}
-            </h1>
-          </div>
-          <LiveRefresh />
-        </header>
+    <ConsoleShell tab="overview">
+      <ConsoleHeader
+        title={org?.name ?? "Your fleet"}
+        note="Demo workspace with sample data. Nothing here spends real money."
+        actions={<LiveRefresh />}
+        intro={<StartHere />}
+      />
 
-        <div className="mt-6">
-          <StartHere />
-        </div>
-
-        <section className="mt-6 overflow-hidden rounded-2xl border border-line bg-surface">
-          <div className="flex flex-wrap items-baseline justify-between gap-4 p-6">
-            <div>
-              <div className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-                Org guardrail
+      <LedgerSection
+        id="budget"
+        title="Org budget"
+        note="One cap over every team and agent. The database refuses any spend past it."
+      >
+        <div className="grid gap-10 md:grid-cols-[minmax(0,1fr)_15rem] md:gap-12">
+          <div className="min-w-0">
+            <dl className="max-w-md text-[15px]">
+              <div className="flex items-baseline justify-between gap-4 py-1.5">
+                <dt className="text-fg-dim">Budget</dt>
+                <dd className="tabular text-fg">{formatUsd(cap)}</dd>
               </div>
-              <div className="mt-1 text-sm text-fg-dim">
-                Company-wide budget that cannot be overspent
+              <div className="flex items-baseline justify-between gap-4 py-1.5">
+                <dt className="text-fg-dim">Committed to vendors</dt>
+                <dd className="tabular text-fg">({formatUsd(spent)})</dd>
               </div>
-            </div>
-            <div className="flex items-center gap-5">
-              <KillSwitch anyActive={anyActive} />
-              <div className="text-right">
-                <div className="tabular text-3xl font-semibold text-fg">{formatUsd(remaining)}</div>
-                <div className="text-xs text-fg-mute">remaining of {formatUsd(cap)}</div>
+              <div className="mt-1 flex items-baseline justify-between gap-4 border-t border-fg-mute pt-3">
+                <dt className="text-fg">Left to spend</dt>
+                <dd className="border-b-[3px] border-double border-fg-mute pb-0.5 font-display text-[2.6rem] font-medium leading-none tracking-[-0.02em] text-fg [font-variant-numeric:lining-nums_tabular-nums] sm:text-[3.2rem]">
+                  {formatUsd(remaining)}
+                </dd>
+              </div>
+            </dl>
+            <div className="mt-9 max-w-md">
+              <Meter pct={pctSpent} size="lg" label="Share of the org budget committed" />
+              <div className="mt-3 flex justify-between gap-4 text-xs text-fg-mute">
+                <span className="tabular text-fg-dim">{pctSpent.toFixed(1)}% committed</span>
+                <span>Alerts at 50% and 80%</span>
               </div>
             </div>
           </div>
 
-          <div className="px-6">
-            <div className="h-2.5 w-full overflow-hidden rounded-full bg-ink">
-              <div
-                className="h-full rounded-full transition-[width] duration-700"
-                style={{
-                  width: `${Math.min(pctSpent, 100)}%`,
-                  backgroundColor:
-                    pctSpent >= 100
-                      ? "var(--color-deny)"
-                      : pctSpent >= 80
-                        ? "var(--color-warn)"
-                        : "var(--color-commit)",
-                }}
+          <div className="flex min-w-0 flex-col gap-6">
+            <dl className="grid grid-cols-2 gap-6 md:grid-cols-1">
+              <Figure
+                label="Refused recently"
+                tone={denials.length ? "deny" : "default"}
+                value={<a href="#refusals">{denials.length}</a>}
+                sub={`${formatUsd(refusedMicro)} kept in the budget`}
               />
+              <Figure
+                label="Runway"
+                tone={burn.daysToDepletion != null && burn.daysToDepletion < 2 ? "deny" : "default"}
+                value={runway}
+                sub="At the current burn rate"
+              />
+            </dl>
+            <div>
+              <KillSwitch anyActive={anyActive} />
+              <p className="mt-2 text-xs leading-relaxed text-fg-mute">
+                {anyActive
+                  ? "Freezes the org, every team and every agent in one write."
+                  : "Every budget is frozen. Resume to let spends through."}
+              </p>
             </div>
           </div>
-
-          <div className="mt-5 grid grid-cols-2 divide-x divide-line border-t border-line sm:grid-cols-4">
-            <Stat label="Committed" value={formatUsd(spent)} />
-            <Stat label="Burn" value={`${pctSpent.toFixed(1)}%`} />
-            <Stat
-              label="Runway"
-              value={runway}
-              tone={burn.daysToDepletion != null && burn.daysToDepletion < 2 ? "deny" : "default"}
-            />
-            <Stat
-              label="Breaches blocked"
-              value={String(denials.length)}
-              tone={denials.length ? "deny" : "default"}
-            />
-          </div>
-        </section>
-
-        <GroupLabel hint="watch the cap hold under concurrent load">Prove the invariant</GroupLabel>
-
-        <div className="mt-6">
-          <StressTest />
         </div>
+      </LedgerSection>
 
-        <div className="mt-6">
-          <ExactlyOnce />
-        </div>
+      <LedgerSection
+        id="guardrails"
+        title="Database guardrails"
+        note={<TextLink href="/proof">Send these statements yourself</TextLink>}
+      >
+        <ul className="grid gap-x-8 gap-y-6 md:grid-cols-3">
+          <Guardrail code="23514">
+            <Mono>accounts_balance_nonnegative</Mono> refuses any balance below zero, whoever sends
+            the write.
+          </Guardrail>
+          <Guardrail code="23514">
+            <Mono>accounts_balance_within_cap</Mono> refuses any balance above its cap.
+          </Guardrail>
+          <Guardrail code="42501">
+            The app connects as <Mono>stub_app</Mono>, which cannot update or delete a ledger entry.
+          </Guardrail>
+        </ul>
+      </LedgerSection>
 
-        <GroupLabel hint="accounts, agents, and the policies on every spend">
-          Govern the fleet
-        </GroupLabel>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_1fr]">
-          <section className="rounded-2xl border border-line bg-surface p-6">
-            <SectionTitle>Accounts</SectionTitle>
-            <div className="mt-4 flex flex-col gap-5">
-              {(["team", "agent", "vendor"] as const).map((type) => (
-                <div key={type}>
-                  <div className="text-xs font-medium uppercase tracking-[0.18em] text-fg-mute">
-                    {TYPE_LABEL[type]}s
-                  </div>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    {grouped[type].map((a) => (
-                      <div
-                        key={a.id}
-                        className={`rounded-lg border bg-surface-2 px-3 py-2.5 ${
-                          a.frozen ? "border-deny-dim" : "border-line"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-fg">{a.name}</span>
-                          <div className="flex items-center gap-3">
-                            <span className="tabular text-sm text-fg-dim">
-                              {formatUsd(a.balanceMicro)}
-                            </span>
-                            {type !== "vendor" && (
-                              <FreezeToggle accountId={a.id} frozen={a.frozen} />
-                            )}
-                          </div>
-                        </div>
-                        {type !== "vendor" && a.capMicro != null && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <div className="h-1 flex-1 overflow-hidden rounded-full bg-ink">
-                              <div
-                                className="h-full rounded-full transition-[width] duration-500"
-                                style={{
-                                  width: `${a.burn.pct}%`,
-                                  backgroundColor:
-                                    a.burn.state === "critical"
-                                      ? "var(--color-deny)"
-                                      : a.burn.state === "warn"
-                                        ? "var(--color-warn)"
-                                        : "var(--color-commit)",
-                                }}
-                              />
-                            </div>
-                            <span className={`tabular text-[11px] ${BURN_TONE[a.burn.state]}`}>
-                              {a.burn.pct}%
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+      <LedgerSection
+        id="accounts"
+        title="Accounts"
+        note="Each spend binds to the tightest cap up the tree. Ticks mark the 50% and 80% alerts."
+      >
+        <div className="grid gap-10 xl:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="min-w-0">
+            <ul className="divide-y divide-line border-y border-line">
+              {tree.map(({ account, depth }) => (
+                <BudgetRow key={account.id} account={account} depth={depth} />
               ))}
-            </div>
-          </section>
+            </ul>
+            <h3 className="mt-8 text-[13px] text-fg-mute">Credited to vendors</h3>
+            <ul className="mt-2 divide-y divide-line border-y border-line">
+              {vendorAccounts.map((v) => (
+                <li key={v.id} className="flex items-baseline justify-between gap-4 py-2.5">
+                  <span className="truncate text-[15px] text-fg">{v.name}</span>
+                  <span className="tabular text-[15px] text-fg">{formatUsd(v.balanceMicro)}</span>
+                </li>
+              ))}
+              <li className="flex items-baseline justify-between gap-4 py-2.5">
+                <span className="text-[15px] text-fg-dim">Total committed</span>
+                <span className="tabular border-b-[3px] border-double border-fg-mute text-[15px] text-fg">
+                  {formatUsd(spent)}
+                </span>
+              </li>
+            </ul>
+          </div>
 
-          <section className="rounded-2xl border border-line bg-surface p-6">
-            <SectionTitle>Simulate a spend</SectionTitle>
-            <p className="mt-1 text-sm text-fg-dim">
-              Run a spend against the live budget and policies.
+          <div
+            id="simulate"
+            className="scroll-mt-28 self-start rounded-md border border-line-bright bg-surface p-5"
+          >
+            <h3 className="font-display text-xl font-medium text-fg">Try a spend</h3>
+            <p className="mt-1 text-sm leading-relaxed text-fg-dim">
+              It runs against the live budgets and policies, and books two journal lines if it
+              commits.
             </p>
-            <div className="mt-4">
+            <div className="mt-5">
               <SpendSimulator budgets={budgets} vendors={vendors} />
             </div>
-          </section>
+          </div>
         </div>
+      </LedgerSection>
 
-        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
-          <SectionTitle>Agents</SectionTitle>
-          <p className="mt-1 text-sm text-fg-dim">
-            Know your agents. Issue a scoped key; spends made with it are pinned to that
-            agent&apos;s budget.
-          </p>
-          <div className="mt-4">
-            <AgentRegistry
-              agents={agents.map((a) => ({
-                id: a.id,
-                name: a.name,
-                accountName: a.accountName,
-                keyPreview: a.keyPreview,
-                createdAt: a.createdAt,
-              }))}
-              budgets={budgets}
-            />
-          </div>
-        </section>
+      <LedgerSection
+        id="journal"
+        title="Journal"
+        note={
+          <>
+            Each spend debits a budget and credits a vendor in one transaction. Select a hash for
+            the receipt and the line it chains to.
+            <a href="/api/export" className={`mt-3 block w-fit ${LINK}`}>
+              Export CSV
+            </a>
+          </>
+        }
+      >
+        <LedgerFeed entries={feedEntries} />
+      </LedgerSection>
 
-        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
-          <SectionTitle>Policies</SectionTitle>
-          <p className="mt-1 text-sm text-fg-dim">
-            Rules applied to every spend: caps, rolling windows, vendor rules, and approvals.
-          </p>
-          <div className="mt-4">
-            <PolicyEditor policies={policyViews} budgets={budgets} vendors={vendors} />
-          </div>
-        </section>
-
-        <GroupLabel hint="every line immutable, hash-chained, and queryable in plain English">
-          The record
-        </GroupLabel>
-
-        <section className="mt-6 rounded-2xl border border-line bg-surface p-6">
-          <SectionTitle>Ask your ledger</SectionTitle>
-          <p className="mt-1 text-sm text-fg-dim">
-            Plain-English questions over the ledger, answered without writing SQL.
-          </p>
-          <div className="mt-4">
-            <NlQuery />
-          </div>
-        </section>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-line bg-surface p-6">
-            <div className="flex items-center justify-between">
-              <SectionTitle>Ledger</SectionTitle>
-              <a
-                href="/api/export"
-                className="rounded-md border border-line px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-fg-mute transition-colors hover:border-line-bright hover:text-fg"
+      <LedgerSection
+        id="refusals"
+        title="Refusals"
+        note="Spends Stub turned down, with the reason. Each one is written down too."
+      >
+        {denials.length === 0 ? (
+          <Empty>No refusals yet. Spend more than an agent has left and it shows up here.</Empty>
+        ) : (
+          <ul className="divide-y divide-line border-y border-line">
+            {denials.map((d) => (
+              <li
+                key={d.id}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-3.5 sm:grid-cols-[6.5rem_minmax(0,1fr)_auto_6.5rem]"
               >
-                Export CSV ↓
-              </a>
-            </div>
-            <p className="mt-1 text-xs text-fg-mute">
-              Click any entry for its payment receipt and hash-chain link.
-            </p>
-            <div className="mt-3">
-              <LedgerFeed entries={feedEntries} />
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-line bg-surface p-6">
-            <SectionTitle>Denials</SectionTitle>
-            <div className="mt-4 flex flex-col divide-y divide-line">
-              {denials.length === 0 && (
-                <Empty>No denials yet. Overspend attempts show up here.</Empty>
-              )}
-              {denials.map((d) => (
-                <div key={d.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <div className="min-w-0">
-                    <div className="truncate text-sm text-fg">{d.intent ?? "spend"}</div>
-                    <div className="text-xs text-deny">{REASON_LABEL[d.reason] ?? d.reason}</div>
+                <span className="tabular hidden text-xs text-fg-mute sm:block">
+                  {utcStamp(d.createdAt)}
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate text-[15px] text-fg">{d.intent ?? "spend"}</div>
+                  <div className="truncate text-[13px] text-fg-mute">
+                    {d.accountName}
+                    {d.agentId && d.agentId !== d.accountName ? `, by ${d.agentId}` : ""}
                   </div>
-                  <span className="tabular shrink-0 text-sm text-fg-dim">
-                    {formatUsd(d.attemptedMicro)}
-                  </span>
                 </div>
-              ))}
-            </div>
-          </section>
+                <span className="tabular text-right text-[15px] text-fg-dim line-through decoration-deny/70 sm:order-last">
+                  {formatUsd(d.attemptedMicro)}
+                </span>
+                <div className="col-span-2 sm:col-span-1">
+                  <Stamp code={reasonLabel(d.reason)} label="" className="text-xs" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </LedgerSection>
+
+      <LedgerSection
+        id="ask"
+        title="Ask the ledger"
+        note="Your question becomes a parameterized query. The model never writes SQL."
+      >
+        <NlQuery />
+      </LedgerSection>
+
+      <LedgerSection
+        id="policies"
+        title="Policies"
+        note="Rules every spend passes inside the same transaction: caps, windows, vendors and approvals."
+      >
+        <PolicyEditor policies={policyViews} budgets={budgets} vendors={vendors} />
+      </LedgerSection>
+
+      <LedgerSection
+        id="agents"
+        title="Agents"
+        note="Issue a scoped key per agent. Spends made with it are pinned to that agent's budget."
+      >
+        <AgentRegistry
+          agents={agents.map((a) => ({
+            id: a.id,
+            name: a.name,
+            accountName: a.accountName,
+            keyPreview: a.keyPreview,
+            createdAt: a.createdAt,
+          }))}
+          budgets={budgets}
+        />
+      </LedgerSection>
+
+      <LedgerSection
+        id="drills"
+        title="Drills"
+        note="Race many writers at one budget and watch what the database lets through."
+      >
+        <div className="divide-y divide-line">
+          <div className="pb-9">
+            <StressTest />
+          </div>
+          <div className="pt-9">
+            <ExactlyOnce />
+          </div>
         </div>
-      </main>
-    </>
+      </LedgerSection>
+    </ConsoleShell>
   );
 }
 
-function Stat({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "deny";
-}) {
+function budgetTree(accounts: AccountRow[]): Array<{ account: AccountRow; depth: number }> {
+  const budgets = accounts.filter((a) => a.type !== "vendor");
+  const ids = new Set(budgets.map((a) => a.id));
+  const out: Array<{ account: AccountRow; depth: number }> = [];
+  const walk = (parentId: string | null, depth: number) => {
+    for (const a of budgets) {
+      const parent = a.parentId && ids.has(a.parentId) ? a.parentId : null;
+      if (parent !== parentId) continue;
+      out.push({ account: a, depth });
+      walk(a.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
+}
+
+function BudgetRow({ account: a, depth }: { account: AccountRow; depth: number }) {
   return (
-    <div className="px-6 py-4">
-      <div className="text-[11px] uppercase tracking-[0.14em] text-fg-mute">{label}</div>
-      <div className={`tabular mt-1 text-lg ${tone === "deny" ? "text-deny" : "text-fg"}`}>
-        {value}
+    <li
+      className={`grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 gap-y-2 py-3 sm:grid-cols-[minmax(0,1fr)_7rem_7.5rem_4rem] ${
+        a.frozen ? "bg-deny-dim/10" : ""
+      }`}
+      style={{ paddingLeft: `${depth * 1.1}rem` }}
+    >
+      <div className="min-w-0">
+        <div className={`truncate text-[15px] ${a.frozen ? "text-fg-dim" : "text-fg"}`}>
+          {a.name}
+        </div>
+        <div className="text-xs text-fg-mute">
+          {TYPE_LABEL[a.type]}
+          {a.frozen ? ", frozen" : ""}
+        </div>
       </div>
-    </div>
+      <div className="order-last col-span-3 flex items-center gap-3 sm:order-none sm:col-span-1">
+        {a.capMicro != null ? (
+          <>
+            <Meter pct={a.burn.pct} label={`${a.name} budget used`} />
+            <span className="tabular w-9 shrink-0 text-right text-[11px] text-fg-mute">
+              {a.burn.pct}%
+            </span>
+          </>
+        ) : (
+          <span className="text-xs text-fg-mute">No cap</span>
+        )}
+      </div>
+      <div className="text-right">
+        <div className="tabular text-[15px] text-fg">{formatUsd(a.balanceMicro)}</div>
+        {a.capMicro != null && (
+          <div className="tabular text-[11px] text-fg-mute">of {formatUsd(a.capMicro)}</div>
+        )}
+      </div>
+      <div className="text-right">
+        {a.type === "org" ? null : <FreezeToggle accountId={a.id} frozen={a.frozen} />}
+      </div>
+    </li>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function Guardrail({ code, children }: { code: string; children: React.ReactNode }) {
   return (
-    <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-fg-dim">{children}</h2>
+    <li className="min-w-0">
+      <Stamp code={code} className="text-xs" />
+      <p className="mt-3 text-sm leading-relaxed text-fg-dim">{children}</p>
+    </li>
   );
-}
-
-function GroupLabel({ children, hint }: { children: React.ReactNode; hint: string }) {
-  return (
-    <div className="mt-12 flex items-center gap-4">
-      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand">
-        {children}
-      </span>
-      <span className="text-xs text-fg-mute">{hint}</span>
-      <span className="h-px flex-1 bg-line" />
-    </div>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <div className="py-8 text-center text-sm text-fg-mute">{children}</div>;
 }

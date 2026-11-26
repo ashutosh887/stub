@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { FOCUS } from "@/components/site-kit";
 
 async function postFreeze(body: Record<string, unknown>) {
   const res = await fetch("/api/freeze", {
@@ -32,13 +33,19 @@ export function KillSwitch({ anyActive }: { anyActive: boolean }) {
     <button
       onClick={toggle}
       disabled={working}
-      className={`rounded-md border px-3 py-1.5 text-xs font-medium uppercase tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 ${
+      className={`w-full rounded-md border-2 px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 ${FOCUS} ${
         anyActive
-          ? "border-deny-dim bg-deny-dim/20 text-deny hover:bg-deny-dim/30"
-          : "border-commit-dim bg-commit-dim/20 text-commit hover:bg-commit-dim/30"
+          ? "border-deny text-deny hover:bg-deny/10"
+          : "border-commit text-commit hover:bg-commit/10"
       }`}
     >
-      {working ? "…" : anyActive ? "Freeze all spending" : "Resume all spending"}
+      {working
+        ? anyActive
+          ? "Freezing…"
+          : "Resuming…"
+        : anyActive
+          ? "Freeze all spending"
+          : "Resume all spending"}
     </button>
   );
 }
@@ -64,13 +71,13 @@ export function FreezeToggle({ accountId, frozen }: { accountId: string; frozen:
       onClick={toggle}
       disabled={working}
       title={frozen ? "Resume this account" : "Freeze this account"}
-      className={`rounded px-2 py-0.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50 ${
+      className={`rounded-md px-2 py-1 text-[13px] transition-colors disabled:opacity-50 ${FOCUS} ${
         frozen
-          ? "bg-deny-dim/30 text-deny hover:bg-deny-dim/50"
+          ? "border border-deny-dim text-deny hover:bg-deny/10"
           : "text-fg-mute hover:bg-surface-2 hover:text-fg"
       }`}
     >
-      {working ? "…" : frozen ? "Frozen" : "Freeze"}
+      {working ? "…" : frozen ? "Resume" : "Freeze"}
     </button>
   );
 }
