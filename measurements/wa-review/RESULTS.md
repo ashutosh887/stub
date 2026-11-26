@@ -421,6 +421,13 @@ Seen working:
 - Destructive-call rule: the F09 `PutClusterPolicy` calls (09:54) show 1 `Invocations` and 0
   `FailedInvocations` on `wa-dsql-destructive-calls` in each Region.
 - Trail: `GetTrailStatus` `IsLogging=True`, latest delivery 09:58:46 UTC, no delivery error.
+- Config rule: a throwaway single-Region cluster created at 09:53 with deletion protection off
+  (tagged `managed-by=aws-well-architected-review`) was reported `NON_COMPLIANT` by
+  `wa-dsql-cluster-deletion-protection-enabled` at 10:05:26, then deleted at 10:10. Its
+  `DeleteCluster` call also fired `wa-dsql-destructive-calls` (1 invocation, 0 failed). The two
+  ledger clusters had not been evaluated yet at 10:11: the recorder had not recorded them, while it
+  recorded the test cluster right after a tag change on it. Their `COMPLIANT` result is still to be
+  seen.
 
 Not alarmed: the app's denial rate. Denials go to the `denials` table and Vercel's stdout, not to
 CloudWatch, so there is no metric to alarm on until the app publishes one (or a log drain does).
