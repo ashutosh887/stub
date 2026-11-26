@@ -38,6 +38,7 @@ export interface ProofClient {
 }
 
 const PICK_BUDGET = `(SELECT id FROM accounts WHERE type = 'agent' ORDER BY id LIMIT 1)`;
+const PICK_CAPPED_BUDGET = `(SELECT id FROM accounts WHERE type = 'agent' AND cap_micro IS NOT NULL ORDER BY id LIMIT 1)`;
 const PICK_ENTRY = `(SELECT id FROM entries ORDER BY id LIMIT 1)`;
 
 export const PROOF_PROBES: ProofProbe[] = [
@@ -45,6 +46,12 @@ export const PROOF_PROBES: ProofProbe[] = [
     id: "negative-balance",
     description: "Drive a budget balance below zero",
     sql: `UPDATE accounts SET balance_micro = -1 WHERE id = ${PICK_BUDGET}`,
+    expected: "23514",
+  },
+  {
+    id: "above-cap",
+    description: "Raise a budget above its cap",
+    sql: `UPDATE accounts SET balance_micro = cap_micro + 1 WHERE id = ${PICK_CAPPED_BUDGET}`,
     expected: "23514",
   },
   {

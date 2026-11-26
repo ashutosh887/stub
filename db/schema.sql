@@ -121,6 +121,7 @@ ALTER TABLE accounts ALTER COLUMN sharded SET DEFAULT false;
 
 ALTER TABLE accounts ADD CONSTRAINT accounts_balance_nonnegative CHECK (balance_micro >= 0) NOT VALID;
 ALTER TABLE account_shards ADD CONSTRAINT account_shards_balance_nonnegative CHECK (balance_micro >= 0) NOT VALID;
+ALTER TABLE accounts ADD CONSTRAINT accounts_balance_within_cap CHECK (cap_micro IS NULL OR balance_micro <= cap_micro) NOT VALID;
 
 CREATE INDEX ASYNC IF NOT EXISTS entries_account_created_idx ON entries (account_id, created_at);
 CREATE INDEX ASYNC IF NOT EXISTS entries_txn_idx ON entries (transaction_id);

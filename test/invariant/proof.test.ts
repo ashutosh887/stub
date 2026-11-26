@@ -20,7 +20,7 @@ function fakeClient(role: string, owns: boolean, answers: Record<string, Answer>
   return { client, sent };
 }
 
-const [negative, rewrite, remove, create, drop] = PROOF_PROBES;
+const [negative, aboveCap, rewrite, remove, create, drop] = PROOF_PROBES;
 
 const REFUSALS: Record<string, Answer> = {
   [negative.sql]: {
@@ -30,6 +30,13 @@ const REFUSALS: Record<string, Answer> = {
         'new row for relation "accounts" violates check constraint "accounts_balance_nonnegative"',
     },
   },
+  [aboveCap.sql]: {
+    error: {
+      code: "23514",
+      message:
+        'new row for relation "accounts" violates check constraint "accounts_balance_within_cap"',
+    },
+  },
   [rewrite.sql]: { error: { code: "42501", message: "permission denied for table entries" } },
   [remove.sql]: { error: { code: "42501", message: "permission denied for table entries" } },
   [create.sql]: { error: { code: "42501", message: "permission denied for schema public" } },
@@ -37,8 +44,9 @@ const REFUSALS: Record<string, Answer> = {
 };
 
 describe("the public proof never runs as admin and never persists", () => {
-  it("sends the five probes the claim rests on, with the codes RESULTS.md measured", () => {
+  it("sends the six probes the claim rests on, with the codes the database returns", () => {
     expect(PROOF_PROBES.map((p) => p.expected)).toEqual([
+      "23514",
       "23514",
       "42501",
       "42501",
@@ -69,6 +77,7 @@ describe("the public proof never runs as admin and never persists", () => {
     expect(report.ran).toBe(true);
     expect(report.region).toBe("us-east-2 (peer)");
     expect(report.probes.map((p) => [p.outcome, p.sqlstate])).toEqual([
+      ["refused", "23514"],
       ["refused", "23514"],
       ["refused", "42501"],
       ["refused", "42501"],

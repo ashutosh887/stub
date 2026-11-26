@@ -63,6 +63,20 @@ describe("WA SEC03-BP01 (preventive): the app runs under a least-privilege ident
     }
   });
 
+  it("bounds every budget balance in the database, below by zero and above by its cap", () => {
+    const schema = read("db/schema.sql").replace(/\s+/g, " ");
+    expect(schema).toContain(
+      "ALTER TABLE accounts ADD CONSTRAINT accounts_balance_nonnegative CHECK (balance_micro >= 0) NOT VALID;",
+    );
+    expect(schema).toContain(
+      "ALTER TABLE account_shards ADD CONSTRAINT account_shards_balance_nonnegative CHECK (balance_micro >= 0) NOT VALID;",
+    );
+    expect(schema).toContain(
+      "ALTER TABLE accounts ADD CONSTRAINT accounts_balance_within_cap CHECK (cap_micro IS NULL OR balance_micro <= cap_micro) NOT VALID;",
+    );
+    expect(read("db/app-role.sql")).not.toMatch(/UPDATE\s*\([^)]*cap_micro/);
+  });
+
   it("lets the IAM role do nothing but dsql:DbConnect, assumed only from this project's production", () => {
     const template = read("infra/stub-app-role.yaml");
     const actions = new Set(
