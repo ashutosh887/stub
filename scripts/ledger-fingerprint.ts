@@ -16,6 +16,7 @@ const TABLES = [
   "agents",
   "sessions",
   "account_shards",
+  "proof_runs",
 ];
 
 async function main() {

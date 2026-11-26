@@ -63,6 +63,27 @@ describe("WA SEC03-BP01 (preventive): the app runs under a least-privilege ident
     }
   });
 
+  it("grants each table exactly the privileges the app uses, and the proof tally only insert and read", () => {
+    const granted: Record<string, string[]> = {};
+    for (const { privileges, tables } of grants(read("db/app-role.sql"))) {
+      for (const table of tables) {
+        granted[table] = [...new Set([...(granted[table] ?? []), ...privileges])].sort();
+      }
+    }
+    expect(granted).toEqual({
+      accounts: ["SELECT", "UPDATE"],
+      entries: ["INSERT", "SELECT"],
+      denials: ["INSERT", "SELECT"],
+      reservations: ["INSERT", "SELECT", "UPDATE"],
+      idempotency_keys: ["INSERT", "SELECT"],
+      query_cache: ["INSERT", "SELECT"],
+      policies: ["DELETE", "INSERT", "SELECT", "UPDATE"],
+      agents: ["INSERT", "SELECT"],
+      account_shards: ["INSERT", "SELECT", "UPDATE"],
+      proof_runs: ["INSERT", "SELECT"],
+    });
+  });
+
   it("bounds every budget balance in the database, below by zero and above by its cap", () => {
     const schema = read("db/schema.sql").replace(/\s+/g, " ");
     expect(schema).toContain(

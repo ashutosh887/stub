@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Stamp } from "@/components/site-kit";
-import { PROOF_PROBES, type ProbeOutcome, type ProbeResult, type ProofReport } from "@/lib/proof";
+import {
+  PROOF_PROBES,
+  tallyLine,
+  type ProbeOutcome,
+  type ProbeResult,
+  type ProofReport,
+  type ProofTally,
+} from "@/lib/proof";
 
 const OUTCOME_LABEL: Record<ProbeOutcome, string> = {
   refused: "Refused",
@@ -24,6 +31,20 @@ export function ProofRunner() {
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<ProofReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tally, setTally] = useState<ProofTally | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/proof")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { tally?: ProofTally | null } | null) => {
+        if (live && data?.tally) setTally(data.tally);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, []);
 
   async function run() {
     setBusy(true);
@@ -33,6 +54,7 @@ export function ProofRunner() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "the proof did not run");
       setReport(data as ProofReport);
+      if (data.tally) setTally(data.tally as ProofTally);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -64,6 +86,15 @@ export function ProofRunner() {
             <span className="tabular text-[0.88em] text-fg">ROLLBACK</span>, so nothing persists.
             The codes come straight from the database.
           </p>
+          {tally && (
+            <p className="mt-4 flex items-baseline gap-2.5 text-sm text-fg" aria-live="polite">
+              <span
+                aria-hidden="true"
+                className={`inline-block h-2 w-2 shrink-0 rounded-full ${tally.accepted === 0 ? "bg-commit" : "bg-deny"}`}
+              />
+              {tallyLine(tally)}
+            </p>
+          )}
         </div>
         <button
           onClick={run}

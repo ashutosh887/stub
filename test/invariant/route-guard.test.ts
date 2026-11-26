@@ -13,6 +13,8 @@ export const PUBLIC_ROUTES: Record<string, string> = {
   "GET /api/health": "uptime probe; returns only up/down, the active Region and latency",
   "POST /api/proof":
     "the public least-privilege proof; every statement rolls back, rate limited per IP and overall",
+  "GET /api/proof":
+    "the visitor run count on /proof; counts only, cached at the edge, rate limited per IP",
 };
 
 export const AGENT_ROUTES: Record<string, string> = {

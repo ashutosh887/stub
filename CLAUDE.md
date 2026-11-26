@@ -186,7 +186,14 @@ normalization, CDC→Kinesis live feed.
   `POST /api/proof` (`lib/proof.ts` `runProof`), which sends six statements as the app's own
   connection, each in its own `BEGIN … ROLLBACK`, and returns the SQLSTATE per statement; it refuses
   to probe unless `current_user` is `stub_app` and does not own the tables, and is rate limited per
-  IP and overall. Its before/after table copies numbers only from `measurements/wa-review/RESULTS.md`.
+  IP and overall. After the probes, in a separate statement, it records the run in `proof_runs`
+  (`lib/proof-runs.ts`; `stub_app` may only `INSERT` and `SELECT` there) and returns the visitor
+  tally, which `GET /api/proof` also serves, edge-cached; a missing table or a failed write only
+  hides the counter. Above the button, `components/race-chart.tsx` plots the bypass race from
+  `measurements/wa-review/dsql-race-{before,after}.json`, imported at build time by `lib/race.ts`,
+  which derives every number and sentence from the runs; `app/proof/opengraph-image.tsx` draws the
+  same lines for the share card. Its before/after table copies numbers only from
+  `measurements/wa-review/RESULTS.md`.
 - **Branding & SEO** (in `app/`): logo assets (`icon.png`, `apple-icon.png`, `public/logo.png`,
   all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
   (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,

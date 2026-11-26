@@ -39,6 +39,7 @@ Region.
 | `idempotency_keys` | every column                                                                                                       | Internal     | No expiry; the app role cannot delete, an operator prunes it                        |
 | `query_cache`      | `question`, `payload` (answers built from ledger totals)                                                           | Confidential | No expiry; a new spend changes the key, old rows stay until an operator prunes them |
 | `query_cache`      | `cache_key`, `created_at`                                                                                          | Internal     | As above                                                                            |
+| `proof_runs`       | every column (`ran_at`, `region`, `statements`, `refused`, `accepted`); no IP, no visitor identifier               | Public       | No expiry; the app role may only insert and read, an operator prunes it             |
 
 ## Exports and API responses
 
@@ -50,6 +51,7 @@ Region.
 | `GET /api/audit/verify`                                                               | Internal     | Admin token                   | Account names and ids, entry counts, chain heads, chain problems                        |
 | `POST /api/spend`, `/reserve`, `/settle`, `/release` responses                        | Confidential | The agent's own key, or admin | That one transaction's outcome                                                          |
 | `POST /api/proof`                                                                     | Public       | Anyone                        | SQLSTATE per probe statement, the Region label; every statement rolls back              |
+| `GET /api/proof`                                                                      | Public       | Anyone                        | Visitor run count since the first run, statements refused and accepted                  |
 | `GET /api/health`                                                                     | Public       | Anyone                        | Up or down, active Region, latency                                                      |
 | `measurements/wa-review/RESULTS.md`, `/proof`                                         | Public       | Anyone                        | Measured counts and timings; no identifiers                                             |
 

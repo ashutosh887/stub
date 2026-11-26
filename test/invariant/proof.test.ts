@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { PROOF_PROBES, outcomeOf, redact, runProof, type ProofClient } from "@/lib/proof";
+import {
+  PROOF_PROBES,
+  outcomeOf,
+  redact,
+  runProof,
+  tallyLine,
+  type ProofClient,
+} from "@/lib/proof";
+import { recordRun } from "@/lib/proof-runs";
 
 type Answer =
   { rows?: unknown[]; rowCount?: number | null } | { error: { code?: string; message: string } };
@@ -121,5 +129,31 @@ describe("the public proof never runs as admin and never persists", () => {
     expect(text).not.toMatch(/\d{12}/);
     expect(text).not.toMatch(/[a-z0-9]{26}/);
     expect(text).not.toMatch(/on\.aws|arn:aws/);
+  });
+
+  it("records a run only after the probes ran, and says so plainly when one was accepted", async () => {
+    const sent: unknown[][] = [];
+    const tally = {
+      query: async (text: string, params?: unknown[]) => (sent.push([text, params]), { rows: [] }),
+    };
+    const { client } = fakeClient("stub_app", false, {
+      ...REFUSALS,
+      [rewrite.sql]: { rowCount: 1 },
+    });
+    await recordRun(tally, await runProof(client, "us-east-1 (primary)"));
+    await recordRun(
+      tally,
+      await runProof(fakeClient("admin", true, {}).client, "us-east-1 (primary)"),
+    );
+    expect(sent).toHaveLength(1);
+    expect(sent[0][0]).toMatch(/^INSERT INTO proof_runs/);
+    expect((sent[0][1] as unknown[]).slice(2)).toEqual(["us-east-1 (primary)", 6, 5, 1]);
+    const since = "2026-11-27T00:00:00.000Z";
+    expect(tallyLine({ runs: 2, statements: 12, refused: 12, accepted: 0, since })).toBe(
+      "2 runs by visitors since 27 Nov 2026. Every statement refused in every run.",
+    );
+    expect(tallyLine({ runs: 2, statements: 12, refused: 11, accepted: 1, since })).toBe(
+      "2 runs by visitors since 27 Nov 2026. 11 of 12 statements refused with the expected code, 1 accepted.",
+    );
   });
 });

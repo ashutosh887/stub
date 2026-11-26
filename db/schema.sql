@@ -113,6 +113,15 @@ CREATE TABLE IF NOT EXISTS account_shards (
   PRIMARY KEY (account_id, shard_index)
 );
 
+CREATE TABLE IF NOT EXISTS proof_runs (
+  id          UUID PRIMARY KEY,
+  ran_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  region      TEXT NOT NULL,
+  statements  INT NOT NULL,
+  refused     INT NOT NULL,
+  accepted    INT NOT NULL
+);
+
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS cost_center TEXT;
 ALTER TABLE denials ADD COLUMN IF NOT EXISTS cost_center TEXT;
 ALTER TABLE entries ADD COLUMN IF NOT EXISTS shard_index INT;

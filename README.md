@@ -79,8 +79,11 @@ Agent (x402 / AgentCore)
 - **[trystub.vercel.app/proof](https://trystub.vercel.app/proof)**: press _Try to break it_ and
   production sends six statements that would overspend a budget or rewrite the ledger, as the app's
   own role, each inside `BEGIN … ROLLBACK`. The database refuses all six: `23514` twice and
-  `42501` four times. The before and after numbers are in
-  [measurements/wa-review/RESULTS.md](./measurements/wa-review/RESULTS.md).
+  `42501` four times. The page counts every visitor run and charts the same raw-writer race on
+  Aurora DSQL before and after the CHECK, straight from
+  [dsql-race-before.json](./measurements/wa-review/dsql-race-before.json) and
+  [dsql-race-after.json](./measurements/wa-review/dsql-race-after.json). The before and after
+  numbers are in [measurements/wa-review/RESULTS.md](./measurements/wa-review/RESULTS.md).
 - **`npm run test:local`** runs on a real Postgres. Ten agents race a $3 budget through the app's spend path:
   three commit, seven are denied, and the balance ends at $0.00. A second test sends the six
   `/proof` statements as `stub_app`, and has ten writers skip the app's check and send raw

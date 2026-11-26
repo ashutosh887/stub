@@ -31,6 +31,31 @@ export interface ProofReport {
   probes: ProbeResult[];
   totalMs: number;
   at: string;
+  tally?: ProofTally | null;
+}
+
+export interface ProofTally {
+  runs: number;
+  statements: number;
+  refused: number;
+  accepted: number;
+  since: string;
+}
+
+export function tallyLine(tally: ProofTally): string {
+  const since = new Date(tally.since).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const runs = `${tally.runs.toLocaleString("en-US")} ${tally.runs === 1 ? "run" : "runs"} by visitors since ${since}`;
+  if (tally.accepted === 0 && tally.refused === tally.statements) {
+    return `${runs}. Every statement refused in every run.`;
+  }
+  const accepted =
+    tally.accepted === 0 ? "none accepted" : `${tally.accepted.toLocaleString("en-US")} accepted`;
+  return `${runs}. ${tally.refused.toLocaleString("en-US")} of ${tally.statements.toLocaleString("en-US")} statements refused with the expected code, ${accepted}.`;
 }
 
 export interface ProofClient {

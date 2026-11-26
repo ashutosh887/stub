@@ -1,8 +1,10 @@
 import { ProofRunner } from "@/components/proof-runner";
+import { RaceChart } from "@/components/race-chart";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
 import { CodeBlock, TextLink } from "@/components/site-kit";
 import { GITHUB_URL } from "@/config/seo";
+import { RACE, RACE_FILES, dollars, driverName, inWords, raceSentences } from "@/lib/race";
 
 export const dynamic = "force-static";
 
@@ -182,7 +184,9 @@ export default function Proof() {
           </p>
         </header>
 
-        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+        <RaceFigure />
+
+        <div className="mx-auto mt-16 max-w-5xl px-4 sm:px-6">
           <ProofRunner />
         </div>
 
@@ -263,6 +267,54 @@ DSQL_USER=stub_app npx tsx scripts/wa-probe.ts`}</CodeBlock>
 
       <SiteFooter />
     </>
+  );
+}
+
+function RaceFigure() {
+  const sentences = raceSentences();
+  const writers = inWords(RACE.writers);
+  return (
+    <section aria-labelledby="race" className="mx-auto max-w-5xl px-4 sm:px-6">
+      <figure className="rounded-md border border-line-bright bg-surface p-5 sm:p-7">
+        <h2
+          id="race"
+          className="font-display text-[1.9rem] font-medium leading-tight tracking-[-0.02em] text-fg"
+        >
+          {writers[0].toUpperCase() + writers.slice(1)} writers, one {dollars(RACE.startUsd)} budget
+        </h2>
+        <p className="mt-3 max-w-2xl leading-relaxed text-fg-dim">
+          Each writer spends {dollars(RACE.amountUsd)} with a raw UPDATE that skips the app&apos;s
+          check, the way a script or a hotfix would. {sentences.before} {sentences.after}
+        </p>
+        <div className="mt-8">
+          <RaceChart race={RACE} />
+        </div>
+        <figcaption className="mt-5 max-w-2xl text-[13px] leading-relaxed text-fg-mute">
+          Measured on {driverName(RACE.driver)}, connected as {RACE.connectedAs.join(" and ")}
+          {RACE.connectedAs.join() === "admin" ? ", the role the old app used" : ""},{" "}
+          {RACE.before.runs} runs before and {RACE.after.runs} after. The only change between them
+          is the schema. Each run&apos;s per-writer timeline is in{" "}
+          <a
+            href={`${BLOB}/${RACE_FILES.before}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-fg-dim transition-colors hover:text-brand"
+          >
+            dsql-race-before.json
+          </a>{" "}
+          and{" "}
+          <a
+            href={`${BLOB}/${RACE_FILES.after}`}
+            target="_blank"
+            rel="noreferrer"
+            className="font-mono text-fg-dim transition-colors hover:text-brand"
+          >
+            dsql-race-after.json
+          </a>
+          .
+        </figcaption>
+      </figure>
+    </section>
   );
 }
 

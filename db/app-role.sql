@@ -1,6 +1,6 @@
-GRANT SELECT ON accounts, entries, denials, reservations, idempotency_keys, query_cache, policies, agents, account_shards TO stub_app;
+GRANT SELECT ON accounts, entries, denials, reservations, idempotency_keys, query_cache, policies, agents, account_shards, proof_runs TO stub_app;
 
-GRANT INSERT ON entries, denials, reservations, idempotency_keys, query_cache, policies, agents, account_shards TO stub_app;
+GRANT INSERT ON entries, denials, reservations, idempotency_keys, query_cache, policies, agents, account_shards, proof_runs TO stub_app;
 
 GRANT UPDATE (balance_micro, last_entry_hash, frozen, sharded) ON accounts TO stub_app;
 GRANT UPDATE (balance_micro, last_entry_hash) ON account_shards TO stub_app;
