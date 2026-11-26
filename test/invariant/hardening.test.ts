@@ -94,4 +94,19 @@ describe("admin auth guard", () => {
       false,
     );
   });
+
+  it("fails closed in production when ADMIN_TOKEN is unset", async () => {
+    const { isAdmin } = await import("@/lib/api");
+    const previous = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "production";
+    try {
+      expect(isAdmin(new Request("http://x"))).toBe(false);
+      expect(isAdmin(new Request("http://x", { headers: { authorization: "Bearer " } }))).toBe(
+        false,
+      );
+    } finally {
+      if (previous === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = previous;
+    }
+  });
 });

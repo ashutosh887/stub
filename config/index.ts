@@ -69,6 +69,9 @@ export const security = {
   get authEnabled(): boolean {
     return Boolean(env("ADMIN_TOKEN"));
   },
+  get production(): boolean {
+    return process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production";
+  },
 };
 
 export const limits = {

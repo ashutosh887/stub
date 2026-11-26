@@ -50,18 +50,22 @@ function clientIp(request: Request): string {
   return fwd ? fwd.split(",")[0].trim() : "unknown";
 }
 
+function openWithoutToken(): boolean {
+  return !security.production;
+}
+
 export function drillsAllowed(): boolean {
   return db.driver === "postgres" || dsql.user === dsql.adminUser;
 }
 
 export function isAdmin(request: Request): boolean {
-  if (!security.authEnabled) return true;
+  if (!security.authEnabled) return openWithoutToken();
   const provided = bearer(request) ?? cookie(request, ADMIN_COOKIE);
   return provided != null && provided === security.adminToken;
 }
 
 export async function adminPageAllowed(): Promise<boolean> {
-  if (!security.authEnabled) return true;
+  if (!security.authEnabled) return openWithoutToken();
   const jar = await cookies();
   return jar.get(ADMIN_COOKIE)?.value === security.adminToken;
 }
