@@ -7,6 +7,7 @@ import type { LedgerQuery } from "@/core/query";
 import { type BurnStatus, burnStatus } from "@/core/burn";
 import { generateApiKey, hashApiKey, keysMatch } from "@/core/apikey";
 import { type ChainProblem, verifyChain } from "@/core/audit";
+import { DRILL_ACCOUNT_IDS, excludeDrills } from "@/lib/drills";
 
 export const store = new PgStore();
 
@@ -48,10 +49,18 @@ export interface DenialRow {
   createdAt: string;
 }
 
+function positional(offset: number): () => string {
+  let n = offset;
+  return () => `$${(n += 1)}`;
+}
+
 export async function listAccounts(): Promise<AccountRow[]> {
   const { rows } = await query<Record<string, unknown>>(
     `SELECT id, type, parent_id, name, balance_micro, cap_micro, frozen
-       FROM accounts ORDER BY type, name`,
+       FROM accounts
+      WHERE ${excludeDrills("id", positional(0))}
+      ORDER BY type, name`,
+    DRILL_ACCOUNT_IDS,
   );
   return rows.map((r) => {
     const balanceMicro = BigInt(r.balance_micro as string);
@@ -338,6 +347,7 @@ export async function runLedgerQuery(q: LedgerQuery): Promise<QueryResultRow[]> 
        LEFT JOIN accounts pa ON pa.id = a.parent_id`;
     amountExpr = "dn.attempted_micro";
     groupExpr = DENIAL_GROUP[q.groupBy];
+    where.push(excludeDrills("a.id", p));
     if (q.account) {
       const ph = like(q.account);
       where.push(`(a.name ILIKE ${ph} OR pa.name ILIKE ${ph})`);
@@ -432,9 +442,10 @@ export async function listDenials(limit = 20): Promise<DenialRow[]> {
             d.reason, d.agent_id, d.intent, d.created_at
        FROM denials d
        JOIN accounts a ON a.id = d.account_id
+      WHERE ${excludeDrills("a.id", positional(1))}
       ORDER BY d.created_at DESC
       LIMIT $1`,
-    [limit],
+    [limit, ...DRILL_ACCOUNT_IDS],
   );
   return rows.map((r) => ({
     id: r.id as string,
@@ -653,9 +664,10 @@ export async function listReservations(limit = 20): Promise<ReservationRow[]> {
        FROM reservations r
        JOIN accounts b ON b.id = r.budget_account_id
        JOIN accounts v ON v.id = r.vendor_account_id
+      WHERE ${excludeDrills("b.id", positional(1))}
       ORDER BY r.created_at DESC
       LIMIT $1`,
-    [limit],
+    [limit, ...DRILL_ACCOUNT_IDS],
   );
   return rows.map((r) => ({
     id: r.id as string,

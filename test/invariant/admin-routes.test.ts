@@ -69,6 +69,21 @@ vi.mock("@/core/sharded", async (original) => ({
   }),
 }));
 
+vi.mock("@/lib/drills", async (original) => ({
+  ...(await original<typeof import("@/lib/drills")>()),
+  runDrill: async () => ({
+    calls: 2,
+    held: 1,
+    denied: 1,
+    failed: 0,
+    conflicts: 0,
+    heldMicro: 250_000n,
+    lowMicro: 750_000n,
+    restoredMicro: 1_000_000n,
+    capMicro: 1_000_000n,
+  }),
+}));
+
 type Handler = (request: Request) => Promise<Response>;
 
 interface AdminCase {

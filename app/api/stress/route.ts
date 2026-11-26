@@ -1,86 +1,42 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
-import { createDriverPool, query } from "@/db/client";
-import { PgStore } from "@/db/pg-store";
-import { spend, type SpendResult } from "@/core/ledger";
-import { GENESIS_HASH } from "@/core/hash";
-import { HttpError, drillsAllowed, readJson, withRoute } from "@/lib/api";
+import { createDriverPool } from "@/db/client";
+import { HttpError, readJson, withRoute } from "@/lib/api";
+import { DrillNotProvisionedError, STRESS_BUDGET, runDrill } from "@/lib/drills";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const USD = 1_000_000n;
-const PER_SPEND = 250_000n;
+const PER_HOLD = 250_000n;
 
 export const POST = withRoute({ name: "stress", admin: true }, async ({ request }) => {
-  if (!drillsAllowed()) {
-    throw new HttpError(403, "drills delete their own rows, so they never run on the app's role");
-  }
   const body = await readJson<{ count?: number }>(request).catch(() => ({ count: 12 }));
   const count = Math.max(2, Math.min(24, Number(body?.count ?? 12) || 12));
 
-  const budgetId = randomUUID();
-  const vendorId = randomUUID();
-  await query(
-    `INSERT INTO accounts (id, type, parent_id, name, balance_micro, cap_micro, last_entry_hash)
-     VALUES ($1,'agent',NULL,'stress-budget',$2,$2,$3)`,
-    [budgetId, USD.toString(), GENESIS_HASH],
-  );
-  await query(
-    `INSERT INTO accounts (id, type, parent_id, name, balance_micro, cap_micro, last_entry_hash)
-     VALUES ($1,'vendor',NULL,'stress-vendor',0,NULL,$2)`,
-    [vendorId, GENESIS_HASH],
-  );
-
   const pool = createDriverPool(count);
-  const store = new PgStore(pool);
-
   try {
-    const settled = await Promise.all(
-      Array.from({ length: count }, (_, i) =>
-        spend(
-          store,
-          {
-            budgetAccountId: budgetId,
-            vendorAccountId: vendorId,
-            amountMicro: PER_SPEND,
-            intent: "stress test",
-            agentId: `stress-${i}`,
-          },
-          { maxRetries: 50 },
-        ).catch(() => ({ status: "denied", conflicts: 0, attempts: 1 }) as unknown as SpendResult),
-      ),
-    );
-
-    const committed = settled.filter((r) => r.status === "committed").length;
-    const denied = settled.length - committed;
-    const conflicts = settled.reduce((s, r) => s + (r.conflicts ?? 0), 0);
-
-    const { rows } = await query<{ balance_micro: string }>(
-      `SELECT balance_micro FROM accounts WHERE id = $1`,
-      [budgetId],
-    );
-    const finalMicro = BigInt(rows[0]?.balance_micro ?? "0");
-
+    const run = await runDrill(pool, STRESS_BUDGET, {
+      calls: count,
+      amountMicro: PER_HOLD,
+      intent: "stress test",
+      agentPrefix: "stress",
+    });
     return NextResponse.json({
       count,
-      budgetUsd: 1,
-      perSpendUsd: 0.25,
-      committed,
-      denied,
-      conflicts,
-      committedUsd: committed * 0.25,
-      finalBalanceUsd: Number(finalMicro) / 1e6,
-      neverNegative: finalMicro >= 0n,
+      budgetUsd: Number(run.capMicro) / 1e6,
+      perSpendUsd: Number(PER_HOLD) / 1e6,
+      committed: run.held,
+      denied: run.denied,
+      failed: run.failed,
+      conflicts: run.conflicts,
+      committedUsd: Number(run.heldMicro) / 1e6,
+      finalBalanceUsd: Number(run.lowMicro) / 1e6,
+      restoredBalanceUsd: Number(run.restoredMicro) / 1e6,
+      neverNegative: run.lowMicro >= 0n && run.restoredMicro >= 0n,
     });
+  } catch (err) {
+    if (err instanceof DrillNotProvisionedError) throw new HttpError(503, err.message);
+    throw err;
   } finally {
     await pool.end().catch(() => {});
-    await query(`DELETE FROM entries WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
-      () => {},
-    );
-    await query(`DELETE FROM denials WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
-      () => {},
-    );
-    await query(`DELETE FROM accounts WHERE id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
   }
 });

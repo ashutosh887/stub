@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
 import { GENESIS_HASH } from "@/core/hash";
-import { query, close } from "@/db/client";
+import { query, close, getPool } from "@/db/client";
+import { provisionDrills } from "@/lib/drills";
 
 const USD = 1_000_000n;
 
@@ -52,6 +53,7 @@ async function main() {
 
   for (const t of [
     "entries",
+    "reservations",
     "denials",
     "idempotency_keys",
     "sessions",
@@ -80,22 +82,25 @@ async function main() {
         GENESIS_HASH,
       ],
     );
-    console.log(`  ✅ ${a.type.padEnd(7)} ${a.name}`);
+    console.log(`  ok  ${a.type.padEnd(7)} ${a.name}`);
   }
   await query(
     `INSERT INTO policies (id, account_id, label, enabled, scope, approval_threshold_micro)
      VALUES ($1,$2,$3,true,'approval',$4)`,
     [randomUUID(), coder.id, "Approve over $10", (10n * USD).toString()],
   );
-  console.log("  ✅ policy   coding-agent: human approval required over $10");
+  console.log("  ok  policy   coding-agent: human approval required over $10");
 
-  console.log(`✅ Seeded ${accounts.length} accounts ($500 org budget).`);
+  const drills = await provisionDrills(getPool());
+  console.log(`  ok  drills   ${drills.length} drill accounts for /api/stress and /api/incident`);
+
+  console.log(`Seeded ${accounts.length} accounts ($500 org budget).`);
   console.log(`   research-agent has a $1.50/hr velocity breaker (auto-freezes on runaway spend).`);
 }
 
 main()
   .catch((err) => {
-    console.error("❌ Seed failed:", err.message);
+    console.error("Seed failed:", err.message);
     process.exit(1);
   })
   .finally(close);

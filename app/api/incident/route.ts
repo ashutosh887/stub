@@ -1,95 +1,52 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
-import { createDriverPool, query } from "@/db/client";
-import { PgStore } from "@/db/pg-store";
-import { spend, type SpendResult } from "@/core/ledger";
-import { GENESIS_HASH } from "@/core/hash";
-import { HttpError, drillsAllowed, readJson, withRoute } from "@/lib/api";
+import { createDriverPool } from "@/db/client";
+import { HttpError, readJson, withRoute } from "@/lib/api";
+import { DrillNotProvisionedError, incidentBudget, runDrill } from "@/lib/drills";
 import { findScenario } from "@/lib/incidents";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = withRoute({ name: "incident", admin: true }, async ({ request }) => {
-  if (!drillsAllowed()) {
-    throw new HttpError(403, "drills delete their own rows, so they never run on the app's role");
-  }
   const body = await readJson<{ scenarioId?: string }>(request).catch(
     () => ({}) as { scenarioId?: string },
   );
   const scenario = findScenario(body?.scenarioId);
 
   const calls = Math.min(40, scenario.calls);
-  const perSpend = BigInt(Math.round(scenario.perCallUsd * 1_000_000));
-  const cap = BigInt(Math.round(scenario.budgetUsd * 1_000_000));
-
-  const budgetId = randomUUID();
-  const vendorId = randomUUID();
-  await query(
-    `INSERT INTO accounts (id, type, parent_id, name, balance_micro, cap_micro, last_entry_hash)
-     VALUES ($1,'agent',NULL,'incident-budget',$2,$2,$3)`,
-    [budgetId, cap.toString(), GENESIS_HASH],
-  );
-  await query(
-    `INSERT INTO accounts (id, type, parent_id, name, balance_micro, cap_micro, last_entry_hash)
-     VALUES ($1,'vendor',NULL,'incident-vendor',0,NULL,$2)`,
-    [vendorId, GENESIS_HASH],
-  );
+  const perCall = BigInt(Math.round(scenario.perCallUsd * 1_000_000));
 
   const pool = createDriverPool(calls);
-  const store = new PgStore(pool);
-
   try {
-    const settled = await Promise.all(
-      Array.from({ length: calls }, (_, i) =>
-        spend(
-          store,
-          {
-            budgetAccountId: budgetId,
-            vendorAccountId: vendorId,
-            amountMicro: perSpend,
-            intent: `${scenario.id} runaway call`,
-            agentId: `runaway-${i}`,
-          },
-          { maxRetries: 50 },
-        ).catch(() => ({ status: "denied", conflicts: 0, attempts: 1 }) as unknown as SpendResult),
-      ),
-    );
+    const run = await runDrill(pool, incidentBudget(scenario), {
+      calls,
+      amountMicro: perCall,
+      intent: `${scenario.id} runaway call`,
+      agentPrefix: "runaway",
+    });
 
-    const committed = settled.filter((r) => r.status === "committed").length;
-    const denied = settled.length - committed;
-    const conflicts = settled.reduce((s, r) => s + (r.conflicts ?? 0), 0);
-
-    const { rows } = await query<{ balance_micro: string }>(
-      `SELECT balance_micro FROM accounts WHERE id = $1`,
-      [budgetId],
-    );
-    const finalMicro = BigInt(rows[0]?.balance_micro ?? "0");
-
-    const attemptedUsd = calls * scenario.perCallUsd;
-    const committedUsd = committed * scenario.perCallUsd;
+    const attemptedUsd = (calls * Number(perCall)) / 1e6;
+    const committedUsd = Number(run.heldMicro) / 1e6;
 
     return NextResponse.json({
       scenario,
       calls,
-      committed,
-      denied,
-      conflicts,
+      committed: run.held,
+      denied: run.denied,
+      failed: run.failed,
+      conflicts: run.conflicts,
       attemptedUsd: Number(attemptedUsd.toFixed(2)),
       committedUsd: Number(committedUsd.toFixed(2)),
       blockedUsd: Number((attemptedUsd - committedUsd).toFixed(2)),
-      finalBalanceUsd: Number(finalMicro) / 1e6,
-      capUsd: scenario.budgetUsd,
-      neverNegative: finalMicro >= 0n,
+      finalBalanceUsd: Number(run.lowMicro) / 1e6,
+      restoredBalanceUsd: Number(run.restoredMicro) / 1e6,
+      capUsd: Number(run.capMicro) / 1e6,
+      neverNegative: run.lowMicro >= 0n && run.restoredMicro >= 0n,
     });
+  } catch (err) {
+    if (err instanceof DrillNotProvisionedError) throw new HttpError(503, err.message);
+    throw err;
   } finally {
     await pool.end().catch(() => {});
-    await query(`DELETE FROM entries WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
-      () => {},
-    );
-    await query(`DELETE FROM denials WHERE account_id IN ($1,$2)`, [budgetId, vendorId]).catch(
-      () => {},
-    );
-    await query(`DELETE FROM accounts WHERE id IN ($1,$2)`, [budgetId, vendorId]).catch(() => {});
   }
 });
