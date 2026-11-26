@@ -290,3 +290,45 @@ The temporary cluster was deleted at 09:45:16 (`DeleteCluster` → `DELETING`, t
 AWS Backup warm storage for about 105 full points of ~0.2 MB (35 days × 2 Regions + 35 copies):
 under $0.01 a month at today's ledger size, growing linearly with it. Restore tests: the
 temporary cluster lived 2 minutes.
+
+## F05: the app fails over to the peer Region on its own (REL10-BP01, REL13-BP01, REL13-BP05)
+
+Before, `db/client.ts` built one pool on `DSQL_ENDPOINT`; losing that endpoint meant changing an env
+var and redeploying. Now `getPool()` returns a `FailoverPool` (`db/failover.ts`) over both regional
+endpoints when `DSQL_ENDPOINT_PEER` is set. A connection the primary cannot open is retried on the
+peer in the same call; later calls stay on the peer; after `DSQL_FAILBACK_AFTER_MS` (60 s) a
+background probe with a 3 s bound moves them back once the primary answers. Only endpoint failures
+switch (network errors, connect timeouts, SQLSTATE `08`, `28`, `57P0x`); `40001`, `23514` and
+`42501` never do, so OCC retries and the CHECK refusal behave as before. A query that fails
+mid-flight is not retried on the peer, so a write is never sent twice.
+
+`npm run drill:failover [blackhole|dns]` creates two throwaway accounts, makes a baseline spend,
+then points the primary at a blocked address and spends again. "Pinned to primary" is the old
+behaviour (one pool on the primary), measured in the same run. Nothing is deleted except the
+drill's own rows. Run from this laptop (India) against us-east-1 and us-east-2, 09:43-09:45 UTC:
+
+| Blocked primary                     | Connect timeout | Pinned to primary (before)                  | First spend during the outage (after) | Next spend |
+| ----------------------------------- | --------------- | ------------------------------------------- | ------------------------------------- | ---------- |
+| Unroutable address, packets dropped | 10 s (default)  | fails after 10.0 s, and every call after it | **committed on us-east-2 in 14.87 s** | 3.0 s      |
+| Unroutable address, packets dropped | 3 s             | fails after 3.0 s                           | **committed on us-east-2 in 7.59 s**  | 2.8 s      |
+| Endpoint name that does not resolve | 10 s            | fails after 0.06 s (`ENOTFOUND`)            | **committed on us-east-2 in 4.55 s**  | 3.0 s      |
+
+Baseline spend on the healthy primary from the same laptop: 4.7-4.8 s (cold connection, IAM
+token, three round trips across the ocean). Each drill left the budget at 9.97 of 10.00 USD: three
+0.01 USD spends committed, none lost or doubled.
+
+Objectives, written down for the first time: Region loss, RPO 0 (writes are synchronously
+replicated to the peer) and RTO about one connect timeout plus one peer connection, 15 s at the
+defaults and about 8 s with `DSQL_CONNECTION_TIMEOUT_MS=3000`, which suits Vercel functions in
+us-east-1 talking to a cluster in the same Region. Logical damage: RPO 24 h and RTO about
+2.5 minutes plus repointing (F03).
+
+`test/invariant/failover.test.ts` (4 tests) covers the switch, staying on the peer without touching
+the primary, failback only after a probe answers, and no switch on SQL errors. `npm run verify`:
+17 files, 98 tests passed.
+
+Not done: AWS FIS has an Aurora DSQL action (`aws:dsql:cluster-connection-failure`, 1 minute to
+12 hours, a percentage of connections) that would block the real primary instead of a client-side
+address. It was not run because the production app on Vercel does not have this failover code yet,
+so injecting failures on the primary would cut the live app off; run it once the branch is
+deployed with `DSQL_ENDPOINT_PEER` and `DSQL_REGION_PEER` set (FIS bills $0.10 per action-minute).

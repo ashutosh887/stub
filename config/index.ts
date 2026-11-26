@@ -45,6 +45,9 @@ export const dsql = {
   idleTimeoutMs: int("DSQL_IDLE_TIMEOUT_MS", 30_000),
   connectionTimeoutMs: int("DSQL_CONNECTION_TIMEOUT_MS", 10_000),
   maxLifetimeSeconds: int("DSQL_MAX_LIFETIME_SECONDS", 600),
+  failover: env("DSQL_FAILOVER") !== "off",
+  failbackAfterMs: int("DSQL_FAILBACK_AFTER_MS", 60_000),
+  probeTimeoutMs: int("DSQL_PROBE_TIMEOUT_MS", 3_000),
 };
 
 export const aws = {

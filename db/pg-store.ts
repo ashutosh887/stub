@@ -1,5 +1,5 @@
-import type { Pool, PoolClient } from "pg";
-import { getPool } from "./client";
+import type { PoolClient } from "pg";
+import { type Connectable, getPool } from "./client";
 import { db } from "@/config";
 import type { Policy } from "@/core/policy";
 import {
@@ -22,7 +22,7 @@ function beginStatement(): string {
 }
 
 export class PgStore implements Store {
-  constructor(private readonly pool: Pool = getPool()) {}
+  constructor(private readonly pool: Connectable = getPool()) {}
 
   async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();

@@ -24,6 +24,8 @@
     "harness": "tsx scripts/harness.ts",
     "bench": "tsx scripts/bench.ts",
     "sweep": "tsx scripts/sweep.ts",
+    "drill:failover": "tsx scripts/failover-drill.ts",
+    "ledger:fingerprint": "tsx scripts/ledger-fingerprint.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",

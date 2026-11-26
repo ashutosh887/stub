@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { query } from "@/db/client";
+import { activeRegion, query } from "@/db/client";
 import { withRoute } from "@/lib/api";
 
 export const runtime = "nodejs";
@@ -12,5 +12,10 @@ export const GET = withRoute({ name: "health", rateLimitMax: 600 }, async () => 
   } catch {
     return NextResponse.json({ status: "degraded", db: "down" }, { status: 503 });
   }
-  return NextResponse.json({ status: "ok", db: "up", latencyMs: Date.now() - start });
+  return NextResponse.json({
+    status: "ok",
+    db: "up",
+    region: activeRegion(),
+    latencyMs: Date.now() - start,
+  });
 });

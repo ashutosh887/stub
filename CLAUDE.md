@@ -141,6 +141,13 @@ normalization, CDC→Kinesis live feed.
   `SERIALIZABLE` on plain Postgres so it raises the same `40001` as DSQL's OCC), `schema.sql`
   (single source of truth, idempotent; `CREATE INDEX ASYNC` is rewritten to `CREATE INDEX` by
   `npm run migrate` on the postgres driver). Swap this dir, the core is untouched.
+- **Regional failover:** with `DSQL_ENDPOINT_PEER` set, `getPool()` returns a `FailoverPool`
+  (`db/failover.ts`): a connection the primary cannot open (network error, connect timeout, SQLSTATE
+  class `08`/`28`/`57P0x`) is retried on the peer at once and later calls stay there; after
+  `DSQL_FAILBACK_AFTER_MS` a background probe moves them back when the primary answers. SQL errors
+  (`40001`, `23514`, `42501`) never switch. Either endpoint is correct: the peers are strongly
+  consistent. `PgStore` takes any `Connectable`; `/api/health` reports the active Region.
+  `npm run drill:failover [blackhole|dns]` measures time to the first committed spend on the peer.
 - **Two drivers, one code path:** set `DATABASE_URL` for local Postgres (`npm run db:up`,
   `docker-compose.yml`) and every `DSQL_*` var is ignored; leave it unset for Aurora DSQL. Local
   mode is a faithful OCC model, not a mock, so `npm run test:local` proves the invariant with no
@@ -175,7 +182,8 @@ normalization, CDC→Kinesis live feed.
   all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
   (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,
   per-page canonicals, and `sitemap.ts` / `robots.ts`.
-- `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent/bench/sweep).
+- `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent/bench/sweep,
+  drill:failover, ledger:fingerprint).
   `test/`: `invariant/` (offline), `local/` (local Postgres), `live/` (real cluster). `docs/`:
   local-only planning notes (gitignored).
 

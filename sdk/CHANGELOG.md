@@ -22,6 +22,13 @@ published verbatim as the body of the matching
   `AWS_ROLE_ARN` to sign with OIDC credentials. `/api/stress` and `/api/incident` answer `403` on
   the app role.
 
+### Added
+
+- **Stub server: automatic failover to the peer Region.** With `DSQL_ENDPOINT_PEER` set, a server
+  that cannot reach its primary DSQL endpoint serves the call from the peer and returns to the
+  primary once it answers again (`DSQL_FAILOVER=off` turns it off). `GET /api/health` now includes
+  the active `region`.
+
 ## [1.2.0] - 2026-08-10
 
 ### Added

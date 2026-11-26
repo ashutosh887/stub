@@ -2,9 +2,13 @@ import { DsqlSigner } from "@aws-sdk/dsql-signer";
 import { awsCredentialsProvider } from "@vercel/oidc-aws-credentials-provider";
 import { Pool, type PoolClient } from "pg";
 import { aws, db, dsql } from "@/config";
+import { type Connectable, type Endpoint, FailoverPool } from "./failover";
+
+export type { Connectable } from "./failover";
 
 export interface DsqlConfig {
   endpoint: string;
+  host?: string;
   region: string;
   database?: string;
   user?: string;
@@ -25,7 +29,7 @@ export function createPool(config: DsqlConfig): Pool {
   });
 
   const created = new Pool({
-    host: endpoint,
+    host: config.host ?? endpoint,
     port: dsql.port,
     database,
     user,
@@ -81,12 +85,44 @@ export function createAdminPool(): Pool {
   return createDriverPool(1, dsql.adminUser);
 }
 
-let pool: Pool | undefined;
+export function regionalEndpoint(name: Endpoint["name"], max?: number, user = dsql.user): Endpoint {
+  const endpoint = name === "peer" ? dsql.peerEndpoint : dsql.endpoint;
+  const region = name === "peer" ? dsql.peerRegion : dsql.region;
+  if (!endpoint) throw new Error("DSQL_ENDPOINT_PEER is not set");
+  return { name, region, pool: createPool({ endpoint, region, user, max }) };
+}
 
-export function getPool(): Pool {
+export function createFailoverPool(primary: Endpoint, peer: Endpoint): FailoverPool {
+  return new FailoverPool(primary, peer, {
+    failbackAfterMs: dsql.failbackAfterMs,
+    probeTimeoutMs: dsql.probeTimeoutMs,
+    onSwitch: ({ from, to, reason }) =>
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          msg: "dsql_endpoint_switch",
+          from: `${from.name}:${from.region}`,
+          to: `${to.name}:${to.region}`,
+          reason,
+        }),
+      ),
+  });
+}
+
+let pool: Connectable | undefined;
+
+export function getPool(): Connectable {
   if (pool) return pool;
-  pool = createDriverPool();
+  const failover = !db.url && dsql.failover && dsql.peerEndpoint;
+  pool = failover
+    ? createFailoverPool(regionalEndpoint("primary"), regionalEndpoint("peer"))
+    : createDriverPool();
   return pool;
+}
+
+export function activeRegion(): string | null {
+  if (db.url) return null;
+  return pool instanceof FailoverPool ? pool.active.region : dsql.region;
 }
 
 export async function query<T = unknown>(text: string, params?: unknown[]) {
@@ -109,5 +145,5 @@ export async function withTransaction<T>(fn: (client: PoolClient) => Promise<T>)
 }
 
 export async function close() {
-  if (pool) await pool.end();
+  if (pool instanceof FailoverPool || pool instanceof Pool) await pool.end();
 }
