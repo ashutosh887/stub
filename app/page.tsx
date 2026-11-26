@@ -22,6 +22,7 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 const INCIDENT_URL = "https://www.theregister.com/2020/12/10/google_cloud_over_run/";
 const RESULTS_URL = `${GITHUB_URL}/blob/main/measurements/wa-review/RESULTS.md`;
 const RESULTS = { label: "RESULTS.md", href: RESULTS_URL };
+const GUARDRAIL_URL = `${GITHUB_URL}/tree/main/.github/actions/db-guardrail`;
 
 interface Refusal {
   code: string;
@@ -47,7 +48,8 @@ const REFUSALS: Refusal[] = [
       <>
         Two CHECK constraints bound every budget: <Mono>balance_micro &gt;= 0</Mono> and{" "}
         <Mono>balance_micro &lt;= cap_micro</Mono>. A buggy code path, a script or a hotfix that
-        skips the app&apos;s own check gets the same refusal. So does the database admin.
+        skips the app&apos;s own check gets the same refusal. So does the database admin. If one
+        ever reaches Stub&apos;s own spend path, it is recorded as a denial with its own reason.
       </>
     ),
     statement: "UPDATE accounts SET balance_micro = -1",
@@ -98,6 +100,11 @@ interface ReviewRow {
 }
 
 const REVIEW: ReviewRow[] = [
+  {
+    measure: "Ten writers skip the app's check and race a $3.00 budget on Aurora DSQL",
+    before: "-$7.00 in 20 of 20 runs",
+    after: "$0.00 in 20 of 20 runs",
+  },
   {
     measure: "Balance below zero, as the app's database role",
     before: "accepted",
@@ -488,7 +495,9 @@ if (allowed) await doThePaidThing();`}</CodeBlock>
             one $3 budget: three commit, seven are denied, the balance stops at $0.00. CI runs that
             race on Postgres 17 for every push to <Mono>main</Mono> and every pull request, and
             sends the six statements from <TextLink href="/proof">/proof</TextLink> as{" "}
-            <Mono>stub_app</Mono>.
+            <Mono>stub_app</Mono>. That check is also a{" "}
+            <TextLink href={GUARDRAIL_URL}>GitHub Action</TextLink> you can point at your own
+            Postgres or Aurora DSQL database.
           </>
         }
         cites={[repoFile("docker-compose.yml"), repoFile("test/local/overspend.test.ts")]}

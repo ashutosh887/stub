@@ -52,10 +52,12 @@ const CONCEPTS: Concept[] = [
         sharded balance carries the first one. The cap covers the sum of the shards, which a check
         on one row cannot see. The database answers a write that breaks either constraint with
         SQLSTATE 23514, whoever sends it: the app, a migration script, a hotfix that forgot the
-        check, or the admin.
+        check, or the admin. If a refusal reaches Stub&apos;s own spend or reserve path, it comes
+        back as a denial with reason <Mono>db_refused</Mono> and is recorded like any other, so the
+        audit trail shows it.
       </>
     ),
-    cites: [repoFile("db/schema.sql"), repoFile("scripts/migrate.ts")],
+    cites: [repoFile("db/schema.sql"), repoFile("scripts/migrate.ts"), repoFile("core/ledger.ts")],
   },
   {
     title: "The app can't rewrite its own history: 42501",
