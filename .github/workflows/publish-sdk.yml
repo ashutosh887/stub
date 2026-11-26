@@ -30,6 +30,10 @@ jobs:
             echo "::error::tag sdk-v$tag does not match sdk/package.json version $pkg"
             exit 1
           fi
+          if ! grep -q "^## \[$pkg\] - " CHANGELOG.md; then
+            echo "::error::sdk/CHANGELOG.md has no released section for $pkg"
+            exit 1
+          fi
       - name: Build and publish
         working-directory: sdk
         run: |
