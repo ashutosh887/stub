@@ -1,0 +1,775 @@
+{
+  "driver": "dsql",
+  "reports": [
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 767,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1793,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2854,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3899,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 4953,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6011,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7050,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8098,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9434,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10478,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:53:21.613Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 790,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1837,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2885,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3935,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 4984,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6033,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7080,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8128,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9176,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10220,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:53:52.235Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 746,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1628,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2567,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3897,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 4946,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 5995,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7044,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8091,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9151,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10187,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:54:03.803Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 812,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1691,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2613,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3964,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 5011,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6059,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7201,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8157,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9251,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10252,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:54:15.301Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 830,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1877,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2926,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3974,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 5024,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6072,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7121,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8361,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9295,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10328,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:54:26.871Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 793,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1842,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2890,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3937,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 4987,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6035,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7084,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8131,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9471,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10494,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:54:38.452Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 750,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1804,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2896,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3905,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 5433,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6325,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7345,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8391,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9438,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 11014,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:54:50.187Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 822,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1868,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 2918,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 3966,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 5254,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6297,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7350,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8390,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9442,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10502,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:55:02.497Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 746,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1797,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 3147,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 4196,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 5245,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6294,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7342,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8389,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9438,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10485,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:55:14.308Z"
+    },
+    {
+      "connectedAs": "admin",
+      "checkConstraint": false,
+      "writers": 10,
+      "startUsd": "$3.00",
+      "amountUsd": "$1.00",
+      "affordable": 3,
+      "committed": 10,
+      "refused": {},
+      "retries": 45,
+      "finalMicro": "-7000000",
+      "finalUsd": "-$7.00",
+      "overspendUsd": "$7.00",
+      "timeline": [
+        {
+          "ms": 826,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$2.00"
+        },
+        {
+          "ms": 1875,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$1.00"
+        },
+        {
+          "ms": 3171,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "$0.00"
+        },
+        {
+          "ms": 4204,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$1.00"
+        },
+        {
+          "ms": 5253,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$2.00"
+        },
+        {
+          "ms": 6424,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$3.00"
+        },
+        {
+          "ms": 7344,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$4.00"
+        },
+        {
+          "ms": 8409,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$5.00"
+        },
+        {
+          "ms": 9448,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$6.00"
+        },
+        {
+          "ms": 10507,
+          "committed": true,
+          "code": null,
+          "balanceUsd": "-$7.00"
+        }
+      ],
+      "at": "2026-11-26T18:55:26.085Z"
+    }
+  ]
+}

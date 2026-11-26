@@ -12,3 +12,4 @@ dist/
 docs/*
 !docs/incident-response.md
 !docs/data-classification.md
+AGENTS.md

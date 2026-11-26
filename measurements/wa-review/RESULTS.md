@@ -836,3 +836,33 @@ because the CHECK is validated on both; the live before is the 09:10 UTC probe i
 on a real Postgres. CI's `db-proof` job runs it on `postgres:17` on every push and pull request.
 Against the pre-fix schema with today's grants it fails for the right reason: the negative-balance
 probe is `accepted`, and the race ends at `-7000000` micro-dollars instead of `0`.
+
+# Before and after on Aurora DSQL itself (27 Nov 2026)
+
+The bypass race above ran on local Postgres, because both live clusters already refuse it. To
+measure it on DSQL, a temporary single-Region cluster was created in us-east-1, used, and deleted
+the same hour. One cluster, one identity (`admin`, the role the old app used), one protocol; the
+only thing that changes between the two columns is the schema.
+
+1. Before: the schema from `202c4c8` (the last commit before the fix), applied by that commit's own
+   `scripts/migrate.ts` from a worktree. It created `accounts` with no CHECK, then stopped at the
+   same `ADD COLUMN` error described under "Problems hit".
+2. `npm run race:bypass -- --as owner --runs 10 --out measurements/wa-review/dsql-race-before.json`
+3. After: the current `npm run migrate` on the same cluster (adds the three CHECKs `NOT VALID`,
+   validates with `ALTER TABLE ASYNC`; 46 s in all).
+4. The same race again, `--out measurements/wa-review/dsql-race-after.json`.
+
+Protocol, fixed for every run: 10 writers, a $3.00 budget, $1.00 each, each writer in its own
+transaction retrying `40001` up to 25 times.
+
+| Measure, 10 runs each, connected as `admin` | Before (no CHECK)       | After (CHECKs validated) |
+| ------------------------------------------- | ----------------------- | ------------------------ |
+| Writes committed per run                    | 10 in all 10 runs       | 3 in all 10 runs         |
+| Writes refused per run                      | 0                       | 7, all `23514`           |
+| OCC retries (`40001`) per run               | 45 in all 10 runs       | 24 in all 10 runs        |
+| Final balance                               | -$7.00 in all 10 runs   | $0.00 in all 10 runs     |
+| Money spent that was not in the budget      | $70.00 over the 10 runs | $0.00                    |
+
+DSQL's OCC serialised all ten writers in both columns (45 = 9 + 8 + … + 1 retries). OCC decides the
+order; it never decided whether a write was affordable. The CHECK does. Each run's per-writer
+timeline (finish time, outcome, SQLSTATE, running balance) is in the two JSON files.
