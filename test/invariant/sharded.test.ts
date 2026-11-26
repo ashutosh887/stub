@@ -401,6 +401,20 @@ describe("shardExistingAccount provisions shards from an account's current balan
     );
   });
 
+  it("refuses an account with children, whose spends draw down its own row", async () => {
+    const store = new MemStore();
+    store.seedAccount(acct({ id: "team", type: "team", balanceMicro: 8n * USD }));
+    store.seedAccount(
+      acct({ id: "agent", type: "agent", parentId: "team", balanceMicro: 2n * USD }),
+    );
+
+    await expect(shardExistingAccount(store, "team", 4)).rejects.toThrow(
+      "account has child accounts: team",
+    );
+    expect(store.getAccount("team")!.sharded).toBeFalsy();
+    expect(store.shardBalances("team")).toEqual([]);
+  });
+
   it("rejects an unknown account", async () => {
     const store = new MemStore();
     await expect(shardExistingAccount(store, "ghost", 4)).rejects.toThrow("unknown account: ghost");

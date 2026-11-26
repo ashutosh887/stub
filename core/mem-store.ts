@@ -163,6 +163,8 @@ export class MemStore implements Store {
           lastEntryHash,
         });
       },
+      hasChildren: async (id) =>
+        [...this.accounts.values()].some(({ account }) => account.parentId === id),
       getAncestors: async (id) => {
         const result: Account[] = [];
         const self = readAccount(id);

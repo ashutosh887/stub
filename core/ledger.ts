@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { GENESIS_HASH, hashEntry } from "./hash";
 import { evaluatePolicies } from "./policy";
-import { type Entry, type Store, type Tx, isConflict } from "./store";
+import { type Account, type Entry, type Store, type Tx, isConflict } from "./store";
 
 export interface SpendRequest {
   budgetAccountId: string;
@@ -39,6 +39,12 @@ export interface OccResult<T> {
   result: T;
   conflicts: number;
   attempts: number;
+}
+
+export function payeeProblem(budget: Account, vendor: Account): string | null {
+  if (vendor.type !== "vendor") return "payee_not_vendor";
+  if (vendor.id === budget.id) return "payee_is_budget";
+  return null;
 }
 
 export async function runOcc<T>(
@@ -88,7 +94,6 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
   const budget = await tx.getAccount(request.budgetAccountId);
   if (!budget) throw new Error(`unknown budget account: ${request.budgetAccountId}`);
   const vendor = await tx.getAccount(request.vendorAccountId);
-  if (!vendor) throw new Error(`unknown vendor account: ${request.vendorAccountId}`);
 
   const transactionId = randomUUID();
   const deny = async (reason: string): Promise<SettleOutcome> => {
@@ -105,6 +110,10 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
     });
     return { status: "denied", transactionId, reason };
   };
+
+  if (!vendor) return deny("unknown_vendor");
+  const payee = payeeProblem(budget, vendor);
+  if (payee) return deny(payee);
 
   const ancestors = await tx.getAncestors(budget.id);
   const chain = [budget, ...ancestors];

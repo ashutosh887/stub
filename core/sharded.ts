@@ -1,10 +1,18 @@
 import { randomUUID } from "node:crypto";
 import { GENESIS_HASH } from "./hash";
-import { buildEntry, runOcc, spend, type SpendRequest, type SpendResult } from "./ledger";
+import {
+  buildEntry,
+  payeeProblem,
+  runOcc,
+  spend,
+  type SpendRequest,
+  type SpendResult,
+} from "./ledger";
 import { evaluatePolicies } from "./policy";
-import { type Shard, type Store, type Tx } from "./store";
+import { ConflictError, type Shard, type Store, type Tx } from "./store";
 
 export const DEFAULT_SHARDS = 8;
+export const REFUND_SHARD = 0;
 
 export interface ShardedSpendOptions {
   shards?: number;
@@ -29,6 +37,9 @@ export async function provisionShards(
   const remainder = totalMicro % BigInt(shards);
 
   await store.transaction(async (tx) => {
+    if (await tx.hasChildren(accountId)) {
+      throw new Error(`account has child accounts: ${accountId}`);
+    }
     for (let index = 0; index < shards; index++) {
       await tx.upsertShard({
         accountId,
@@ -54,7 +65,6 @@ export async function shardExistingAccount(
 ): Promise<ShardExistingAccountResult> {
   const account = await store.transaction((tx) => tx.getAccount(accountId));
   if (!account) throw new Error(`unknown account: ${accountId}`);
-  // account.balanceMicro goes stale once sharded, so re-provisioning would silently rewind it.
   if (account.sharded) throw new Error(`account already sharded: ${accountId}`);
 
   await provisionShards(store, accountId, account.balanceMicro, shards);
@@ -92,6 +102,26 @@ function planDraw(preferred: Shard | null, all: Shard[], amountMicro: bigint): D
   }
 
   return remaining === 0n ? draws : null;
+}
+
+export async function holdFromShards(
+  tx: Tx,
+  accountId: string,
+  amountMicro: bigint,
+): Promise<boolean> {
+  const draws = planDraw(null, await tx.listShards(accountId), amountMicro);
+  if (!draws) return false;
+  for (const draw of draws) {
+    const shard = await tx.getShard(accountId, draw.index);
+    if (!shard || shard.balanceMicro < draw.amountMicro) throw new ConflictError();
+    await tx.updateShard(
+      accountId,
+      draw.index,
+      shard.balanceMicro - draw.amountMicro,
+      shard.lastEntryHash,
+    );
+  }
+  return true;
 }
 
 export async function shardedSpend(
@@ -136,6 +166,7 @@ async function settleSharded(
 
   const budget = await tx.getAccount(request.budgetAccountId);
   if (!budget) throw new Error(`unknown budget account: ${request.budgetAccountId}`);
+  const vendor = await tx.getAccount(request.vendorAccountId);
 
   const transactionId = randomUUID();
   type Outcome = Omit<SpendResult, "conflicts" | "attempts">;
@@ -154,6 +185,10 @@ async function settleSharded(
     return { status: "denied", transactionId, reason };
   };
 
+  if (!vendor) return deny("unknown_vendor");
+  const payee = payeeProblem(budget, vendor);
+  if (payee) return deny(payee);
+
   const ancestors = await tx.getAncestors(budget.id);
   const chain = [budget, ...ancestors];
 
@@ -164,7 +199,7 @@ async function settleSharded(
   if (policies.length > 0) {
     const verdict = await evaluatePolicies(policies, {
       amountMicro: request.amountMicro,
-      vendorId: request.vendorAccountId,
+      vendorId: vendor.id,
       spentInWindow: (windowSeconds) => tx.spentInWindow(budget.id, windowSeconds),
     });
     if (
@@ -191,7 +226,6 @@ async function settleSharded(
   const budgetIndex = pick(shardCount);
   const preferred = await tx.getShard(request.budgetAccountId, budgetIndex);
 
-  // Fast path: the chosen shard covers it, so the txn never reads the other shards.
   let draws: Draw[] | null;
   let known: Shard[];
   if (preferred && preferred.balanceMicro >= request.amountMicro) {
@@ -238,26 +272,29 @@ async function settleSharded(
     );
   }
 
-  const vendorIndex = pick(shardCount);
-  const vendorShard = await tx.getShard(request.vendorAccountId, vendorIndex);
-  if (!vendorShard) throw new Error(`vendor account is not sharded: ${request.vendorAccountId}`);
+  const vendorShard = vendor.sharded ? await tx.getShard(vendor.id, pick(shardCount)) : null;
+  if (vendor.sharded && !vendorShard) throw new Error(`vendor shard missing: ${vendor.id}`);
 
   const credit = buildEntry({
     transactionId,
-    account: { id: request.vendorAccountId, lastEntryHash: vendorShard.lastEntryHash },
+    account: vendorShard ? { id: vendor.id, lastEntryHash: vendorShard.lastEntryHash } : vendor,
     kind: "credit",
     amountMicro: request.amountMicro,
     request,
   });
-  credit.shardIndex = vendorIndex;
+  if (vendorShard) credit.shardIndex = vendorShard.index;
 
   await tx.insertEntry(credit);
-  await tx.updateShard(
-    request.vendorAccountId,
-    vendorIndex,
-    vendorShard.balanceMicro + request.amountMicro,
-    credit.hash,
-  );
+  if (vendorShard) {
+    await tx.updateShard(
+      vendor.id,
+      vendorShard.index,
+      vendorShard.balanceMicro + request.amountMicro,
+      credit.hash,
+    );
+  } else {
+    await tx.updateAccount(vendor.id, vendor.balanceMicro + request.amountMicro, credit.hash);
+  }
 
   for (const ancestor of ancestors) {
     await tx.updateAccount(

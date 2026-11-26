@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { DEFAULT_MAX_RETRIES, buildEntry, runOcc, type SpendRequest } from "./ledger";
+import { DEFAULT_MAX_RETRIES, buildEntry, payeeProblem, runOcc, type SpendRequest } from "./ledger";
 import { evaluatePolicies } from "./policy";
-import type { Store, Tx } from "./store";
+import { REFUND_SHARD, holdFromShards } from "./sharded";
+import type { Account, Store, Tx } from "./store";
 
 export type ReserveStatus = "reserved" | "denied" | "duplicate" | "needs_approval";
 export type SettleStatus = "settled" | "duplicate" | "not_found" | "invalid";
@@ -116,7 +117,6 @@ async function reserveTx(tx: Tx, request: SpendRequest): Promise<ReserveOutcome>
   const budget = await tx.getAccount(request.budgetAccountId);
   if (!budget) throw new Error(`unknown budget account: ${request.budgetAccountId}`);
   const vendor = await tx.getAccount(request.vendorAccountId);
-  if (!vendor) throw new Error(`unknown vendor account: ${request.vendorAccountId}`);
 
   const reservationId = randomUUID();
   const deny = async (reason: string): Promise<ReserveOutcome> => {
@@ -133,6 +133,10 @@ async function reserveTx(tx: Tx, request: SpendRequest): Promise<ReserveOutcome>
     });
     return { status: "denied", reservationId, reason };
   };
+
+  if (!vendor) return deny("unknown_vendor");
+  const payee = payeeProblem(budget, vendor);
+  if (payee) return deny(payee);
 
   const ancestors = await tx.getAncestors(budget.id);
   const chain = [budget, ...ancestors];
@@ -165,16 +169,21 @@ async function reserveTx(tx: Tx, request: SpendRequest): Promise<ReserveOutcome>
     }
   }
 
-  const binding = chain.find((a) => request.amountMicro > a.balanceMicro);
+  const capped = budget.sharded ? ancestors : chain;
+  const binding = capped.find((a) => request.amountMicro > a.balanceMicro);
   if (binding) {
     return deny(binding.id === budget.id ? "cap_exceeded" : `${binding.type}_cap_exceeded`);
   }
 
-  await tx.updateAccount(
-    budget.id,
-    budget.balanceMicro - request.amountMicro,
-    budget.lastEntryHash,
-  );
+  if (budget.sharded) {
+    if (!(await holdFromShards(tx, budget.id, request.amountMicro))) return deny("cap_exceeded");
+  } else {
+    await tx.updateAccount(
+      budget.id,
+      budget.balanceMicro - request.amountMicro,
+      budget.lastEntryHash,
+    );
+  }
   for (const ancestor of ancestors) {
     await tx.updateAccount(
       ancestor.id,
@@ -265,7 +274,16 @@ async function settleTx(
   const budget = await tx.getAccount(reservation.budgetAccountId);
   if (!budget) throw new Error(`unknown budget account: ${reservation.budgetAccountId}`);
   const vendor = await tx.getAccount(reservation.vendorAccountId);
-  if (!vendor) throw new Error(`unknown vendor account: ${reservation.vendorAccountId}`);
+  if (!vendor || payeeProblem(budget, vendor)) {
+    return {
+      status: "invalid",
+      reservationId,
+      transactionId: null,
+      settledMicro: 0n,
+      refundMicro: 0n,
+      reason: "invalid_vendor",
+    };
+  }
 
   const transactionId = randomUUID();
   const attribution = {
@@ -276,13 +294,16 @@ async function settleTx(
     costCenter: reservation.costCenter,
     receipt: reservation.receipt,
   };
+  const refundShard = budget.sharded ? await tx.getShard(budget.id, REFUND_SHARD) : null;
+  if (budget.sharded && !refundShard) throw new Error(`account is not sharded: ${budget.id}`);
   const debit = buildEntry({
     transactionId,
-    account: budget,
+    account: refundShard ? { id: budget.id, lastEntryHash: refundShard.lastEntryHash } : budget,
     kind: "debit",
     amountMicro: -actual,
     request: attribution,
   });
+  if (refundShard) debit.shardIndex = refundShard.index;
   const credit = buildEntry({
     transactionId,
     account: vendor,
@@ -295,7 +316,16 @@ async function settleTx(
 
   await tx.insertEntry(debit);
   await tx.insertEntry(credit);
-  await tx.updateAccount(budget.id, budget.balanceMicro + refund, debit.hash);
+  if (refundShard) {
+    await tx.updateShard(
+      budget.id,
+      refundShard.index,
+      refundShard.balanceMicro + refund,
+      debit.hash,
+    );
+  } else {
+    await tx.updateAccount(budget.id, budget.balanceMicro + refund, debit.hash);
+  }
   await tx.updateAccount(vendor.id, vendor.balanceMicro + actual, credit.hash);
 
   const ancestors = await tx.getAncestors(budget.id);
@@ -330,11 +360,7 @@ async function releaseTx(tx: Tx, reservationId: string): Promise<ReleaseOutcome>
   const budget = await tx.getAccount(reservation.budgetAccountId);
   if (!budget) throw new Error(`unknown budget account: ${reservation.budgetAccountId}`);
 
-  await tx.updateAccount(
-    budget.id,
-    budget.balanceMicro + reservation.heldMicro,
-    budget.lastEntryHash,
-  );
+  await refundHold(tx, budget, reservation.heldMicro);
   const ancestors = await tx.getAncestors(budget.id);
   for (const ancestor of ancestors) {
     await tx.updateAccount(
@@ -347,4 +373,19 @@ async function releaseTx(tx: Tx, reservationId: string): Promise<ReleaseOutcome>
   await tx.updateReservation(reservationId, { status: "released" });
 
   return { status: "released", reservationId, refundMicro: reservation.heldMicro };
+}
+
+async function refundHold(tx: Tx, budget: Account, amountMicro: bigint): Promise<void> {
+  if (!budget.sharded) {
+    await tx.updateAccount(budget.id, budget.balanceMicro + amountMicro, budget.lastEntryHash);
+    return;
+  }
+  const shard = await tx.getShard(budget.id, REFUND_SHARD);
+  if (!shard) throw new Error(`account is not sharded: ${budget.id}`);
+  await tx.updateShard(
+    budget.id,
+    shard.index,
+    shard.balanceMicro + amountMicro,
+    shard.lastEntryHash,
+  );
 }

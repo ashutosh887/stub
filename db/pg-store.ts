@@ -16,13 +16,22 @@ import {
   isConflict,
 } from "@/core/store";
 
-// DSQL is snapshot-isolated with OCC by default; plain Postgres needs SERIALIZABLE to raise 40001.
-function beginStatement(): string {
+const DEADLOCK_DETECTED = "40P01";
+
+function isRetryable(err: unknown): boolean {
+  return isConflict(err) || (err as { code?: string } | null)?.code === DEADLOCK_DETECTED;
+}
+
+export function beginStatement(): string {
   return db.driver === "postgres" ? "BEGIN ISOLATION LEVEL SERIALIZABLE" : "BEGIN";
 }
 
 export class PgStore implements Store {
-  constructor(private readonly pool: Connectable = getPool()) {}
+  constructor(private readonly given?: Connectable) {}
+
+  private get pool(): Connectable {
+    return this.given ?? getPool();
+  }
 
   async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
@@ -33,7 +42,7 @@ export class PgStore implements Store {
       return result;
     } catch (err) {
       await rollbackQuietly(client);
-      if (isConflict(err)) throw new ConflictError((err as Error).message);
+      if (isRetryable(err)) throw new ConflictError((err as Error).message);
       throw err;
     } finally {
       client.release();
@@ -62,6 +71,12 @@ function makeTx(client: PoolClient): Tx {
         id,
       ]);
       return rows[0] ? toAccount(rows[0]) : null;
+    },
+    async hasChildren(id) {
+      const { rows } = await client.query(`SELECT 1 FROM accounts WHERE parent_id = $1 LIMIT 1`, [
+        id,
+      ]);
+      return rows.length > 0;
     },
     async getAncestors(id) {
       const result: Account[] = [];
@@ -166,7 +181,6 @@ function makeTx(client: PoolClient): Tx {
         entry.hash,
       ];
 
-      // Only sharded spends reference shard_index, so unsharded writes work on either schema.
       if (entry.shardIndex != null) {
         columns.push("shard_index");
         values.push(entry.shardIndex);

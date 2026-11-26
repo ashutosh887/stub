@@ -33,7 +33,11 @@ export const POST = withRoute({ name: "accounts/shard", admin: true }, async ({ 
     if (err instanceof Error && err.message.startsWith("unknown account:")) {
       throw new HttpError(404, err.message);
     }
-    if (err instanceof Error && err.message.startsWith("account already sharded:")) {
+    if (
+      err instanceof Error &&
+      (err.message.startsWith("account already sharded:") ||
+        err.message.startsWith("account has child accounts:"))
+    ) {
       throw new HttpError(409, err.message);
     }
     throw err;

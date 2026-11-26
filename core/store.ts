@@ -91,6 +91,7 @@ export interface Tx {
     lastEntryHash: string,
   ): Promise<void>;
   getAncestors(id: string): Promise<Account[]>;
+  hasChildren(id: string): Promise<boolean>;
   updateAccount(id: string, balanceMicro: bigint, lastEntryHash: string): Promise<void>;
   setFrozen(id: string, frozen: boolean): Promise<void>;
   markSharded(id: string): Promise<void>;

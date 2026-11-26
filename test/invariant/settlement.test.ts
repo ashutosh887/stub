@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MemStore } from "@/core/mem-store";
 import { reserve, settle, release } from "@/core/settlement";
+import { shardBalance, shardExistingAccount, spendAuto } from "@/core/sharded";
 import { verifyChain } from "@/core/audit";
 import { GENESIS_HASH } from "@/core/hash";
 import type { Account } from "@/core/store";
@@ -62,13 +63,11 @@ describe("settlement: reserve then settle holds funds then books actual cost", (
     });
     expect(reserved.status).toBe("reserved");
 
-    // The hold is real: balance reflects the held estimate before any spend is booked.
     expect(store.getAccount("budget")!.balanceMicro).toBe(6n * USD);
     expect(store.getAccount("team")!.balanceMicro).toBe(6n * USD);
     expect(store.getAccount("vendor")!.balanceMicro).toBe(0n);
     expect(store.entries).toHaveLength(0);
 
-    // Actual cost came in lower: settle books $2.50 and refunds $1.50.
     const settled = await settle(store, reserved.reservationId, { actualMicro: 2_500_000n });
     expect(settled.status).toBe("settled");
     expect(settled.settledMicro).toBe(2_500_000n);
@@ -78,7 +77,6 @@ describe("settlement: reserve then settle holds funds then books actual cost", (
     expect(store.getAccount("team")!.balanceMicro).toBe(10n * USD - 2_500_000n);
     expect(store.getAccount("vendor")!.balanceMicro).toBe(2_500_000n);
 
-    // Double-entry holds and the chain verifies.
     const sum = store.entries.reduce((acc, e) => acc + e.amountMicro, 0n);
     expect(sum).toBe(0n);
     expect(store.entries).toHaveLength(2);
@@ -132,12 +130,10 @@ describe("settlement: reserve then settle holds funds then books actual cost", (
     expect(settledOnce).toHaveLength(1);
     expect(duplicates).toHaveLength(4);
 
-    // The vendor was paid exactly once, the chain has exactly one debit/credit pair.
     expect(store.getAccount("vendor")!.balanceMicro).toBe(3n * USD);
     expect(store.getAccount("budget")!.balanceMicro).toBe(7n * USD);
     expect(store.entries).toHaveLength(2);
 
-    // OCC actually fired: exactly-once was enforced by conflicts, not ordering luck.
     const conflicts = results.reduce((sum, r) => sum + r.conflicts, 0);
     expect(conflicts).toBeGreaterThan(0);
   });
@@ -161,5 +157,36 @@ describe("settlement: reserve then settle holds funds then books actual cost", (
     await settle(store, b.reservationId);
     const lateRelease = await release(store, b.reservationId);
     expect(lateRelease.status).toBe("invalid");
+  });
+});
+
+describe("settlement: a sharded budget holds and refunds through its shards", () => {
+  it("never lets reserve plus sharded spend exceed the budget", async () => {
+    const store = new MemStore();
+    store.seedAccount({ ...budget(10n * USD), parentId: null });
+    store.seedAccount(vendor());
+    await shardExistingAccount(store, "budget", 2);
+    const request = { budgetAccountId: "budget", vendorAccountId: "vendor" };
+
+    const held = await reserve(store, { ...request, amountMicro: 6n * USD });
+    expect(held.status).toBe("reserved");
+    expect(await shardBalance(store, "budget")).toBe(4n * USD);
+
+    const over = await spendAuto(store, { ...request, amountMicro: 6n * USD }, { shards: 2 });
+    expect(over).toMatchObject({ status: "denied", reason: "cap_exceeded" });
+
+    const settled = await settle(store, held.reservationId, { actualMicro: 2n * USD });
+    expect(settled.status).toBe("settled");
+    expect(await shardBalance(store, "budget")).toBe(8n * USD);
+
+    const released = await reserve(store, { ...request, amountMicro: 3n * USD });
+    expect((await release(store, released.reservationId)).status).toBe("released");
+    expect(await shardBalance(store, "budget")).toBe(8n * USD);
+
+    const rest = await spendAuto(store, { ...request, amountMicro: 8n * USD }, { shards: 2 });
+    expect(rest.status).toBe("committed");
+    expect(await shardBalance(store, "budget")).toBe(0n);
+    expect(store.getAccount("vendor")!.balanceMicro).toBe(10n * USD);
+    expect(verifyChain(store.entries)).toEqual([]);
   });
 });
