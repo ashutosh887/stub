@@ -357,3 +357,38 @@ The owner must do one thing on npmjs.com before the next `sdk-v*` tag (it fails 
 then): add a trusted publisher for `trystub` (GitHub Actions, `ashutosh887/stub`, workflow
 `publish-sdk.yml`), then delete the `NPM_TOKEN` repository secret and revoke that token. Steps are in
 `CONTRIBUTING.md`.
+
+## F09: only the app role and the operators may connect (SEC05-BP01, SEC03-BP01)
+
+Docs checked first: Aurora DSQL supports resource-based policies on a cluster (`PutClusterPolicy`,
+or `PolicyDocument` on `AWS::DSQL::Cluster`), evaluated on `dsql:DbConnect` and
+`dsql:DbConnectAdmin`. Both clusters now carry the same policy, kept in
+`infra/stub-clusters.yaml`: deny `dsql:DbConnect` unless `aws:PrincipalArn` is the `stub-app` role
+or an operator, and deny `dsql:DbConnectAdmin` unless it is an operator (the operator IAM user and
+the account root, kept as break-glass). An explicit deny in the cluster policy wins over any
+identity policy, so a principal granted `dsql:*` elsewhere still cannot connect.
+
+The probe: a throwaway role `stub-wa-probe` with an identity policy allowing `dsql:DbConnect` and
+`dsql:DbConnectAdmin` on both clusters, assumed locally through a temporary profile file, then
+`npm run check:db` as `admin` and as `stub_app` against each cluster. The role was deleted after the
+second run (`GetRole` → `NoSuchEntity`).
+
+| Measure                                                         | Before (09:53 UTC)                                 | After (09:54 UTC, policy applied at 09:54:04) |
+| --------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------- |
+| Cluster resource policies                                       | 0 of 2 (`GetClusterPolicy` → not found)            | 2 of 2                                        |
+| Unlisted principal connects as `admin`                          | 2 of 2 clusters                                    | 0 of 2 ("access denied")                      |
+| Operator connects as `admin`                                    | 2 of 2                                             | 2 of 2                                        |
+| `stub-app` role, simulated with the cluster policy: `DbConnect` | allowed (section 3a, 09:23 UTC, no cluster policy) | allowed, both clusters                        |
+| `stub-app` role, simulated: `DbConnectAdmin`                    | implicit deny (section 3a)                         | explicit deny, both clusters                  |
+| `stub-wa-probe`, simulated: `DbConnect`, `DbConnectAdmin`       | not simulated; connected live as `admin` (row 2)   | explicit deny, both clusters                  |
+
+The `stub-app` role trusts only Vercel's production OIDC tokens, so it cannot be assumed from here;
+`iam:SimulatePrincipalPolicy` with the cluster policy as `ResourcePolicy` stands in for a live
+connect (the simulator rejects `"Resource": "*"`, so the simulated copy names the cluster ARN). The
+first real connect as `stub-app` happens on Vercel after the deploy: `GET /api/health` answering
+`"db": "up"` is the check. The `PutClusterPolicy` calls also fired the new
+`wa-dsql-destructive-calls` EventBridge rule once per Region (F04).
+
+Problem hit: a policy that names principals by ARN must be edited when an operator changes; adding
+a new operator means updating the `OperatorPrincipalArns` parameter of both `stub-clusters` stacks.
+No cost.

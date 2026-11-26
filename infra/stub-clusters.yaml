@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Stub ledger cluster (WA SEC01-BP05, REL09-BP05, SEC05-BP01). One stack per Region of the
+  multi-Region Aurora DSQL cluster, created by importing the running cluster (resource import), so
+  its deletion protection and resource policy live in code. The policy refuses dsql:DbConnect to
+  every principal except the app role and the operators, and dsql:DbConnectAdmin to everyone but
+  the operators. DeletionPolicy Retain: deleting this stack never deletes the ledger.
+
+Parameters:
+  ClusterArns:
+    Type: CommaDelimitedList
+    Description: >-
+      ARNs of both peer clusters, this one included, in the order dsql GetCluster lists them
+      (the service reports the Region's own cluster in the list, so drift checks need it).
+  WitnessRegion:
+    Type: String
+    Default: us-west-2
+  AppRoleArn:
+    Type: String
+    Description: The stub-app role from stub-app-role.yaml.
+  OperatorPrincipalArns:
+    Type: CommaDelimitedList
+    Description: IAM principals allowed to connect as admin (operators, break-glass).
+
+Resources:
+  LedgerCluster:
+    Type: AWS::DSQL::Cluster
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      DeletionProtectionEnabled: true
+      MultiRegionProperties:
+        WitnessRegion: !Ref WitnessRegion
+        Clusters: !Ref ClusterArns
+      PolicyDocument: !Sub
+        - >-
+          {"Version":"2012-10-17","Statement":[{"Sid":"ConnectOnlyAsTheAppRoleOrOperators","Effect":"Deny","Principal":{"AWS":"*"},"Action":"dsql:DbConnect","Resource":"*","Condition":{"StringNotEquals":{"aws:PrincipalArn":["${AppRoleArn}",${Operators}]}}},{"Sid":"AdminOnlyForOperators","Effect":"Deny","Principal":{"AWS":"*"},"Action":"dsql:DbConnectAdmin","Resource":"*","Condition":{"StringNotEquals":{"aws:PrincipalArn":[${Operators}]}}}]}
+        - Operators: !Join ["", ['"', !Join ['","', !Ref OperatorPrincipalArns], '"']]
