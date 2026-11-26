@@ -60,7 +60,7 @@ jobs:
           - { stack: stub-detection, template: stub-detection.yaml, region: us-east-2 }
     steps:
       - uses: actions/checkout@v4
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: ${{ vars.AWS_INFRA_DEPLOY_ROLE_ARN }}
           role-session-name: stub-infra-${{ github.run_id }}
