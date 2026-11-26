@@ -320,6 +320,18 @@ to npm through trusted publishing (GitHub OIDC, no stored token), builds and shi
 for release notes; see [CONTRIBUTING.md](./CONTRIBUTING.md#releasing-the-sdk). To publish manually:
 `cd sdk && npm publish --access public`.
 
+## Operations
+
+- [Incident response](./docs/incident-response.md): one playbook per alarm and rule (OCC
+  conflicts, query timeouts, a cluster deletion attempt, the audit trail stopped, GuardDuty changed
+  or a finding, a failover, a balance check refusal), the freeze criteria, and recovery with the
+  measured restore and failover times.
+- [Data classification](./docs/data-classification.md): every table, column, export and log
+  classed Public, Internal or Confidential, with retention and where it flows.
+- Infrastructure lives in [`infra/`](./infra) as CloudFormation and deploys from `main` through
+  [`infra.yml`](./.github/workflows/infra.yml) with a GitHub OIDC role, no stored AWS key.
+  Measurements: [`measurements/wa-review/RESULTS.md`](./measurements/wa-review/RESULTS.md).
+
 ## Development
 
 ```bash

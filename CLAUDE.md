@@ -190,7 +190,9 @@ normalization, CDC→Kinesis live feed.
 - `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent/bench/sweep,
   drill:failover, ledger:fingerprint).
   `test/`: `invariant/` (offline), `local/` (local Postgres), `live/` (real cluster). `docs/`:
-  local-only planning notes (gitignored).
+  local-only planning notes (gitignored), except `incident-response.md` (one playbook per alarm
+  and rule) and `data-classification.md` (class, retention and flow of every table and export),
+  which are tracked and linked from the README.
 
 ## Commands
 
@@ -215,8 +217,14 @@ normalization, CDC→Kinesis live feed.
   Region first, then the primary with `CopyToVaultArn` set to the peer vault), `stub-audit.yaml`
   (once, in the home Region: multi-Region trail, log bucket, AWS Config service-linked role) and
   `stub-detection.yaml` (one per Region, after `stub-audit`: GuardDuty, alarms, SNS, EventBridge
-  rules, Config recorder and rule). `test/invariant/infrastructure.test.ts` fails CI if a control
-  is dropped from a template; `cfn-lint` runs in `security.yml`. Restore check:
+  rules, Config recorder and rule) and `stub-deploy-role.yaml` (once, by an operator: GitHub OIDC
+  provider, `stub-infra-deploy` limited to change sets on the five stack names through
+  `stub-infra-cfn-exec`, which is denied every audit and ledger kill switch).
+  `.github/workflows/infra.yml` lints and tests on PR and deploys the stacks from `main`, refusing
+  any change set that removes or replaces a resource. `test/invariant/infrastructure.test.ts` fails
+  CI if a control is dropped from a template; `cfn-lint` runs in `security.yml`. Every route under
+  `app/api` must be `admin: true`, agent-key, or on the reasoned public list
+  (`test/invariant/route-guard.test.ts`). Restore check:
   `npm run ledger:fingerprint -- <endpoint> <region>` on the source and the restored cluster must
   print the same counts and digests.
 - Demo agent (needs `npm run dev`): `npm run demo:agent`

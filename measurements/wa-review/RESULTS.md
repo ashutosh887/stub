@@ -725,3 +725,34 @@ through a template (the execution role may write `stub-app`'s inline policy). Br
 
 Cost: IAM roles, the OIDC provider, CloudFormation and drift detection are free. New monthly cost:
 $0.
+
+## F26 and F27: an incident response guide and a data classification (SEC10-BP01, SEC10-BP02, REL12-BP01, SEC07-BP01, SEC07-BP03)
+
+- `docs/incident-response.md`: severity levels; the freeze lever with written criteria for
+  freezing everything or one account (closes F24's "lever without criteria"); one playbook for each
+  of the 8 signals that exist (alarms `wa-dsql-occ-conflicts-*`, `wa-dsql-query-timeouts-*`; rules
+  `wa-dsql-destructive-calls` with the Config rule, `wa-audit-tampering` split into the trail and
+  bucket case and the GuardDuty case, `wa-guardduty-findings`; and two app signals with no alarm
+  yet: the `dsql_endpoint_switch` log line for a failover and the `23514` balance refusal), each
+  with what fired, the first five minutes, how to verify, how to roll back, and who acts (the
+  operator). Recovery cites the measured restore drill (2 min 8.7 s job, 2 min 19 s to the first
+  query, F03) and failover drill (4.55 to 14.87 s, F05).
+- `docs/data-classification.md`: three classes; all 10 tables classed by column (Confidential for
+  money, spend history, people and key hashes; Internal for identifiers and settings), retention
+  taken from the app role's actual grants (no `DELETE` except on `policies`); every export and API
+  response, logs, trail, Config snapshots, backups, findings and alerts; and the flows of
+  Confidential data out of the ledger (OpenAI receives the question and aggregated totals when
+  `OPENAI_API_KEY` is set; Vercel; the operator's exports).
+- Both are tracked (`.gitignore` keeps the rest of `docs/` local) and linked from `README.md`
+  under "Operations".
+
+| Measure                                       | Before (re-review) | After                               |
+| --------------------------------------------- | ------------------ | ----------------------------------- |
+| Playbooks for the alarms and rules that exist | 0 of 8             | 8 of 8                              |
+| Written freeze criteria                       | none               | 4 for freeze-all, 1 for one account |
+| Tables with a classification                  | 0 of 10            | 10 of 10, by column                 |
+| Exports and API responses classified          | 0                  | both exports and every route group  |
+
+Not done here: a tabletop run of a playbook, a second responder, and an on-call rota (one operator
+exists); alarms for the two app signals (the failover log line and `23514`) need a log drain or a
+published metric first. No AWS resource was tagged with its class.
