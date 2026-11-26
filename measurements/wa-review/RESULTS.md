@@ -575,3 +575,17 @@ the six probed routes keep answering 200 until this branch is deployed with `ADM
 | `/api/proof`             | POST                     | public by design   | the public least-privilege proof; each statement rolls back; per-IP and global limits  |
 
 20 admin handlers, 4 agent-key handlers, 4 public handlers across 23 route files.
+
+### Guardrail: no route without a gate or a written reason
+
+`test/invariant/route-guard.test.ts` reads every `app/api/**/route.ts`, finds each exported
+handler, and fails unless the handler runs through `withRoute` and is either `admin: true`, on the
+`AGENT_ROUTES` list (and its file both resolves an agent key and falls back to `isAdmin(request)`),
+or on the `PUBLIC_ROUTES` list with its reason. A bare `export async function GET` fails, and an
+allowlist entry naming a handler that no longer exists fails.
+
+| Measure                                              | Before (HEAD `038e1f3` routes)                                                                                      | After `93584e0`                 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `npx vitest run test/invariant/route-guard.test.ts`  | 1 failed of 4                                                                                                       | 4 passed of 4                   |
+| Handlers outside the rule                            | 7: `export`, `export/journal`, `audit/verify` (open); `tamper-demo`, `harness`, `incident`, `stress` (inline check) | 0                               |
+| Break test: `admin: true` removed from `/api/export` | n/a                                                                                                                 | fails, naming `GET /api/export` |
