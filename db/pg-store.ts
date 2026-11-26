@@ -12,7 +12,9 @@ import {
   type Shard,
   type Store,
   type Tx,
+  CheckViolationError,
   ConflictError,
+  isCheckViolation,
   isConflict,
 } from "@/core/store";
 
@@ -43,6 +45,7 @@ export class PgStore implements Store {
     } catch (err) {
       await rollbackQuietly(client);
       if (isRetryable(err)) throw new ConflictError((err as Error).message);
+      if (isCheckViolation(err)) throw new CheckViolationError((err as Error).message);
       throw err;
     } finally {
       client.release();

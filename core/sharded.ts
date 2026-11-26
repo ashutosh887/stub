@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { GENESIS_HASH } from "./hash";
 import {
   buildEntry,
+  denialFor,
   payeeProblem,
+  refuseSpend,
   runOcc,
   spend,
   type SpendRequest,
@@ -138,6 +140,7 @@ export async function shardedSpend(
     store,
     (tx) => settleSharded(tx, request, shardCount, pick),
     options.maxRetries,
+    () => refuseSpend(store, request),
   );
 
   return { ...result, conflicts, attempts };
@@ -171,17 +174,7 @@ async function settleSharded(
   const transactionId = randomUUID();
   type Outcome = Omit<SpendResult, "conflicts" | "attempts">;
   const deny = async (reason: string): Promise<Outcome> => {
-    await tx.insertDenial({
-      id: randomUUID(),
-      accountId: budget.id,
-      attemptedMicro: request.amountMicro,
-      reason,
-      agentId: request.agentId ?? null,
-      sessionId: request.sessionId ?? null,
-      intent: request.intent ?? null,
-      costCenter: request.costCenter ?? null,
-      receipt: request.receipt ?? null,
-    });
+    await tx.insertDenial(denialFor(request, reason));
     return { status: "denied", transactionId, reason };
   };
 

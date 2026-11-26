@@ -1,5 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { DEFAULT_MAX_RETRIES, buildEntry, payeeProblem, runOcc, type SpendRequest } from "./ledger";
+import {
+  DB_REFUSED,
+  DEFAULT_MAX_RETRIES,
+  buildEntry,
+  denialFor,
+  payeeProblem,
+  recordRefusal,
+  runOcc,
+  type SpendRequest,
+} from "./ledger";
 import { evaluatePolicies } from "./policy";
 import { REFUND_SHARD, holdFromShards } from "./sharded";
 import type { Account, Store, Tx } from "./store";
@@ -58,6 +67,10 @@ export async function reserve(
     store,
     (tx) => reserveTx(tx, request),
     options.maxRetries ?? DEFAULT_MAX_RETRIES,
+    async (): Promise<ReserveOutcome> => {
+      await recordRefusal(store, request);
+      return { status: "denied", reservationId: randomUUID(), reason: DB_REFUSED };
+    },
   );
   return { ...result, conflicts, attempts };
 }
@@ -71,6 +84,14 @@ export async function settle(
     store,
     (tx) => settleTx(tx, reservationId, options.actualMicro),
     options.maxRetries ?? DEFAULT_MAX_RETRIES,
+    async (): Promise<SettleOutcome> => ({
+      status: "invalid",
+      reservationId,
+      transactionId: null,
+      settledMicro: 0n,
+      refundMicro: 0n,
+      reason: DB_REFUSED,
+    }),
   );
   return { ...result, conflicts, attempts };
 }
@@ -84,6 +105,12 @@ export async function release(
     store,
     (tx) => releaseTx(tx, reservationId),
     options.maxRetries ?? DEFAULT_MAX_RETRIES,
+    async (): Promise<ReleaseOutcome> => ({
+      status: "invalid",
+      reservationId,
+      refundMicro: 0n,
+      reason: DB_REFUSED,
+    }),
   );
   return { ...result, conflicts, attempts };
 }
@@ -120,17 +147,7 @@ async function reserveTx(tx: Tx, request: SpendRequest): Promise<ReserveOutcome>
 
   const reservationId = randomUUID();
   const deny = async (reason: string): Promise<ReserveOutcome> => {
-    await tx.insertDenial({
-      id: randomUUID(),
-      accountId: budget.id,
-      attemptedMicro: request.amountMicro,
-      reason,
-      agentId: request.agentId ?? null,
-      sessionId: request.sessionId ?? null,
-      intent: request.intent ?? null,
-      costCenter: request.costCenter ?? null,
-      receipt: request.receipt ?? null,
-    });
+    await tx.insertDenial(denialFor(request, reason));
     return { status: "denied", reservationId, reason };
   };
 

@@ -23,6 +23,7 @@ export const REASON_LABEL: Record<string, string> = {
   payee_not_vendor: "Payee not a vendor",
   payee_is_budget: "Payee is the budget",
   needs_approval: "Needs approval",
+  db_refused: "Refused by the database (23514)",
 };
 
 export const reasonLabel = (reason: string) => REASON_LABEL[reason] ?? reason.replace(/_/g, " ");

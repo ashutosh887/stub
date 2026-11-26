@@ -113,6 +113,7 @@ export interface Store {
 
 export const SERIALIZATION_FAILURE = "40001";
 export const UNIQUE_VIOLATION = "23505";
+export const CHECK_VIOLATION = "23514";
 
 export class ConflictError extends Error {
   readonly code = SERIALIZATION_FAILURE;
@@ -125,4 +126,16 @@ export class ConflictError extends Error {
 export function isConflict(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code;
   return code === SERIALIZATION_FAILURE || code === UNIQUE_VIOLATION;
+}
+
+export class CheckViolationError extends Error {
+  readonly code = CHECK_VIOLATION;
+  constructor(message = "check constraint violation") {
+    super(message);
+    this.name = "CheckViolationError";
+  }
+}
+
+export function isCheckViolation(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === CHECK_VIOLATION;
 }

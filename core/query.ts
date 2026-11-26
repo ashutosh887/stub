@@ -70,7 +70,7 @@ export const QUERY_TOOL = {
       reason: {
         type: ["string", "null"],
         description:
-          "Denial reason to filter by (denials only): cap_exceeded, per_txn_limit, window_limit, vendor_blocked, vendor_not_allowed, needs_approval, account_frozen.",
+          "Denial reason to filter by (denials only): cap_exceeded, per_txn_limit, window_limit, vendor_blocked, vendor_not_allowed, needs_approval, account_frozen, db_refused.",
       },
       since: {
         type: ["string", "null"],

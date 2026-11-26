@@ -7,6 +7,7 @@ import {
   type Shard,
   type Store,
   type Tx,
+  CheckViolationError,
   ConflictError,
 } from "./store";
 
@@ -18,6 +19,12 @@ interface Versioned {
 interface VersionedShard {
   shard: Shard;
   version: number;
+}
+
+function checkBalance(where: string, balanceMicro: bigint, capMicro: bigint | null): void {
+  if (balanceMicro < 0n || (capMicro !== null && balanceMicro > capMicro)) {
+    throw new CheckViolationError(`balance check failed on ${where}`);
+  }
 }
 
 function shardKey(accountId: string, index: number): string {
@@ -151,12 +158,14 @@ export class MemStore implements Store {
           .filter(Boolean),
       getShard: async (accountId, index) => readShard(accountId, index, true),
       upsertShard: async (shard) => {
+        checkBalance(shardKey(shard.accountId, shard.index), shard.balanceMicro, null);
         readShard(shard.accountId, shard.index, true);
         shardWrites.set(shardKey(shard.accountId, shard.index), clone(shard));
       },
       updateShard: async (accountId, index, balanceMicro, lastEntryHash) => {
         const current = readShard(accountId, index, true);
         if (!current) throw new Error(`unknown shard: ${accountId}#${index}`);
+        checkBalance(shardKey(accountId, index), balanceMicro, null);
         shardWrites.set(shardKey(accountId, index), {
           ...current,
           balanceMicro,
@@ -178,7 +187,8 @@ export class MemStore implements Store {
         return result;
       },
       updateAccount: async (id, balanceMicro, lastEntryHash) => {
-        snapshot(id);
+        const current = readAccount(id);
+        if (current) checkBalance(id, balanceMicro, current.capMicro);
         accountWrites.set(id, { ...accountWrites.get(id), balanceMicro, lastEntryHash });
       },
       setFrozen: async (id, frozen) => {

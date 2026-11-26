@@ -1,7 +1,15 @@
 import { randomUUID } from "node:crypto";
 import { GENESIS_HASH, hashEntry } from "./hash";
 import { evaluatePolicies } from "./policy";
-import { type Account, type Entry, type Store, type Tx, isConflict } from "./store";
+import {
+  type Account,
+  type Denial,
+  type Entry,
+  type Store,
+  type Tx,
+  isCheckViolation,
+  isConflict,
+} from "./store";
 
 export interface SpendRequest {
   budgetAccountId: string;
@@ -32,6 +40,7 @@ export interface SpendOptions {
 }
 
 export const DEFAULT_MAX_RETRIES = 50;
+export const DB_REFUSED = "db_refused";
 
 type SettleOutcome = Omit<SpendResult, "conflicts" | "attempts">;
 
@@ -47,10 +56,29 @@ export function payeeProblem(budget: Account, vendor: Account): string | null {
   return null;
 }
 
+export function denialFor(request: SpendRequest, reason: string): Denial {
+  return {
+    id: randomUUID(),
+    accountId: request.budgetAccountId,
+    attemptedMicro: request.amountMicro,
+    reason,
+    agentId: request.agentId ?? null,
+    sessionId: request.sessionId ?? null,
+    intent: request.intent ?? null,
+    costCenter: request.costCenter ?? null,
+    receipt: request.receipt ?? null,
+  };
+}
+
+export async function recordRefusal(store: Store, request: SpendRequest): Promise<void> {
+  await runOcc(store, (tx) => tx.insertDenial(denialFor(request, DB_REFUSED)));
+}
+
 export async function runOcc<T>(
   store: Store,
   fn: (tx: Tx) => Promise<T>,
   maxRetries: number = DEFAULT_MAX_RETRIES,
+  onRefused?: () => Promise<T>,
 ): Promise<OccResult<T>> {
   let conflicts = 0;
   for (let attempt = 1; ; attempt += 1) {
@@ -62,6 +90,9 @@ export async function runOcc<T>(
         conflicts += 1;
         await backoff(attempt);
         continue;
+      }
+      if (onRefused && isCheckViolation(err)) {
+        return { result: await onRefused(), conflicts, attempts: attempt };
       }
       throw err;
     }
@@ -81,8 +112,14 @@ export async function spend(
     store,
     (tx) => settle(tx, request),
     options.maxRetries ?? DEFAULT_MAX_RETRIES,
+    () => refuseSpend(store, request),
   );
   return { ...result, conflicts, attempts };
+}
+
+export async function refuseSpend(store: Store, request: SpendRequest): Promise<SettleOutcome> {
+  await recordRefusal(store, request);
+  return { status: "denied", transactionId: randomUUID(), reason: DB_REFUSED };
 }
 
 async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
@@ -97,17 +134,7 @@ async function settle(tx: Tx, request: SpendRequest): Promise<SettleOutcome> {
 
   const transactionId = randomUUID();
   const deny = async (reason: string): Promise<SettleOutcome> => {
-    await tx.insertDenial({
-      id: randomUUID(),
-      accountId: budget.id,
-      attemptedMicro: request.amountMicro,
-      reason,
-      agentId: request.agentId ?? null,
-      sessionId: request.sessionId ?? null,
-      intent: request.intent ?? null,
-      costCenter: request.costCenter ?? null,
-      receipt: request.receipt ?? null,
-    });
+    await tx.insertDenial(denialFor(request, reason));
     return { status: "denied", transactionId, reason };
   };
 

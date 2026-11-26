@@ -10,6 +10,14 @@ published verbatim as the body of the matching
 
 ## [Unreleased]
 
+### Changed
+
+- **Stub server: a write the database refuses is a denial, not a `500`.** When a balance `CHECK`
+  fails with `23514` after the server's own budget check passed, `spend()` and `reserve()` come back
+  `denied` with reason `db_refused`, and the denial is recorded like any other. Nothing is retried
+  and no balance moves. `settle()` and `release()` come back `invalid` with the same reason and the
+  hold stays in place.
+
 ## [1.3.0] - 2026-11-26
 
 The database now enforces the budget. Before this release the overspend check lived in the server's
