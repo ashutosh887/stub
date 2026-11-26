@@ -589,3 +589,55 @@ allowlist entry naming a handler that no longer exists fails.
 | `npx vitest run test/invariant/route-guard.test.ts`  | 1 failed of 4                                                                                                       | 4 passed of 4                   |
 | Handlers outside the rule                            | 7: `export`, `export/journal`, `audit/verify` (open); `tamper-demo`, `harness`, `incident`, `stress` (inline check) | 0                               |
 | Break test: `admin: true` removed from `/api/export` | n/a                                                                                                                 | fails, naming `GET /api/export` |
+
+## F28: the audit trail cannot be stopped, narrowed or emptied without a page (SEC04-BP01, SEC04-BP02)
+
+Changed through the existing stacks, by change sets reviewed before each execute; no trail, bucket,
+detector or cluster was replaced.
+
+- `stub-detection` (both Regions): new rule `wa-audit-tampering` on the existing ops topic. It
+  matches CloudTrail `StopLogging`, `DeleteTrail`, `UpdateTrail`, `PutEventSelectors`; GuardDuty
+  `DeleteDetector` and every `UpdateDetector` (disabling the detector and disabling one feature are
+  both `UpdateDetector`, so matching on a request field would miss the second); and
+  `PutBucketPolicy`, `DeleteBucketPolicy`, `PutBucketLifecycle`, `DeleteBucketLifecycle`,
+  `PutBucketVersioning` on the log bucket, which is the remaining way to purge it (a shorter
+  lifecycle). Checked first with `events:TestEventPattern`: 5 of 5 tampering events matched,
+  `StartLogging`, another bucket's policy and a DSQL call did not.
+- `stub-audit`: bucket policy statement `DenyLogDeletes`, `Deny` `s3:DeleteObject*` on every object
+  for every principal. S3 lifecycle expiry still runs: it does not use `DeleteObject` and bucket
+  policy denies do not apply to it (S3 user guide, "Troubleshooting Amazon S3 Lifecycle issues").
+  Object Lock was not turned on: the bucket was created without it, and a deny policy needs no
+  bucket change.
+- Log file validation was already on (`LogFileValidationEnabled: true` live and in the template
+  since F04; digest files delivered, latest 14:43:11 UTC). Nothing to change.
+
+| Measure                                                                                                      | Before (14:52 UTC)                                     | After                                                                  |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ | ---------------------------------------------------------------------- |
+| EventBridge rules watching the trail or GuardDuty, us-east-1 / us-east-2                                     | 0 / 0                                                  | 1 / 1 (`wa-audit-tampering`)                                           |
+| Operator `s3:DeleteObject`, `s3:DeleteObjectVersion` on a log object (IAM simulation with the bucket policy) | allowed, allowed                                       | explicitDeny, explicitDeny                                             |
+| Live delete of a probe object and of its version (15:00:07)                                                  | n/a                                                    | `AccessDenied` ("explicit deny in a resource-based policy") both times |
+| Lifecycle rule `retain-then-expire`                                                                          | Enabled, 365 days                                      | Enabled, 365 days                                                      |
+| Trail logging, log file validation                                                                           | on, on                                                 | on, on                                                                 |
+| Deployed template = file (SHA-256)                                                                           | `stub-audit` `ea77530c…`, `stub-detection` `15d067c9…` | `stub-audit` `f89d6c6c…`, `stub-detection` `2b05e90b…` (both Regions)  |
+
+Proof that the rule fires. Harmless matching calls: `UpdateTrail` with the trail's own settings in
+us-east-1 at 15:00:02 (settings read before and after: identical), `UpdateDetector` with the same
+`FIFTEEN_MINUTES` publishing frequency in each Region at 15:00:04 and 15:00:05; the `stub-audit`
+deploy itself called `PutBucketPolicy` at 14:59. CloudWatch, read at 15:02:13 UTC, one-minute sums:
+
+| Region    | `AWS/Events` `MatchedEvents` (`wa-audit-tampering`) | `Invocations`        | `FailedInvocations` | `AWS/SNS` `NumberOfMessagesPublished` (`wa-stub-ops-alerts`) |
+| --------- | --------------------------------------------------- | -------------------- | ------------------- | ------------------------------------------------------------ |
+| us-east-1 | 14:59 → 1, 15:00 → 2                                | 14:59 → 1, 15:00 → 2 | 0                   | 14:59 → 1, 15:00 → 2                                         |
+| us-east-2 | 15:00 → 1                                           | 15:00 → 1            | 0                   | 15:00 → 1                                                    |
+
+(Each Region also shows one match at 14:53 with no invocation: the first deploy attempt, which
+rolled back, see F07.) The probe object `wa-probe/delete-probe.txt` stays in the bucket; lifecycle
+expires it with the logs.
+
+Still open: the trail and its bucket live in the workload account, so an administrator of this
+account can still remove the bucket policy (it pages now) or delete the trail (it pages). An
+Organizations log-archive account with Object Lock is the full fix and needs AWS Organizations
+(F06). The topic's email subscription is still unconfirmed (F04), so the pages reach no person yet.
+
+Cost: EventBridge rules on AWS service events, the bucket policy and the SNS publishes at this
+volume are free. New monthly cost: $0.

@@ -2,7 +2,8 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Stub audit trail (WA SEC04-BP01, SEC04-BP02). Deployed once, in the home Region: the account's
   multi-Region CloudTrail trail with log file validation, its bucket (TLS only, versioned, public
-  access blocked, lifecycle to Glacier Instant Retrieval at 90 days and expiry), and the AWS Config
+  access blocked, no object or version deletes by any principal, lifecycle to Glacier Instant
+  Retrieval at 90 days and expiry, which S3 runs outside the bucket policy), and the AWS Config
   service-linked role that every Region's recorder in stub-detection.yaml uses. The bucket also
   receives the AWS Config snapshots from those recorders.
 
@@ -63,6 +64,11 @@ Resources:
               - !Sub ${LogBucket.Arn}/*
             Condition:
               Bool: { aws:SecureTransport: "false" }
+          - Sid: DenyLogDeletes
+            Effect: Deny
+            Principal: "*"
+            Action: s3:DeleteObject*
+            Resource: !Sub ${LogBucket.Arn}/*
           - Sid: CloudTrailAclCheck
             Effect: Allow
             Principal: { Service: cloudtrail.amazonaws.com }

@@ -2,8 +2,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Stub detection (WA SEC04-BP02, REL06-BP01, REL06-BP03, REL11-BP06, REL09-BP05). One stack per
   Region of the ledger: GuardDuty (foundational sources only), a KMS-encrypted SNS topic, DSQL
-  alarms, EventBridge rules for GuardDuty findings and destructive DSQL API calls, and the AWS
-  Config rule for DSQL deletion protection over a recorder that records only DSQL clusters. Needs
+  alarms, EventBridge rules for GuardDuty findings, destructive DSQL API calls and any call that
+  stops or weakens the audit trail or threat detection, and the AWS Config rule for DSQL deletion
+  protection over a recorder that records only DSQL clusters. Needs
   stub-audit.yaml first (the log bucket and the Config service-linked role). The topic has no
   subscriber until the owner adds one.
 
@@ -24,6 +25,12 @@ Parameters:
 Resources:
   Detector:
     Type: AWS::GuardDuty::Detector
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      cfn-lint:
+        config:
+          ignore_checks: [E3030]
     Properties:
       Enable: true
       FindingPublishingFrequency: FIFTEEN_MINUTES
@@ -32,6 +39,9 @@ Resources:
         - { Name: EKS_AUDIT_LOGS, Status: DISABLED }
         - { Name: EBS_MALWARE_PROTECTION, Status: DISABLED }
         - { Name: RDS_LOGIN_EVENTS, Status: DISABLED }
+        - { Name: AI_PROTECTION, Status: DISABLED }
+        - { Name: AI_ANALYST, Status: DISABLED }
+        - { Name: EKS_RUNTIME_MONITORING, Status: DISABLED }
         - { Name: LAMBDA_NETWORK_LOGS, Status: DISABLED }
         - { Name: RUNTIME_MONITORING, Status: DISABLED }
       Tags:
@@ -169,6 +179,41 @@ Resources:
         detail:
           eventSource: [dsql.amazonaws.com]
           eventName: [DeleteCluster, UpdateCluster, PutClusterPolicy, DeleteClusterPolicy]
+      Targets:
+        - Id: ops-topic
+          Arn: !Ref AlertTopic
+
+  AuditTamperingRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: wa-audit-tampering
+      Description: >-
+        WA SEC04-BP01, SEC04-BP02: a call that stops, deletes or narrows the audit trail, turns
+        off or changes GuardDuty, or loosens the audit log bucket goes to the ops topic. Every
+        UpdateDetector matches, since disabling the detector and disabling one of its features
+        are both UpdateDetector.
+      EventPattern:
+        detail-type: [AWS API Call via CloudTrail]
+        $or:
+          - source: [aws.cloudtrail]
+            detail:
+              eventSource: [cloudtrail.amazonaws.com]
+              eventName: [StopLogging, DeleteTrail, UpdateTrail, PutEventSelectors]
+          - source: [aws.guardduty]
+            detail:
+              eventSource: [guardduty.amazonaws.com]
+              eventName: [DeleteDetector, UpdateDetector]
+          - source: [aws.s3]
+            detail:
+              eventSource: [s3.amazonaws.com]
+              eventName:
+                - PutBucketPolicy
+                - DeleteBucketPolicy
+                - PutBucketLifecycle
+                - DeleteBucketLifecycle
+                - PutBucketVersioning
+              requestParameters:
+                bucketName: [!Ref LogBucketName]
       Targets:
         - Id: ops-topic
           Arn: !Ref AlertTopic
