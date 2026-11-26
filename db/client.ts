@@ -81,6 +81,15 @@ export function createDriverPool(max?: number, user: string = dsql.user): Pool {
   });
 }
 
+export function createAppPool(max?: number): Pool {
+  const url = db.url;
+  if (!url) return createDriverPool(max, db.appUser);
+  const target = new URL(url);
+  target.username = db.appUser;
+  target.password = db.appPassword ?? "";
+  return createPostgresPool(target.toString(), max);
+}
+
 export function createAdminPool(): Pool {
   return createDriverPool(1, dsql.adminUser);
 }

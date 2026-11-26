@@ -25,6 +25,10 @@ export const db = {
   get driver(): DbDriver {
     return env("DATABASE_URL") ? "postgres" : "dsql";
   },
+  appUser: "stub_app",
+  get appPassword(): string | undefined {
+    return env("STUB_APP_PASSWORD");
+  },
   poolMax: int("DB_POOL_MAX", 10),
   idleTimeoutMs: int("DB_IDLE_TIMEOUT_MS", 30_000),
   connectionTimeoutMs: int("DB_CONNECTION_TIMEOUT_MS", 10_000),

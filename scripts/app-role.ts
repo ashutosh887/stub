@@ -20,9 +20,17 @@ function statements(sql: string): string[] {
 async function ensureRole(): Promise<void> {
   const { rows } = await pool.query(`SELECT 1 FROM pg_roles WHERE rolname = $1`, [APP_ROLE]);
   if (rows.length === 0) await pool.query(`CREATE ROLE ${APP_ROLE} WITH LOGIN`);
+  if (db.driver === "postgres" && db.appPassword) {
+    const { rows: set } = await pool.query<{ sql: string }>(
+      `SELECT format('ALTER ROLE ${APP_ROLE} WITH PASSWORD %L', $1::text) AS sql`,
+      [db.appPassword],
+    );
+    await pool.query(set[0].sql);
+    console.log(`  ok  ${APP_ROLE} password set from STUB_APP_PASSWORD`);
+  }
   for (const statement of statements(readFileSync(grantsPath, "utf8"))) {
     await pool.query(statement);
-    console.log(`  ✅ ${statement.replace(/\s+/g, " ").slice(0, 90)}`);
+    console.log(`  ok  ${statement.replace(/\s+/g, " ").slice(0, 90)}`);
   }
 }
 
@@ -38,7 +46,7 @@ async function main() {
   const [action = "apply", arn] = process.argv.slice(2);
   if (action === "apply") {
     await ensureRole();
-    console.log(`✅ ${APP_ROLE} exists with the grants in db/app-role.sql`);
+    console.log(`${APP_ROLE} exists with the grants in db/app-role.sql`);
     return;
   }
   if (db.driver === "postgres") throw new Error("AWS IAM GRANT exists only on Aurora DSQL");
@@ -50,12 +58,12 @@ async function main() {
   } else if (action !== "grant" && action !== "revoke") {
     throw new Error(`unknown action ${action}`);
   }
-  console.log(`✅ ${action} ${APP_ROLE} ↔ ${arn}: mapped=${await mapped(arn)}`);
+  console.log(`${action} ${APP_ROLE} ↔ ${arn}: mapped=${await mapped(arn)}`);
 }
 
 main()
   .catch((err) => {
-    console.error("❌ app role setup failed:", (err as Error).message);
+    console.error("app role setup failed:", (err as Error).message);
     process.exit(1);
   })
   .finally(() => pool.end());

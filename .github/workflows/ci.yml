@@ -9,8 +9,8 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -20,6 +20,33 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  db-proof:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
         env:
-          # Build only needs a value present; routes connect lazily at request time.
-          DSQL_ENDPOINT: placeholder.dsql.us-east-1.on.aws
+          POSTGRES_USER: stub
+          POSTGRES_PASSWORD: stub
+          POSTGRES_DB: stub
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U stub -d stub"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://stub:stub@localhost:5432/stub
+      STUB_APP_PASSWORD: ci-only-local-password
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run migrate
+      - run: npm run db:app-role
+      - run: npm run test:local
