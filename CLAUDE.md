@@ -148,11 +148,16 @@ normalization, CDC→Kinesis live feed.
   `npm run migrate` on the postgres driver). Swap this dir, the core is untouched.
 - **Regional failover:** with `DSQL_ENDPOINT_PEER` set, `getPool()` returns a `FailoverPool`
   (`db/failover.ts`): a connection the primary cannot open (network error, connect timeout, SQLSTATE
-  class `08`/`28`/`57P0x`) is retried on the peer at once and later calls stay there; after
+  class `08`/`28`/`57P0x`, or `XX000 internal error`, which is how DSQL drops an open connection,
+  and the dropped client is discarded) is retried on the peer at once and later calls stay there; after
   `DSQL_FAILBACK_AFTER_MS` a background probe moves them back when the primary answers. SQL errors
   (`40001`, `23514`, `42501`) never switch. Either endpoint is correct: the peers are strongly
   consistent. `PgStore` takes any `Connectable`; `/api/health` reports the active Region.
-  `npm run drill:failover [blackhole|dns]` measures time to the first committed spend on the peer.
+  `npm run drill:failover [blackhole|dns]` measures time to the first committed spend on the peer
+  from one client; the AWS FIS template `stub-dsql-primary-connection-failure` (us-east-1
+  `stub-clusters`, `FaultInjectionDrill=enabled`) refuses every connection to the primary for 2
+  minutes against the real deployment. Never probe production as `admin` inside `BEGIN … ROLLBACK`:
+  on DSQL a failed statement ends the transaction and the next one runs in autocommit.
 - **Two drivers, one code path:** set `DATABASE_URL` for local Postgres (`npm run db:up`,
   `docker-compose.yml`) and every `DSQL_*` var is ignored; leave it unset for Aurora DSQL. Local
   mode is a faithful OCC model, not a mock, so `npm run test:local` proves the invariant with no
@@ -235,9 +240,12 @@ normalization, CDC→Kinesis live feed.
 - **Infrastructure as code** (`infra/`, CloudFormation, every stack with termination protection;
   change live resources only through these templates and confirm with drift detection):
   `stub-app-role.yaml` (OIDC provider + app role), `stub-clusters.yaml` (one stack per Region,
-  created by importing the running cluster: deletion protection, `DeletionPolicy: Retain`, and the
+  created by importing the running cluster: deletion protection, `DeletionPolicy: Retain`, the
   cluster policy that denies `DbConnect` to all but the app role and operators and
-  `DbConnectAdmin` to all but operators), `stub-backup.yaml` (one per Region; deploy the peer
+  `DbConnectAdmin` to all but operators, the DSQL SQL audit log delivery (`AUDIT_LOGS`) to a
+  per-Region S3 bucket with Object Lock in governance mode and deletes denied, and in us-east-1 the
+  FIS drill template and its role; the audit baseline itself is SQL,
+  `ALTER SYSTEM SET dsql_audit.log = 'ddl,role,write'`, run once as `admin`), `stub-backup.yaml` (one per Region; deploy the peer
   Region first, then the primary with `CopyToVaultArn` set to the peer vault), `stub-audit.yaml`
   (once, in the home Region: multi-Region trail, log bucket, AWS Config service-linked role) and
   `stub-detection.yaml` (one per Region, after `stub-audit`: GuardDuty, alarms, SNS, EventBridge

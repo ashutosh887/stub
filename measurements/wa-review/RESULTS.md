@@ -1199,7 +1199,8 @@ statement, the `admin` role and the operator's IAM user:
 Restore into a new cluster, read the one missing row, insert it once, check the digest and the
 chain. 4 min 34 s from the delete to the row back; the restore itself 2 min 5 s. It worked because
 the row predated the only recovery point (09:34). A row written after it would have been gone for
-good: there was no daily point yet, and there is no point-in-time recovery.
+good: there was no daily point yet, and AWS Backup takes full snapshots of DSQL clusters (its DSQL
+feature list has no continuous backup or point-in-time restore).
 
 ### Lessons
 

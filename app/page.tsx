@@ -137,6 +137,11 @@ const REVIEW: ReviewRow[] = [
     before: "fails after 3.0 s",
     after: "committed on us-east-2 in 7.59 s",
   },
+  {
+    measure: "Production under an AWS FIS fault on the primary Region",
+    before: "not tested",
+    after: "serving from us-east-2 in 25.9 s",
+  },
   { measure: "CloudTrail trails", before: "0", after: "1, multi-Region" },
   { measure: "GuardDuty detectors", before: "0", after: "2" },
   { measure: "CloudWatch alarms", before: "0", after: "4" },
