@@ -42,6 +42,7 @@ export function isEndpointFailure(err: unknown): boolean {
   if (!e) return false;
   if (e.code && NETWORK_CODES.has(e.code)) return true;
   if (e.code && /^(08|57P0|28)/.test(e.code)) return true;
+  if (e.code === "XX000" && /^internal error$/i.test(e.message ?? "")) return true;
   return CONNECT_FAILURE.test(e.message ?? "");
 }
 
@@ -85,13 +86,17 @@ export class FailoverPool implements Connectable {
     params?: unknown[],
   ): Promise<QueryResult<R>> {
     const client = await this.connect();
+    let broken: Error | undefined;
     try {
       return await client.query<R>(text, params);
     } catch (err) {
-      if (isEndpointFailure(err)) this.switchTo(this.otherThan(this.active), describe(err));
+      if (isEndpointFailure(err)) {
+        broken = err as Error;
+        this.switchTo(this.otherThan(this.active), describe(err));
+      }
       throw err;
     } finally {
-      client.release();
+      client.release(broken);
     }
   }
 

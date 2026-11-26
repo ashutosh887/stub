@@ -3,10 +3,19 @@ import { describe, expect, it } from "vitest";
 import { type Endpoint, FailoverPool, isEndpointFailure } from "@/db/failover";
 
 function fakePool(label: string) {
-  const state = { failWith: null as null | { code?: string; message: string }, connects: 0 };
+  const state = {
+    failWith: null as null | { code?: string; message: string },
+    queryFailWith: null as null | { code?: string; message: string },
+    released: [] as unknown[],
+    connects: 0,
+  };
   const client = {
-    query: async () => ({ rows: [{ label }], rowCount: 1 }),
-    release: () => {},
+    query: async () => {
+      if (state.queryFailWith)
+        throw Object.assign(new Error(state.queryFailWith.message), state.queryFailWith);
+      return { rows: [{ label }], rowCount: 1 };
+    },
+    release: (err?: unknown) => state.released.push(err),
   } as unknown as PoolClient;
   const pool = {
     connect: async () => {
@@ -90,5 +99,16 @@ describe("WA REL10-BP01, REL13-BP05: the pool moves to the peer Region on its ow
     expect(failover.active.name).toBe("primary");
     expect(isEndpointFailure({ code: "08006", message: "connection failure" })).toBe(true);
     expect(isEndpointFailure({ code: "40001", message: "change conflicts" })).toBe(false);
+  });
+
+  it("switches and discards the connection when the primary drops it with internal error", async () => {
+    const { failover, primary } = setup();
+    primary.state.queryFailWith = { code: "XX000", message: "internal error" };
+    await expect(failover.query("SELECT 1")).rejects.toThrow("internal error");
+    expect(failover.active.name).toBe("peer");
+    expect(primary.state.released[0]).toBeInstanceOf(Error);
+    const { rows } = await failover.query<{ label: string }>("SELECT 1");
+    expect(rows[0].label).toBe("peer");
+    expect(isEndpointFailure({ code: "XX000", message: "could not read block" })).toBe(false);
   });
 });
