@@ -189,9 +189,9 @@ Resources:
       Name: wa-audit-tampering
       Description: >-
         WA SEC04-BP01, SEC04-BP02: a call that stops, deletes or narrows the audit trail, turns
-        off or changes GuardDuty, or loosens the audit log bucket goes to the ops topic. Every
-        UpdateDetector matches, since disabling the detector and disabling one of its features
-        are both UpdateDetector.
+        off or changes GuardDuty, stops or changes a SQL audit log delivery, or loosens the audit
+        log bucket goes to the ops topic. Every UpdateDetector matches, since disabling the
+        detector and disabling one of its features are both UpdateDetector.
       EventPattern:
         detail-type: [AWS API Call via CloudTrail]
         $or:
@@ -203,6 +203,14 @@ Resources:
             detail:
               eventSource: [guardduty.amazonaws.com]
               eventName: [DeleteDetector, UpdateDetector]
+          - source: [aws.logs]
+            detail:
+              eventSource: [logs.amazonaws.com]
+              eventName:
+                - DeleteDelivery
+                - DeleteDeliverySource
+                - DeleteDeliveryDestination
+                - UpdateDeliveryConfiguration
           - source: [aws.s3]
             detail:
               eventSource: [s3.amazonaws.com]

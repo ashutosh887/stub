@@ -44,6 +44,42 @@ describe("WA SEC01-BP05 (preventive): the controls live in code and stay switche
     expect(policy).toMatch(/"dsql:DbConnectAdmin".*"aws:PrincipalArn":\[\$\{Operators\}\]/);
   });
 
+  it("SEC04-BP01: SQL audit records land in a locked bucket that nobody can empty", () => {
+    const template = read("infra/stub-clusters.yaml");
+    const bucket = resource(template, "AuditLogBucket");
+    expect(bucket).toContain("DeletionPolicy: Retain");
+    expect(bucket).toContain("ObjectLockEnabled: true");
+    expect(bucket).toMatch(/DefaultRetention:\s+Mode: GOVERNANCE/);
+    expect(bucket).toContain("VersioningConfiguration: { Status: Enabled }");
+    expect(bucket).toContain("RestrictPublicBuckets: true");
+    expect(bucket).toContain("SSEAlgorithm: AES256");
+    const policy = resource(template, "AuditLogBucketPolicy");
+    expect(policy).toContain('aws:SecureTransport: "false"');
+    expect(policy).toMatch(
+      /Sid: DenyLogDeletes\s+Effect: Deny\s+Principal: "\*"\s+Action: \[s3:DeleteObject\*, s3:BypassGovernanceRetention\]/,
+    );
+    expect(resource(template, "AuditLogSource")).toContain("LogType: AUDIT_LOGS");
+    for (const id of ["AuditLogSource", "AuditLogDestination", "AuditLogDelivery"]) {
+      expect(resource(template, id), id).toContain("DeletionPolicy: Retain");
+    }
+  });
+
+  it("REL12-BP05: the fault injection role can only cut connections to its own cluster", () => {
+    const template = read("infra/stub-clusters.yaml");
+    const role = resource(template, "FaultInjectionRole");
+    expect(role).toContain("Condition: DrillEnabled");
+    expect(role).toMatch(/dsql:FisActionId: aws:dsql:cluster-connection-failure/);
+    expect(role).toMatch(
+      /ForAllValues:ArnEquals:\s+dsql:FisTargetArns: !GetAtt LedgerCluster.ResourceArn/,
+    );
+    expect(role).toMatch(/"Null":\s+dsql:FisTargetArns: "false"/);
+    expect(role).not.toMatch(/dsql:\*|Action: "\*"/);
+    const drill = resource(template, "ConnectionFailureDrill");
+    expect(drill).toContain("Condition: DrillEnabled");
+    expect(drill).toContain("ResourceArns: [!GetAtt LedgerCluster.ResourceArn]");
+    expect(drill).toContain("duration: PT2M");
+  });
+
   it("REL09-BP02, REL09-BP05: backups run daily into a locked vault and copy to the peer", () => {
     const template = read("infra/stub-backup.yaml");
     const vault = resource(template, "Vault");
@@ -93,6 +129,8 @@ describe("WA SEC01-BP05 (preventive): the controls live in code and stay switche
       "UpdateDetector",
       "DeleteBucketPolicy",
       "PutBucketLifecycle",
+      "DeleteDelivery",
+      "DeleteDeliverySource",
     ]) {
       expect(rule, call).toContain(call);
     }
@@ -133,7 +171,11 @@ describe("WA SEC02-BP02, REL08-BP01: the pipeline deploys with no stored key and
       "backup:DeleteRecoveryPoint",
       "guardduty:DeleteDetector",
       "s3:DeleteObject*",
+      "s3:BypassGovernanceRetention",
       "kms:ScheduleKeyDeletion",
+      "logs:DeleteDelivery",
+      "logs:DeleteDeliverySource",
+      "fis:StartExperiment",
     ]) {
       expect(deny, action).toContain(`- ${action}`);
     }

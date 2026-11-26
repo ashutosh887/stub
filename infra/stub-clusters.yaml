@@ -1,10 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Stub ledger cluster (WA SEC01-BP05, REL09-BP05, SEC05-BP01). One stack per Region of the
-  multi-Region Aurora DSQL cluster, created by importing the running cluster (resource import), so
-  its deletion protection and resource policy live in code. The policy refuses dsql:DbConnect to
-  every principal except the app role and the operators, and dsql:DbConnectAdmin to everyone but
-  the operators. DeletionPolicy Retain: deleting this stack never deletes the ledger.
+  Stub ledger cluster (WA SEC01-BP05, REL09-BP05, SEC05-BP01, SEC04-BP01, REL12-BP05). One stack
+  per Region of the multi-Region Aurora DSQL cluster, created by importing the running cluster
+  (resource import), so its deletion protection and resource policy live in code. The policy
+  refuses dsql:DbConnect to every principal except the app role and the operators, and
+  dsql:DbConnectAdmin to everyone but the operators. DeletionPolicy Retain: deleting this stack
+  never deletes the ledger. The cluster's SQL audit records go to a bucket in the same Region
+  (Object Lock in governance mode, no deletes by any principal). Where FaultInjectionDrill is
+  enabled, an AWS FIS template can cut connections to this Region's cluster for two minutes, with
+  a role that may inject faults into this cluster only.
 
 Parameters:
   ClusterArns:
@@ -21,6 +25,19 @@ Parameters:
   OperatorPrincipalArns:
     Type: CommaDelimitedList
     Description: IAM principals allowed to connect as admin (operators, break-glass).
+  AuditLogRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    Description: Days each SQL audit log file is locked (governance mode) and then kept before expiry.
+  FaultInjectionDrill:
+    Type: String
+    Default: disabled
+    AllowedValues: [enabled, disabled]
+    Description: enabled in the primary Region only; adds the FIS connection-failure drill.
+
+Conditions:
+  DrillEnabled: !Equals [!Ref FaultInjectionDrill, enabled]
 
 Resources:
   LedgerCluster:
@@ -36,3 +53,201 @@ Resources:
         - >-
           {"Version":"2012-10-17","Statement":[{"Sid":"ConnectOnlyAsTheAppRoleOrOperators","Effect":"Deny","Principal":{"AWS":"*"},"Action":"dsql:DbConnect","Resource":"*","Condition":{"StringNotEquals":{"aws:PrincipalArn":["${AppRoleArn}",${Operators}]}}},{"Sid":"AdminOnlyForOperators","Effect":"Deny","Principal":{"AWS":"*"},"Action":"dsql:DbConnectAdmin","Resource":"*","Condition":{"StringNotEquals":{"aws:PrincipalArn":[${Operators}]}}}]}
         - Operators: !Join ["", ['"', !Join ['","', !Ref OperatorPrincipalArns], '"']]
+
+  AuditLogBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub stub-dsql-audit-${AWS::AccountId}-${AWS::Region}
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: GOVERNANCE
+            Days: !Ref AuditLogRetentionDays
+      VersioningConfiguration: { Status: Enabled }
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-after-retention
+            Status: Enabled
+            ExpirationInDays: !Ref AuditLogRetentionDays
+            NoncurrentVersionExpiration: { NoncurrentDays: 1 }
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 7 }
+      Tags:
+        - { Key: wa-best-practice, Value: SEC04-BP01 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  AuditLogBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref AuditLogBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt AuditLogBucket.Arn
+              - !Sub ${AuditLogBucket.Arn}/*
+            Condition:
+              Bool: { aws:SecureTransport: "false" }
+          - Sid: DenyLogDeletes
+            Effect: Deny
+            Principal: "*"
+            Action: [s3:DeleteObject*, s3:BypassGovernanceRetention]
+            Resource: !Sub ${AuditLogBucket.Arn}/*
+          - Sid: AWSLogDeliveryAclCheck
+            Effect: Allow
+            Principal: { Service: delivery.logs.amazonaws.com }
+            Action: [s3:GetBucketAcl, s3:ListBucket]
+            Resource: !GetAtt AuditLogBucket.Arn
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+              ArnLike:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:delivery-source:*
+          - Sid: AWSLogDeliveryWrite
+            Effect: Allow
+            Principal: { Service: delivery.logs.amazonaws.com }
+            Action: s3:PutObject
+            Resource: !Sub ${AuditLogBucket.Arn}/AWSLogs/${AWS::AccountId}/*
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:delivery-source:*
+
+  AuditLogSource:
+    Type: AWS::Logs::DeliverySource
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      Name: !Sub stub-dsql-audit-${AWS::Region}
+      LogType: AUDIT_LOGS
+      ResourceArn: !GetAtt LedgerCluster.ResourceArn
+      Tags:
+        - { Key: wa-best-practice, Value: SEC04-BP01 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  AuditLogDestination:
+    Type: AWS::Logs::DeliveryDestination
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    DependsOn: AuditLogBucketPolicy
+    Properties:
+      Name: !Sub stub-dsql-audit-${AWS::Region}
+      OutputFormat: json
+      DestinationResourceArn: !GetAtt AuditLogBucket.Arn
+      Tags:
+        - { Key: wa-best-practice, Value: SEC04-BP01 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  AuditLogDelivery:
+    Type: AWS::Logs::Delivery
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    DependsOn: AuditLogSource
+    Properties:
+      DeliverySourceName: !Sub stub-dsql-audit-${AWS::Region}
+      DeliveryDestinationArn: !GetAtt AuditLogDestination.Arn
+      Tags:
+        - { Key: wa-best-practice, Value: SEC04-BP01 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  FaultInjectionRole:
+    Type: AWS::IAM::Role
+    Condition: DrillEnabled
+    Properties:
+      RoleName: !Sub stub-fis-dsql-drill-${AWS::Region}
+      Description: AWS FIS cuts connections to this Region's ledger cluster, and nothing else.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: fis.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+              ArnLike:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:fis:${AWS::Region}:${AWS::AccountId}:experiment/*
+      Policies:
+        - PolicyName: dsql-connection-failure-this-cluster-only
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: InjectConnectionFailuresIntoThisClusterOnly
+                Effect: Allow
+                Action: dsql:InjectError
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    dsql:FisActionId: aws:dsql:cluster-connection-failure
+                  ForAllValues:ArnEquals:
+                    dsql:FisTargetArns: !GetAtt LedgerCluster.ResourceArn
+                  "Null":
+                    dsql:FisTargetArns: "false"
+              - Sid: ReadThisCluster
+                Effect: Allow
+                Action: dsql:GetCluster
+                Resource: !GetAtt LedgerCluster.ResourceArn
+              - Sid: ResolveTargets
+                Effect: Allow
+                Action: tag:GetResources
+                Resource: "*"
+      Tags:
+        - { Key: wa-best-practice, Value: REL12-BP05 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  ConnectionFailureDrill:
+    Type: AWS::FIS::ExperimentTemplate
+    Condition: DrillEnabled
+    Properties:
+      Description: >-
+        Refuse 100 percent of connections to this Region's ledger cluster for 2 minutes; the app
+        should move to the peer Region and come back after its failback window.
+      RoleArn: !GetAtt FaultInjectionRole.Arn
+      Targets:
+        Clusters:
+          ResourceType: aws:dsql:cluster
+          ResourceArns: [!GetAtt LedgerCluster.ResourceArn]
+          SelectionMode: ALL
+      Actions:
+        connection-failure:
+          ActionId: aws:dsql:cluster-connection-failure
+          Parameters:
+            duration: PT2M
+            percentage: "100"
+          Targets:
+            Clusters: Clusters
+      StopConditions:
+        - Source: none
+      ExperimentOptions:
+        AccountTargeting: single-account
+        EmptyTargetResolutionMode: fail
+      Tags:
+        Name: stub-dsql-primary-connection-failure
+        wa-best-practice: REL12-BP05
+        managed-by: aws-well-architected-review
+
+Outputs:
+  AuditLogBucketName:
+    Value: !Ref AuditLogBucket
+  ConnectionFailureDrillId:
+    Condition: DrillEnabled
+    Value: !Ref ConnectionFailureDrill
