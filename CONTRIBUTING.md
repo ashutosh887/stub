@@ -65,3 +65,17 @@ The `Publish SDK` workflow builds, publishes to npm with provenance, and creates
 using that version's changelog section verbatim as the body. No hand-editing on github.com. A
 version with no changelog section still releases, but falls back to generated commit notes and logs
 a warning.
+
+The workflow has no npm token. It publishes through npm trusted publishing: GitHub Actions hands npm
+a short-lived OIDC token (`id-token: write`), and npm accepts it only for the publisher configured
+on the package. One-time setup on npmjs.com: package `trystub` → Settings → Trusted publishing →
+GitHub Actions, organization or user `ashutosh887`, repository `stub`, workflow `publish-sdk.yml`.
+Then delete the `NPM_TOKEN` repository secret, revoke the token on npmjs.com, and set the package's
+publishing access to require two-factor authentication and disallow tokens.
+
+## Security checks
+
+`.github/workflows/security.yml` runs on every push to `main`, every pull request and weekly:
+`npm audit --audit-level=high` (fails on a high or critical advisory), gitleaks over the full git
+history, CodeQL (`security-extended`) and `cfn-lint` over `infra/`. Dependabot opens weekly update
+pull requests for the app, the SDK and the workflow actions.

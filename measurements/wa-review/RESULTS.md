@@ -332,3 +332,28 @@ Not done: AWS FIS has an Aurora DSQL action (`aws:dsql:cluster-connection-failur
 address. It was not run because the production app on Vercel does not have this failover code yet,
 so injecting failures on the primary would cut the live app off; run it once the branch is
 deployed with `DSQL_ENDPOINT_PEER` and `DSQL_REGION_PEER` set (FIS bills $0.10 per action-minute).
+
+## F08: security scanning in CI and a publish with no stored token (SEC11-BP03, SEC11-BP08, SEC06-BP01)
+
+| Measure                                                        | Before                                                     | After                                                                                        |
+| -------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Security jobs in CI                                            | 0 (lint, format, typecheck, tests, build only)             | 4 in `security.yml`: npm audit, gitleaks, CodeQL, cfn-lint; on push, pull request and weekly |
+| `npm audit --omit=dev` (production dependencies)               | 5 advisories: 1 critical (Next.js RCE), 3 high, 1 moderate | 0                                                                                            |
+| `npm audit --audit-level=high` (all dependencies, the CI gate) | would fail (the 4 above)                                   | passes; 14 moderate left, all in the dev-only ESLint chain                                   |
+| Secrets in git history (`gitleaks git`, 111 commits)           | not scanned                                                | 0 found                                                                                      |
+| Workflow lint (`actionlint` over `.github/workflows`)          | not run                                                    | 0 findings                                                                                   |
+| Long-lived npm credential the publish workflow reads           | 1 (`NPM_TOKEN`)                                            | 0: npm trusted publishing over GitHub OIDC (`id-token: write`), npm CLI 11.5.1 or later      |
+| Dependabot                                                     | off                                                        | weekly for the app, the SDK and the workflow actions                                         |
+
+The fix behind the audit numbers is `npm audit fix` (no `--force`): Next.js 16.2.9 → 16.4.6 and
+sharp → 0.35.5 through the lockfile only. `npm run verify` and `npm run build` pass on it.
+
+The scans were run locally with the same tools: `npm audit` as above, gitleaks 8.30.1 (`gitleaks
+git --redact .`: "no leaks found"; a directory scan finds 16 hits, all in git-ignored files: `.env`,
+`.env.local`, `.next/` and `node_modules/`), actionlint 1.7.12 and cfn-lint over `infra/*.yaml`.
+CodeQL runs only on GitHub (the repository is public, so it needs no Advanced Security licence).
+
+The owner must do one thing on npmjs.com before the next `sdk-v*` tag (it fails to publish until
+then): add a trusted publisher for `trystub` (GitHub Actions, `ashutosh887/stub`, workflow
+`publish-sdk.yml`), then delete the `NPM_TOKEN` repository secret and revoke that token. Steps are in
+`CONTRIBUTING.md`.

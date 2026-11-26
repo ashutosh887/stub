@@ -18,6 +18,8 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      - name: Use an npm that publishes over OIDC (trusted publishing needs 11.5.1 or later)
+        run: npm install -g npm@^11.5.1
       - name: Check tag matches package version
         if: startsWith(github.ref, 'refs/tags/sdk-v')
         working-directory: sdk
@@ -50,8 +52,6 @@ jobs:
           npm install
           npm run build
           npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create the matching GitHub Release
         if: startsWith(github.ref, 'refs/tags/sdk-v')
         env:

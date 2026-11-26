@@ -313,8 +313,8 @@ credential chain, so the deployment needs `DSQL_ENDPOINT`, `DSQL_REGION`, `AWS_A
 for serverless). Point it at a multi-region cluster, two peered regions plus a witness, and the
 cross-region overspend proof runs against real replication rather than a simulation.
 
-The SDK publishes itself: push a `sdk-v*` tag (with an `NPM_TOKEN` repo secret set) and the
-`Publish SDK` workflow builds and ships `trystub` to npm with provenance, then opens the matching
+The SDK publishes itself: push a `sdk-v*` tag and the `Publish SDK` workflow, which authenticates
+to npm through trusted publishing (GitHub OIDC, no stored token), builds and ships `trystub` to npm with provenance, then opens the matching
 [GitHub Release](https://github.com/ashutosh887/stub/releases) using that version's section of
 [`sdk/CHANGELOG.md`](./sdk/CHANGELOG.md) as the body. The changelog is the single source of truth
 for release notes; see [CONTRIBUTING.md](./CONTRIBUTING.md#releasing-the-sdk). To publish manually:
