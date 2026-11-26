@@ -169,8 +169,8 @@ normalization, CDC→Kinesis live feed.
   the `AppTabs` sub-nav. Marketing pages `/` and `/how-it-works` share `SiteNav` (logo mark +
   `NpmStatsLink` hover tooltip showing latest npm version + GitHub stars) and `SiteFooter`. Every
   route runs through `lib/api.ts` `withRoute` (request id, sanitized errors, admin auth, rate
-  limit); page-level gating via `adminPageAllowed`. Auth is open when `ADMIN_TOKEN` is unset,
-  enforced when set.
+  limit); page-level gating via `adminPageAllowed`. Auth is enforced when `ADMIN_TOKEN` is set;
+  unset, it is open in development and closed in production.
 - **Branding & SEO** (in `app/`): logo assets (`icon.png`, `apple-icon.png`, `public/logo.png`,
   all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
   (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,
@@ -185,7 +185,14 @@ normalization, CDC→Kinesis live feed.
 - Lint/format: `npm run lint` · `npm run format` · `npm run verify` (lint + typecheck + invariant).
   Husky hooks run lint-staged on pre-commit and commitlint on commit-msg (Conventional Commits).
 - Local DB (no AWS): `npm run db:up` · `npm run db:down` (needs `DATABASE_URL` set)
-- DB: `npm run check:db` · `npm run migrate` · `npm run seed` · `npm run seed:activity`
+- DB: `npm run check:db` · `npm run migrate` · `npm run db:app-role` · `npm run seed` ·
+  `npm run seed:activity`
+- **Least privilege:** the app connects as `stub_app` (the `DSQL_USER` default), never `admin`;
+  `db/app-role.sql` holds its grants (no UPDATE/DELETE on `entries`, no DDL) and
+  `infra/stub-app-role.yaml` the OIDC-assumed IAM role (only `dsql:DbConnect`).
+  `test/invariant/least-privilege.test.ts` fails CI if either widens. Balances carry
+  `CHECK (balance_micro >= 0)`; DSQL accepts it only as `ADD CONSTRAINT … NOT VALID` followed by
+  `ALTER TABLE ASYNC … VALIDATE CONSTRAINT`, which `npm run migrate` does.
 - Demo agent (needs `npm run dev`): `npm run demo:agent`
 - Offline invariant gate (in-memory OCC, no database): `npm test` / `npm run test:invariant`
 - **Local overspend proof** (real `40001`s on local Postgres, auto-skips without `DATABASE_URL`):

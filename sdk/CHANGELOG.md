@@ -10,6 +10,18 @@ published verbatim as the body of the matching
 
 ## [Unreleased]
 
+### Changed
+
+- **Stub server: admin routes fail closed in production.** With `ADMIN_TOKEN` unset, a production
+  deployment now answers admin routes with `401` instead of letting every caller through. Set
+  `ADMIN_TOKEN` before upgrading a production server.
+- **Stub server: the database refuses a negative balance.** Balances carry
+  `CHECK (balance_micro >= 0)`; run `npm run migrate` to add it.
+- **Stub server: the app connects as `stub_app` by default.** It needs the role from
+  `npm run db:app-role`; set `DSQL_USER=admin` to keep the old behaviour. On Vercel, set
+  `AWS_ROLE_ARN` to sign with OIDC credentials. `/api/stress` and `/api/incident` answer `403` on
+  the app role.
+
 ## [1.2.0] - 2026-08-10
 
 ### Added

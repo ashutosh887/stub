@@ -219,9 +219,18 @@ For the production path:
 ```bash
 cp .env.example .env        # set DSQL_* (and optionally OPENAI_API_KEY)
 npm run check:db            # verify the Aurora DSQL connection
-npm run migrate && npm run seed
+npm run migrate && npm run db:app-role && npm run seed
 npm run demo:agent          # an agent spending through the gate (needs the dev server running)
 ```
+
+In production the app connects as `stub_app`, not `admin`. `npm run migrate` adds
+`CHECK (balance_micro >= 0)` to the balance tables, so the database itself refuses a negative
+balance. `npm run db:app-role` creates `stub_app` with only the grants in `db/app-role.sql`: no
+UPDATE or DELETE on `entries`, no DDL. `infra/stub-app-role.yaml` creates the IAM role Vercel
+functions assume through OIDC, allowed only `dsql:DbConnect`. Deploy it, map it with
+`npm run db:app-role -- grant <role arn>`, then set `AWS_ROLE_ARN` and `ADMIN_TOKEN` on the
+project. The stress and incident drills delete their own rows, so they run only as `admin` or on
+local Postgres.
 
 Tests & proofs:
 
