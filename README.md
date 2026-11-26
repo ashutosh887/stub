@@ -144,7 +144,7 @@ The codebase keeps the domain pure and the database swappable:
 core/   pure, dependency-free domain: ledger, settlement, sharding, harness, policy, hash, query
 db/     the Postgres-family adapter: pool, Store implementation, schema.sql (DSQL or plain Postgres)
 sdk/    the drop-in client (published to npm as trystub) + x402 / AgentCore adapter + LLM metering
-app/    Next.js console: dashboard · incident · settlement · audit · attribution + API routes
+app/    Next.js console: dashboard · incident · settlement · audit · attribution · proof + API routes
 config/ env + SEO single source of truth   scripts/  migrate · seed · harness · bench · sweep · demo-agent
 test/   invariant suite (overspend, exactly-once, hash chain) · local Postgres · live cross-region
 ```

@@ -174,11 +174,15 @@ normalization, CDC→Kinesis live feed.
 - `app/` `components/` `lib/`: Next.js (App Router) multipage console + API routes + server helpers.
   App pages: `/dashboard` (overview), `/incident` (replay), `/settlement` (reserve→pay→settle),
   `/audit` (chain verification + journal export), `/attribution` (chargeback/showback), all sharing
-  the `AppTabs` sub-nav. Marketing pages `/` and `/how-it-works` share `SiteNav` (logo mark +
+  the `AppTabs` sub-nav. Marketing pages `/`, `/how-it-works` and `/proof` share `SiteNav` (logo mark +
   `NpmStatsLink` hover tooltip showing latest npm version + GitHub stars) and `SiteFooter`. Every
   route runs through `lib/api.ts` `withRoute` (request id, sanitized errors, admin auth, rate
   limit); page-level gating via `adminPageAllowed`. Auth is enforced when `ADMIN_TOKEN` is set;
-  unset, it is open in development and closed in production.
+  unset, it is open in development and closed in production. `/proof` is public: its button posts to
+  `POST /api/proof` (`lib/proof.ts` `runProof`), which sends five statements as the app's own
+  connection, each in its own `BEGIN … ROLLBACK`, and returns the SQLSTATE per statement; it refuses
+  to probe unless `current_user` is `stub_app` and does not own the tables, and is rate limited per
+  IP and overall. Its before/after table copies numbers only from `measurements/wa-review/RESULTS.md`.
 - **Branding & SEO** (in `app/`): logo assets (`icon.png`, `apple-icon.png`, `public/logo.png`,
   all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
   (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,
