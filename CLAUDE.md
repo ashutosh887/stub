@@ -11,10 +11,13 @@ audit trail. Tagline: _"One budget your agents can't break."_
 
 ## Core invariant (the whole product in one sentence)
 
-> A spend that would breach a budget cap **fails the database transaction**. Under concurrent
-> cross-region writes, Aurora DSQL's optimistic concurrency control returns a serialization failure
-> (SQLSTATE `40001`); Stub retries against the fresh balance, or denies and records a denial entry.
-> Result: **zero overspend window**, guaranteed by the database, not by application locking.
+> A write that would take a balance below zero or above its cap **is refused by the database**:
+> `CHECK` constraints on every balance row fail it with SQLSTATE `23514`, whichever role or code path
+> sent it. Concurrent cross-region writers are serialised by Aurora DSQL's optimistic concurrency
+> control (`40001`); Stub retries against the fresh balance, or denies and records a denial entry. A
+> `23514` that reaches the app is recorded as a `db_refused` denial. OCC decides the order of the
+> writes; the `CHECK` decides whether a write is affordable. Result: **zero overspend window**,
+> enforced by the database, not by application code or locking.
 
 ## Why Aurora DSQL is load-bearing
 
@@ -69,17 +72,18 @@ Agent (x402 / AgentCore adapter)
 
 - **GA (the core depends only on these):** strong consistency, OCC / snapshot isolation, ACID
   transactions, identity columns/sequences, JSON type + compression (receipt column), Node.js
-  connector with automatic IAM token generation (don't hand-roll IAM tokens).
-- **Preview (enhancement layers, degrade gracefully):** DSQL CDC → Kinesis (streaming dashboard +
-  anomaly breaker; app-layer polling is the shipped fallback); AgentCore Payments adapter (thin,
+  connector with automatic IAM token generation (don't hand-roll IAM tokens), `CHECK` constraints
+  (added to an existing table as `NOT VALID`, then `ALTER TABLE ASYNC … VALIDATE CONSTRAINT`).
+- **Not used yet:** DSQL CDC streams (GA since July 2026; a streaming dashboard and anomaly breaker
+  are roadmap, app-layer polling is what ships). **Preview:** the AgentCore Payments adapter (thin,
   mockable, testnet only, never mainnet USDC).
 
 ### DSQL constraints to respect
 
-No foreign keys, no triggers, ~3,000-row transaction cap, 1MB row-size limit, PostgreSQL-16
-_subset_, OCC requires app-level retry on `40001`, IAM tokens refreshed automatically by the
-connector, multi-region clusters restricted to one geographic grouping (two peered regions plus a
-witness region).
+No triggers, ~3,000-row transaction cap, 1MB row-size limit, PostgreSQL-16 _subset_, OCC requires
+app-level retry on `40001`, IAM tokens refreshed automatically by the connector, multi-Region
+clusters are two peered Regions plus a witness. Stub's schema uses no foreign keys (DSQL has
+supported them since August 2026); references are checked in the transaction that writes them.
 
 **Never commit environment-specific or account-specific details.** No cluster IDs or endpoints,
 account IDs, hosting team/project IDs, tokens, keys, personal emails, or local machine paths, in
@@ -97,7 +101,7 @@ layer: the system of record across the whole fleet.
 ## Conventions & guardrails for development
 
 - Build the core first (double-entry ledger + OCC overspend prevention on **GA** DSQL features);
-  preview features (CDC, AgentCore) are layered and degradable.
+  enhancement layers (CDC, AgentCore) are layered and degradable.
 - Prove the overspend invariant with a concurrency test.
 - Keep the agent side minimal; a mockable x402/AgentCore adapter is enough. The ledger is the star.
 - Keep every transaction well under the 3,000-row cap; avoid unsupported PG features.

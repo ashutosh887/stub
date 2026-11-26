@@ -35,11 +35,12 @@ finance can reconcile.
 
 ## How it works
 
-A spend that would breach a budget cap **fails the database transaction**. When writers in two
-Regions race for the same balance, Aurora DSQL's optimistic concurrency control commits one and
-returns a serialization failure (`SQLSTATE 40001`) to the other. Stub retries the loser against the
-fresh balance, and it either commits or records a denial. The database guarantees this, not
-application locking.
+A write that would take a balance below zero or above its cap **is refused by the database**, with
+`SQLSTATE 23514`, whichever code path or role sends it. When writers in two Regions race for the
+same balance, Aurora DSQL's optimistic concurrency control commits one and returns a serialization
+failure (`SQLSTATE 40001`) to the other. Stub retries the loser against the fresh balance, and it
+either commits or records a denial. OCC decides the order of the writes; the `CHECK` constraints
+decide whether a write is affordable.
 
 The contended row does the work a lock would. A spend debits its account and updates every ancestor
 balance up the hierarchy in the same transaction, so agents racing the same budget all write one
@@ -49,7 +50,8 @@ no row locks (`SELECT … FOR UPDATE`).
 OCC resolves races. Two CHECK constraints refuse any write that would take a balance below zero
 (`accounts_balance_nonnegative`) or above its cap (`accounts_balance_within_cap`), whoever sends it.
 A script, a hotfix or a new route that skips the app's check gets `SQLSTATE 23514`, and so does
-`admin`. The app connects as `stub_app`, a role that cannot rewrite or delete a ledger entry or
+`admin`. If a `23514` ever reaches the app's own spend path, it comes back as a denial with reason
+`db_refused` and is recorded like any other denial. The app connects as `stub_app`, a role that cannot rewrite or delete a ledger entry or
 change the schema (`42501`), with one-hour IAM credentials from Vercel OIDC and no stored key.
 
 ### Exactly-once around an irreversible payment
@@ -69,7 +71,7 @@ Agent (x402 / AgentCore)
       → policy, hierarchy and velocity checks
       → atomic double-entry write on Aurora DSQL
           40001 → retry, or deny and write a denial entry
-          23514 → refused by the CHECK constraints
+          23514 → refused by the CHECK constraints, recorded as a db_refused denial
   → append-only, hash-chained ledger
       → dashboard, incident replay, audit, attribution, NL query
 ```
@@ -95,6 +97,9 @@ Agent (x402 / AgentCore)
 - **`npm run race:bypass`** runs that raw-writer race on its own. On the schema from before the
   CHECK, all ten committed and the budget ended at −$7.00, as the table owner and as `stub_app`
   alike. The role alone does not stop an overspend, because the app must be able to write balances.
+  The same race on Aurora DSQL itself, on a temporary cluster with only the schema changed between
+  runs, is in [RESULTS.md](./measurements/wa-review/RESULTS.md) with every run's per-writer timeline
+  (`measurements/wa-review/dsql-race-*.json`).
 - **`npm run harness`** races a naive retry against Stub with 16 concurrent writers and crashes
   injected after payment. The naive version sends $43.00 of payments against a $3.00 budget. Stub
   sends $3.00, leaves no stuck holds and never goes negative. The same assertions run in CI
@@ -198,7 +203,8 @@ A deliberate double-entry ledger:
 
 - **Overspend invariant**: concurrent cross-Region writes to one balance resolve through OCC
   (`SQLSTATE 40001`), and a spend that would breach a cap is recorded as a denial. CHECK
-  constraints refuse any balance below zero or above its cap (`23514`), whoever sends the write.
+  constraints refuse any balance below zero or above its cap (`23514`), whoever sends the write; a
+  refusal that reaches the app is recorded as a `db_refused` denial.
 - **Exactly-once settlement**: reserve, pay, settle, so a retry around an irreversible payment
   can't double-charge; an idempotent sweeper reclaims a crashed hold.
 - **Hierarchical budgets**: org → team → agent caps enforced together in one transaction.
