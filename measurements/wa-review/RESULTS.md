@@ -392,3 +392,60 @@ first real connect as `stub-app` happens on Vercel after the deploy: `GET /api/h
 Problem hit: a policy that names principals by ARN must be edited when an operator changes; adding
 a new operator means updating the `OperatorPrincipalArns` parameter of both `stub-clusters` stacks.
 No cost.
+
+## F04: audit trail, threat detection and alarms (SEC04-BP01, SEC04-BP02, REL06-BP01, REL06-BP03, REL11-BP06)
+
+Built from the skill's guardrails procedure: every control names its best practice ID, carries the
+tags `wa-best-practice` and `managed-by=aws-well-architected-review` and a `wa-` name prefix, and is
+checked by making it fire. Two stacks: `stub-audit` (us-east-1 only: trail, log bucket, the AWS
+Config service-linked role) and `stub-detection` (one per Region).
+
+| Measure (us-east-1 + us-east-2) | Before (09:30 UTC) | After (10:0x UTC)                                                                                                                                                                |
+| ------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CloudTrail trails               | 0                  | 1 multi-Region trail `wa-stub-audit`: management events, read and write, log file validation on, logging, first delivery 09:58:46                                                |
+| Log bucket controls             | n/a                | versioned, SSE-S3, public access blocked, bucket-owner-enforced, `Deny` on `aws:SecureTransport=false`, Glacier IR at 90 days, expiry at 365                                     |
+| GuardDuty detectors             | 0                  | 2, `ENABLED`, foundational sources only (S3, EKS, EBS malware, RDS, Lambda and runtime add-ons off)                                                                              |
+| CloudWatch alarms               | 0                  | 4: `OccConflicts` ≥ 50 per 5 min and `QueryTimeouts` ≥ 1 per 5 min, per cluster                                                                                                  |
+| SNS alert topics                | 0                  | 2 `wa-stub-ops-alerts`, KMS customer managed key (rotation on), publish allowed only to CloudWatch alarms and EventBridge rules named `wa-*` in this account, **no subscribers** |
+| EventBridge rules               | 0                  | 4: GuardDuty findings of severity ≥ 4, and `DeleteCluster`, `UpdateCluster`, `PutClusterPolicy`, `DeleteClusterPolicy` on DSQL                                                   |
+| AWS Config recorders            | 0                  | 2, recording only `AWS::DSQL::Cluster`, continuous                                                                                                                               |
+| AWS Config rules                | 0                  | 2, managed rule `DSQL_CLUSTER_DELETION_PROTECTION_ENABLED`                                                                                                                       |
+
+Seen working:
+
+- Alarm path: `SetAlarmState` on `wa-dsql-query-timeouts-us-east-1` (09:53:12) → alarm history
+  "Successfully executed action arn:aws:sns:…:wa-stub-ops-alerts", so the alarm can publish to the
+  encrypted topic through the key policy. This tests the action, not the metric condition; the
+  conditions use the cluster's own `AWS/AuroraDSQL` metrics (`ClusterId` dimension), which
+  `ListMetrics` shows for both clusters.
+- Destructive-call rule: the F09 `PutClusterPolicy` calls (09:54) show 1 `Invocations` and 0
+  `FailedInvocations` on `wa-dsql-destructive-calls` in each Region.
+- Trail: `GetTrailStatus` `IsLogging=True`, latest delivery 09:58:46 UTC, no delivery error.
+
+Not alarmed: the app's denial rate. Denials go to the `denials` table and Vercel's stdout, not to
+CloudWatch, so there is no metric to alarm on until the app publishes one (or a log drain does).
+
+### Problems hit
+
+- The first `stub-detection` deploy put the trail, its bucket and the Config service-linked role in
+  the same stack as the recorder. CloudFormation started the recorder 35 s before the role finished
+  creating; the handler then failed with "ConfigurationRecorder … already exists", and the rollback
+  could not delete the role because the orphaned recorder still used it (`ROLLBACK_FAILED`). Fixed
+  by deleting the orphan recorder, the stack and its retained bucket, and splitting the
+  account-level pieces into `stub-audit.yaml`, deployed first.
+- The second deploy hung on the recorder: `DeliveryChannel` had `DependsOn: Recorder`, while
+  CloudFormation's recorder handler waits for a delivery channel before it reports success. Removing
+  the `DependsOn` (as AWS's own samples do) deployed both Regions in 2 minutes.
+- GuardDuty turns on three feature flags CloudFormation's schema does not list (`AI_ANALYST`,
+  `AI_PROTECTION`) or that conflict with `RUNTIME_MONITORING` (`EKS_RUNTIME_MONITORING`), all
+  `DISABLED`. Drift detection reports them on the detector; nothing else in the stack drifts (F07).
+
+### Cost per month
+
+KMS: 2 customer managed keys, $2.00 (rotation adds $1 per key after each of the first two yearly
+rotations). CloudWatch: 4 alarms, $0.40. GuardDuty: free for 30 days per Region, then billed on the
+CloudTrail management events and VPC flow and DNS logs it analyses; with no EC2 or EKS here, likely
+under $1 per Region. CloudTrail: the first management-event trail is free; S3 for its logs, cents.
+AWS Config: $0.003 per recorded change of a DSQL cluster and $0.001 per rule evaluation, cents.
+EventBridge rules on AWS service events and SNS at this volume: free. About $2.50 a month plus
+GuardDuty after the trial.

@@ -1,0 +1,215 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Stub detection (WA SEC04-BP02, REL06-BP01, REL06-BP03, REL11-BP06, REL09-BP05). One stack per
+  Region of the ledger: GuardDuty (foundational sources only), a KMS-encrypted SNS topic, DSQL
+  alarms, EventBridge rules for GuardDuty findings and destructive DSQL API calls, and the AWS
+  Config rule for DSQL deletion protection over a recorder that records only DSQL clusters. Needs
+  stub-audit.yaml first (the log bucket and the Config service-linked role). The topic has no
+  subscriber until the owner adds one.
+
+Parameters:
+  ClusterId:
+    Type: String
+    AllowedPattern: "[a-z0-9]+"
+    Description: This Region's Aurora DSQL cluster identifier.
+  LogBucketName:
+    Type: String
+    Description: The audit log bucket from stub-audit.yaml, which also takes Config snapshots.
+  OccConflictsPerFiveMinutes:
+    Type: Number
+    Default: 50
+    Description: >-
+      OCC aborts in five minutes that page; a six-writer cross-Region race produces about ten.
+
+Resources:
+  Detector:
+    Type: AWS::GuardDuty::Detector
+    Properties:
+      Enable: true
+      FindingPublishingFrequency: FIFTEEN_MINUTES
+      Features:
+        - { Name: S3_DATA_EVENTS, Status: DISABLED }
+        - { Name: EKS_AUDIT_LOGS, Status: DISABLED }
+        - { Name: EBS_MALWARE_PROTECTION, Status: DISABLED }
+        - { Name: RDS_LOGIN_EVENTS, Status: DISABLED }
+        - { Name: LAMBDA_NETWORK_LOGS, Status: DISABLED }
+        - { Name: RUNTIME_MONITORING, Status: DISABLED }
+      Tags:
+        - { Key: wa-best-practice, Value: SEC04-BP02 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  AlertKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Encrypts the Stub ops alert topic.
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AccountAdministers
+            Effect: Allow
+            Principal: { AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root" }
+            Action: kms:*
+            Resource: "*"
+          - Sid: AlarmsAndRulesPublish
+            Effect: Allow
+            Principal:
+              Service: [cloudwatch.amazonaws.com, events.amazonaws.com]
+            Action: [kms:GenerateDataKey*, kms:Decrypt]
+            Resource: "*"
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+      Tags:
+        - { Key: wa-best-practice, Value: REL06-BP03 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: wa-stub-ops-alerts
+      KmsMasterKeyId: !Ref AlertKey
+      Tags:
+        - { Key: wa-best-practice, Value: REL06-BP03 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  AlertTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics: [!Ref AlertTopic]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AlarmsPublish
+            Effect: Allow
+            Principal: { Service: cloudwatch.amazonaws.com }
+            Action: sns:Publish
+            Resource: !Ref AlertTopic
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+              ArnLike:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:wa-*
+          - Sid: RulesPublish
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sns:Publish
+            Resource: !Ref AlertTopic
+            Condition:
+              StringEquals: { aws:SourceAccount: !Ref AWS::AccountId }
+              ArnLike:
+                aws:SourceArn: !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/wa-*
+
+  OccConflictsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub wa-dsql-occ-conflicts-${AWS::Region}
+      AlarmDescription: >-
+        WA REL06-BP01, REL11-BP06: OCC aborts on the ledger cluster above the contention a normal
+        cross-Region race produces; spends are retrying or being denied for capacity, not budget.
+      Namespace: AWS/AuroraDSQL
+      MetricName: OccConflicts
+      Dimensions:
+        - { Name: ClusterId, Value: !Ref ClusterId }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: !Ref OccConflictsPerFiveMinutes
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+      Tags:
+        - { Key: wa-best-practice, Value: REL06-BP01 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  QueryTimeoutsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub wa-dsql-query-timeouts-${AWS::Region}
+      AlarmDescription: >-
+        WA REL06-BP01, REL11-BP06: any ledger query hit the DSQL transaction time limit; a spend
+        that times out is neither committed nor denied.
+      Namespace: AWS/AuroraDSQL
+      MetricName: QueryTimeouts
+      Dimensions:
+        - { Name: ClusterId, Value: !Ref ClusterId }
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertTopic]
+      Tags:
+        - { Key: wa-best-practice, Value: REL06-BP01 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  GuardDutyFindingsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: wa-guardduty-findings
+      Description: "WA SEC04-BP02: GuardDuty findings of medium severity or higher go to the ops topic."
+      EventPattern:
+        source: [aws.guardduty]
+        detail-type: [GuardDuty Finding]
+        detail:
+          severity: [{ numeric: [">=", 4] }]
+      Targets:
+        - Id: ops-topic
+          Arn: !Ref AlertTopic
+
+  DestructiveDsqlCallsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: wa-dsql-destructive-calls
+      Description: >-
+        WA SEC04-BP02, REL09-BP05: a call that could delete the ledger or loosen its protection
+        (DeleteCluster, UpdateCluster, cluster policy changes) goes to the ops topic.
+      EventPattern:
+        source: [aws.dsql]
+        detail-type: [AWS API Call via CloudTrail]
+        detail:
+          eventSource: [dsql.amazonaws.com]
+          eventName: [DeleteCluster, UpdateCluster, PutClusterPolicy, DeleteClusterPolicy]
+      Targets:
+        - Id: ops-topic
+          Arn: !Ref AlertTopic
+
+  Recorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Properties:
+      Name: wa-dsql-recorder
+      RoleARN: !Sub arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
+      RecordingGroup:
+        AllSupported: false
+        IncludeGlobalResourceTypes: false
+        RecordingStrategy: { UseOnly: INCLUSION_BY_RESOURCE_TYPES }
+        ResourceTypes: [AWS::DSQL::Cluster]
+      RecordingMode:
+        RecordingFrequency: CONTINUOUS
+
+  DeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      Name: wa-dsql-delivery
+      S3BucketName: !Ref LogBucketName
+      ConfigSnapshotDeliveryProperties:
+        DeliveryFrequency: TwentyFour_Hours
+
+  DeletionProtectionRule:
+    Type: AWS::Config::ConfigRule
+    DependsOn: [Recorder, DeliveryChannel]
+    Properties:
+      ConfigRuleName: wa-dsql-cluster-deletion-protection-enabled
+      Description: >-
+        WA REL09-BP05 (Detective): flags an Aurora DSQL cluster whose deletion protection is off;
+        one DeleteCluster on an unprotected ledger loses it.
+      Scope:
+        ComplianceResourceTypes: [AWS::DSQL::Cluster]
+      Source:
+        Owner: AWS
+        SourceIdentifier: DSQL_CLUSTER_DELETION_PROTECTION_ENABLED
+
+Outputs:
+  AlertTopicArn:
+    Value: !Ref AlertTopic
+  DetectorId:
+    Value: !Ref Detector
