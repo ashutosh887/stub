@@ -163,9 +163,10 @@ normalization, CDC→Kinesis live feed.
   `POST /api/sweep` / `POST /api/accounts/shard` routes. Dependency-free; dual ESM + CJS build
   (`tsconfig.json` → `dist/esm`, `tsconfig.cjs.json` → `dist/cjs`); **published to npm as
   `trystub`**, shipped by the `Publish SDK` workflow on a `sdk-v*` tag (builds, publishes with
-  provenance, then creates the GitHub Release from that version's `sdk/CHANGELOG.md` section —
-  the workflow does this itself now, nothing to create by hand). Release steps live in
-  `CONTRIBUTING.md` → "Releasing the SDK": rename `## [Unreleased]` to the version, bump
+  provenance over npm trusted publishing, so no npm token is stored, then creates the GitHub
+  Release from that version's `sdk/CHANGELOG.md` section — the workflow does this itself now,
+  nothing to create by hand). Release steps live in `CONTRIBUTING.md` → "Releasing the SDK":
+  rename `## [Unreleased]` to the version, bump
   `sdk/package.json` to match (the workflow fails if they disagree), commit, tag `sdk-vX.Y.Z`,
   push the tag.
 - `config/`: single source of truth for env-driven values (`index.ts`): `db`, `dsql`, `openai`,
@@ -201,6 +202,19 @@ normalization, CDC→Kinesis live feed.
   `test/invariant/least-privilege.test.ts` fails CI if either widens. Balances carry
   `CHECK (balance_micro >= 0)`; DSQL accepts it only as `ADD CONSTRAINT … NOT VALID` followed by
   `ALTER TABLE ASYNC … VALIDATE CONSTRAINT`, which `npm run migrate` does.
+- **Infrastructure as code** (`infra/`, CloudFormation, every stack with termination protection;
+  change live resources only through these templates and confirm with drift detection):
+  `stub-app-role.yaml` (OIDC provider + app role), `stub-clusters.yaml` (one stack per Region,
+  created by importing the running cluster: deletion protection, `DeletionPolicy: Retain`, and the
+  cluster policy that denies `DbConnect` to all but the app role and operators and
+  `DbConnectAdmin` to all but operators), `stub-backup.yaml` (one per Region; deploy the peer
+  Region first, then the primary with `CopyToVaultArn` set to the peer vault), `stub-audit.yaml`
+  (once, in the home Region: multi-Region trail, log bucket, AWS Config service-linked role) and
+  `stub-detection.yaml` (one per Region, after `stub-audit`: GuardDuty, alarms, SNS, EventBridge
+  rules, Config recorder and rule). `test/invariant/infrastructure.test.ts` fails CI if a control
+  is dropped from a template; `cfn-lint` runs in `security.yml`. Restore check:
+  `npm run ledger:fingerprint -- <endpoint> <region>` on the source and the restored cluster must
+  print the same counts and digests.
 - Demo agent (needs `npm run dev`): `npm run demo:agent`
 - Offline invariant gate (in-memory OCC, no database): `npm test` / `npm run test:invariant`
 - **Local overspend proof** (real `40001`s on local Postgres, auto-skips without `DATABASE_URL`):

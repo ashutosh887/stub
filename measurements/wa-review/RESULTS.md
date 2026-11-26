@@ -449,3 +449,39 @@ under $1 per Region. CloudTrail: the first management-event trail is free; S3 fo
 AWS Config: $0.003 per recorded change of a DSQL cluster and $0.001 per rule evaluation, cents.
 EventBridge rules on AWS service events and SNS at this volume: free. About $2.50 a month plus
 GuardDuty after the trial.
+
+## F07: what is live is what is in the repo (SEC01-BP05, REL08-BP01)
+
+Every resource created for F03, F04 and F09 was created by CloudFormation from `infra/`, and the two
+running clusters were brought under CloudFormation by resource import (no change to the clusters:
+an import only records them). Deployed templates were read back with `GetTemplate` and hashed.
+
+| Measure                                                       | Before (09:30 UTC)                   | After (10:0x UTC)                                                                                                   |
+| ------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Stub stacks                                                   | 1 (`stub-app-identity`, 2 resources) | 8 across 2 Regions, 38 resources                                                                                    |
+| Ledger clusters managed by CloudFormation                     | 0 of 2                               | 2 of 2 (`stub-clusters`, `DeletionPolicy: Retain`)                                                                  |
+| Stacks with termination protection                            | 1 of 1                               | 8 of 8                                                                                                              |
+| Deployed template identical to the file in `infra/` (SHA-256) | 1 of 1                               | 8 of 8                                                                                                              |
+| Drift detection                                               | not run                              | 6 of 8 `IN_SYNC`; both `stub-detection` stacks drift only on GuardDuty's 3 service-added `DISABLED` flags (F04)     |
+| Guardrail test over the templates                             | none                                 | `test/invariant/infrastructure.test.ts`, 6 tests; giving the app role `DbConnectAdmin` in the template fails 1 of 6 |
+| Template lint in CI                                           | none                                 | `cfn-lint infra/*.yaml` in `security.yml`, 0 findings                                                               |
+
+| Stack (Region)                          | Template              | Resources | Holds                                                                                       |
+| --------------------------------------- | --------------------- | --------- | ------------------------------------------------------------------------------------------- |
+| `stub-app-identity` (us-east-1)         | `stub-app-role.yaml`  | 2         | Vercel OIDC provider, `stub-app` role                                                       |
+| `stub-clusters` (us-east-1, us-east-2)  | `stub-clusters.yaml`  | 1 each    | the imported cluster, deletion protection, connect policy                                   |
+| `stub-backup` (us-east-1, us-east-2)    | `stub-backup.yaml`    | 4 each    | vault with Vault Lock, daily plan (+ copy rule in us-east-1), selection, role               |
+| `stub-audit` (us-east-1)                | `stub-audit.yaml`     | 4         | trail, log bucket and its policy, AWS Config service-linked role                            |
+| `stub-detection` (us-east-1, us-east-2) | `stub-detection.yaml` | 11 each   | GuardDuty, KMS key, SNS topic and policy, 2 alarms, 2 rules, Config recorder, channel, rule |
+
+### Problems hit
+
+- The first import listed only the peer in `MultiRegionProperties.Clusters`; drift then reported the
+  Region's own ARN as added, because `GetCluster` returns both. The fix was to delete the stack (the
+  cluster stayed: `DeletionPolicy: Retain`, and deletion protection is on) and import again with
+  both ARNs in `GetCluster`'s order. Drift is now `IN_SYNC` on both, including the policy document.
+- An import change set cannot add stack tags, so the cluster stacks carry none.
+
+Still outside code: the account's AWS Backup opt-in for DSQL (already on, an account setting), the
+database-side `AWS IAM GRANT stub_app` mapping (`npm run db:app-role -- grant`), the operator IAM
+user and the root key, and the Vercel project settings.
