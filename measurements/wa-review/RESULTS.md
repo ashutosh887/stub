@@ -226,3 +226,67 @@ rows, which `stub_app` may not do, and the script has no separate user for the r
   revoking its grants.
 - IAM: disable termination protection on `stub-app-identity`, then delete the stack.
 - Clusters: `UpdateCluster deletionProtectionEnabled=false`.
+
+---
+
+# Remaining findings, closed and measured (26 Nov 2026)
+
+Each section below was measured before and after the change with the same call or script. All AWS
+reads and writes went through the AWS MCP server as the operator's IAM user; local scripts ran
+under the named operator profile, never the root key. Every new AWS resource is a CloudFormation
+stack built from `infra/` with termination protection on (see F07).
+
+## F03: backups and a tested restore (REL09-BP02, REL09-BP03, REL09-BP05, REL13-BP02)
+
+Docs checked first: AWS Backup supports Aurora DSQL single- and multi-Region clusters, always as
+full backups; a multi-Region cluster needs a recovery point per Region (one Region's backup is not
+a point for the other), and a multi-Region restore needs an identical copy of the point in both
+peer Regions, so the primary's plan copies every point to the peer vault. A restore always creates
+a new cluster. The account's AWS Backup opt-in for DSQL was already on in both Regions.
+
+| Measure (both Regions)                        | Before (09:30 UTC) | After                                                                      |
+| --------------------------------------------- | ------------------ | -------------------------------------------------------------------------- |
+| Backup plans covering the ledger              | 0                  | 2 (`stub-ledger-daily`, 05:00 UTC daily, 35-day retention)                 |
+| Backup vaults                                 | 0                  | 2 (`stub-ledger`, Vault Lock governance mode, min 7 / max 400 days)        |
+| Protected resources                           | 0                  | 2 of 2 clusters                                                            |
+| Recovery points                               | 0                  | 3 (one on-demand per Region, plus the us-east-1 point copied to us-east-2) |
+| Cross-Region copy rule (primary → peer vault) | none               | on the daily rule                                                          |
+| Restores ever tested                          | 0                  | 1, verified, 2 min 9 s                                                     |
+| RPO for logical damage (bad write, DELETE)    | undefined          | 24 h (daily point); Region loss stays at RPO 0 through the peer            |
+
+On-demand backup jobs (`StartBackupJob`, 09:34 UTC): us-east-1 finished in 4 min 10 s, us-east-2
+in 5 min 40 s, 211,877 bytes each. The copy of the us-east-1 point to the us-east-2 vault took
+8 min 33 s.
+
+### Restore drill
+
+`StartRestoreJob` on the us-east-1 point into a new single-Region cluster with deletion protection
+off, 09:42:38 UTC. The job completed at 09:44:46.9 (**2 min 8.7 s**); the first query against the
+new cluster answered at 09:44:57 (2 min 19 s from the request). `npx tsx
+scripts/ledger-fingerprint.ts <endpoint> <region>` read both clusters as admin:
+
+| Fingerprint                                 | Source cluster     | Restored cluster |
+| ------------------------------------------- | ------------------ | ---------------- |
+| Rows: accounts / entries / denials          | 7 / 30 / 2         | 7 / 30 / 2       |
+| Rows: reservations / query_cache / policies | 2 / 2 / 1          | 2 / 2 / 1        |
+| Hash-chain problems (`verifyChain`)         | 0                  | 0                |
+| SHA-256 of every entry hash                 | `447914ae…14e3b8`  | identical        |
+| Sum of balances                             | 1,101.76 USD       | identical        |
+| SHA-256 of every account's chain head       | `571ea294…af08e60` | identical        |
+
+The temporary cluster was deleted at 09:45:16 (`DeleteCluster` → `DELETING`, then gone).
+
+### Problems hit
+
+- `StartRestoreJob` with `ResourceType: AuroraDSQL` (the name the docs use) fails with "Invalid
+  resource type"; the recovery point's own type is `DSQL`, and leaving the field out works.
+- Vault Lock in governance mode means the 7-day on-demand points cannot be deleted early, by
+  design; compliance mode was not used because it can never be undone.
+- Not done: the report's copy to a vault in a second account. There is no AWS Organizations or
+  second account; the copy is cross-Region only.
+
+### Cost
+
+AWS Backup warm storage for about 105 full points of ~0.2 MB (35 days × 2 Regions + 35 copies):
+under $0.01 a month at today's ledger size, growing linearly with it. Restore tests: the
+temporary cluster lived 2 minutes.

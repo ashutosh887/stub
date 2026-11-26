@@ -1,0 +1,107 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Stub ledger backups (WA REL09-BP02, REL09-BP03, REL09-BP05, REL13-BP02). One stack per Region of
+  the multi-Region DSQL cluster: a vault under Vault Lock (governance mode), a daily AWS Backup plan
+  for the Region's cluster, and the service role. AWS Backup takes a DSQL recovery point per
+  Region; the primary Region's rule also copies each point to the peer vault, because a
+  multi-Region restore needs an identical copy in both peer Regions.
+
+Parameters:
+  ClusterArn:
+    Type: String
+    Description: ARN of this Region's Aurora DSQL cluster.
+  CopyToVaultArn:
+    Type: String
+    Default: ""
+    Description: Peer Region vault ARN to copy every recovery point to; empty in the peer stack.
+  ScheduleExpression:
+    Type: String
+    Default: cron(0 5 ? * * *)
+    Description: Daily at 05:00 UTC, which sets the logical-recovery RPO at 24 hours.
+  DeleteAfterDays:
+    Type: Number
+    Default: 35
+    MinValue: 7
+  MinRetentionDays:
+    Type: Number
+    Default: 7
+    Description: Vault Lock floor; no recovery point can be deleted sooner, by anyone.
+
+Conditions:
+  CopyToPeer: !Not [!Equals [!Ref CopyToVaultArn, ""]]
+
+Resources:
+  BackupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub stub-backup-${AWS::Region}
+      Description: AWS Backup service role for the Stub ledger clusters.
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: backup.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores
+      Tags:
+        - { Key: wa-best-practice, Value: REL09-BP02 }
+        - { Key: managed-by, Value: aws-well-architected-review }
+
+  Vault:
+    Type: AWS::Backup::BackupVault
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BackupVaultName: stub-ledger
+      LockConfiguration:
+        MinRetentionDays: !Ref MinRetentionDays
+        MaxRetentionDays: 400
+      BackupVaultTags:
+        wa-best-practice: REL09-BP05
+        managed-by: aws-well-architected-review
+
+  Plan:
+    Type: AWS::Backup::BackupPlan
+    Properties:
+      BackupPlan:
+        BackupPlanName: stub-ledger-daily
+        BackupPlanRule:
+          - RuleName: daily
+            TargetBackupVault: !Ref Vault
+            ScheduleExpression: !Ref ScheduleExpression
+            StartWindowMinutes: 60
+            CompletionWindowMinutes: 240
+            Lifecycle:
+              DeleteAfterDays: !Ref DeleteAfterDays
+            CopyActions: !If
+              - CopyToPeer
+              - - DestinationBackupVaultArn: !Ref CopyToVaultArn
+                  Lifecycle:
+                    DeleteAfterDays: !Ref DeleteAfterDays
+              - !Ref AWS::NoValue
+      BackupPlanTags:
+        wa-best-practice: REL09-BP03
+        managed-by: aws-well-architected-review
+
+  Selection:
+    Type: AWS::Backup::BackupSelection
+    Properties:
+      BackupPlanId: !Ref Plan
+      BackupSelection:
+        SelectionName: stub-ledger-cluster
+        IamRoleArn: !GetAtt BackupRole.Arn
+        Resources:
+          - !Ref ClusterArn
+
+Outputs:
+  VaultArn:
+    Value: !GetAtt Vault.BackupVaultArn
+  BackupRoleArn:
+    Value: !GetAtt BackupRole.Arn
+  PlanId:
+    Value: !Ref Plan
