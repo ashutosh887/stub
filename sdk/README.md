@@ -20,16 +20,6 @@ a crash mid-flight.
 npm install trystub
 ```
 
-## Why the budget holds
-
-`guard()` asks the Stub server, and the server's database has the final word. Check constraints on
-every balance row refuse a write that would go below zero or above its cap (SQLSTATE `23514`),
-whichever role or code path sends it, and the server connects as a role that cannot rewrite the
-ledger. On Aurora DSQL, ten writers that skip the server's own check took a $3.00 budget to -$7.00
-in 20 of 20 runs on the old schema; with the constraints the balance stopped at $0.00 in all 20.
-Send those statements to the live database yourself at
-[trystub.vercel.app/proof](https://trystub.vercel.app/proof).
-
 ## Three lines in front of a paid call
 
 ```ts
