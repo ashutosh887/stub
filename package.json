@@ -28,7 +28,7 @@
     "drill:failover": "tsx scripts/failover-drill.ts",
     "ledger:fingerprint": "tsx scripts/ledger-fingerprint.ts",
     "race:bypass": "tsx scripts/bypass-race.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
