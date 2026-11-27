@@ -206,7 +206,7 @@ normalization, CDC→Kinesis live feed.
 - **Branding & SEO** (in `app/`): logo assets (`icon.png`, `apple-icon.png`, `public/logo.png`,
   all derived from one gold-on-ink mark), dynamic `opengraph-image.tsx` + `twitter-image.tsx`
   (1200×630 via `next/og`), rich metadata + `SoftwareApplication` JSON-LD in `layout.tsx`,
-  per-page canonicals, and `sitemap.ts` / `robots.ts`.
+  per-page canonicals (the JSON-LD `softwareVersion` reads `sdk/package.json`), `sitemap.ts` / `robots.ts` (answer-engine crawlers named, `/api/` closed to all), and `llms.txt/route.ts`, a static plain-text summary for answer engines built from `config/seo.ts` and `lib/race.ts`, so it cites the same numbers as `/proof`.
 - `scripts/`: operational commands (migrate/seed/seed:activity/check/demo-agent/bench/sweep,
   drill:failover, ledger:fingerprint).
   `test/`: `invariant/` (offline), `local/` (local Postgres), `live/` (real cluster). `docs/`:

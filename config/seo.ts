@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import sdkPackage from "@/sdk/package.json";
 
 export const SITE_URL = "https://trystub.vercel.app";
 export const NPM_URL = "https://www.npmjs.com/package/trystub";
@@ -135,7 +136,7 @@ const softwareSchema = {
   operatingSystem: "Web, Node.js",
   url: SITE_URL,
   description: DESCRIPTION,
-  softwareVersion: "1.3.0",
+  softwareVersion: sdkPackage.version,
   downloadUrl: NPM_URL,
   codeRepository: GITHUB_URL,
   license: "https://opensource.org/licenses/MIT",
