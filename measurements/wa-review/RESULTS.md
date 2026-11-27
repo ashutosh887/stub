@@ -1054,11 +1054,22 @@ a refused statement and an accepted one look the same; pair the log with the app
 with CDC (`transaction_id` matches CDC's `source.txId`, and a refused or rolled-back statement has
 no CDC record).
 
-Not proven: a statement refused by `stub_app` through the app (`POST /api/proof`). The site
-returned Vercel's platform challenge (403, `x-vercel-mitigated: challenge`) to every request from
-19:44 on, and the lead asked for no more requests. Since the baseline covers every role, the next
-`/proof` run should appear as `stub_app` records with the app role's ARN; worth one look in the
-bucket after it.
+Through the app, proven 27 Nov 2026: one `POST /api/proof` on production at 03:55:22 UTC (the
+operator's own run, the second in the public tally) returned 6 of 6 refused as `stub_app`. The
+us-east-1 bucket received its records at 03:58:35, three of them, each with `session_user`
+`stub_app` and the `stub-app` IAM role as the principal:
+
+| `event_timestamp` | `class`/`command` | Statement                                                        | What the app saw |
+| ----------------- | ----------------- | ---------------------------------------------------------------- | ---------------- |
+| 03:55:23.522      | `WRITE`/`UPDATE`  | `UPDATE accounts SET balance_micro = -1 WHERE id = (SELECT …)`   | refused, `23514` |
+| 03:55:23.570      | `WRITE`/`UPDATE`  | `UPDATE accounts SET balance_micro = cap_micro + 1 WHERE id = …` | refused, `23514` |
+| 03:55:23.645      | `WRITE`/`INSERT`  | `INSERT INTO proof_runs (…) VALUES ($1, …)`                      | committed        |
+
+The four statements refused with `42501` (rewrite and delete an entry, create a table, drop
+`entries`) left no record: a statement the role has no privilege for fails before it runs, so the
+audit log shows what a role did, and the `42501` refusals live only in the app's response. The
+same bucket also holds `stub_app` writes from both failover drills (16 records from the 26 Nov run,
+40 from the 27 Nov re-run).
 
 Volume and cost: the first 8 records came to 2 files, 1,264 bytes compressed. Vended log delivery to
 S3 is $0.25 per GB (us-east-1, first 10 TB), S3 Standard $0.023 per GB-month, and audit adds DSQL
