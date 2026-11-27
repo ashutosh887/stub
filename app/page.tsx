@@ -117,6 +117,11 @@ const REVIEW: ReviewRow[] = [
     after: "refused, 42501",
   },
   {
+    measure: "Admin and export routes, without a credential",
+    before: "200 on 4 of 4",
+    after: "401 on 4 of 4",
+  },
+  {
     measure: "Destructive DSQL actions the app's AWS principal may call",
     before: "6 of 6",
     after: "0 of 6",
@@ -145,6 +150,12 @@ const REVIEW: ReviewRow[] = [
   { measure: "CloudTrail trails", before: "0", after: "1, multi-Region" },
   { measure: "GuardDuty detectors", before: "0", after: "2" },
   { measure: "CloudWatch alarms", before: "0", after: "4" },
+  {
+    measure: "SQL audit log on the ledger's clusters",
+    before: "off",
+    after: "every DDL, role change and write, both Regions",
+  },
+  { measure: "Required status checks on main", before: "none", after: "4" },
 ];
 
 const CAPABILITIES: { group: string; items: { head: string; body: string }[] }[] = [
@@ -484,9 +495,9 @@ if (allowed) await doThePaidThing();`}</CodeBlock>
           </ul>
         </div>
         <p className="mt-6 max-w-2xl leading-relaxed text-fg-dim">
-          The clusters, backups, trail, detectors and alarms are all CloudFormation in{" "}
-          <Mono>infra/</Mono>, with termination protection on every stack, and deploy from{" "}
-          <Mono>main</Mono>. The database checks you can run yourself on{" "}
+          The clusters, backups, audit log, trail, detectors, alarms and the Region failure drill
+          are all CloudFormation in <Mono>infra/</Mono>, with termination protection on every stack,
+          and deploy from <Mono>main</Mono>. The database checks you can run yourself on{" "}
           <TextLink href="/proof">/proof</TextLink>.
         </p>
       </SiteSection>
