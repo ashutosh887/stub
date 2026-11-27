@@ -38,7 +38,10 @@ export async function provisionShards(
   const base = totalMicro / BigInt(shards);
   const remainder = totalMicro % BigInt(shards);
 
-  await store.transaction(async (tx) => {
+  await runOcc(store, async (tx) => {
+    if ((await tx.getAccount(accountId))?.sharded) {
+      throw new Error(`account already sharded: ${accountId}`);
+    }
     if (await tx.hasChildren(accountId)) {
       throw new Error(`account has child accounts: ${accountId}`);
     }
