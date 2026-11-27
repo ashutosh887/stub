@@ -10,6 +10,10 @@ published verbatim as the body of the matching
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-27
+
+No code change. The built `dist` is byte-identical to 2.0.0.
+
 ### Changed
 
 - The npm description, keywords and README now say the server's database refuses the overspend,
@@ -154,8 +158,9 @@ First public release: a drop-in budget gate for autonomous AI agents.
   payment.
 - Dependency-free. Works anywhere `fetch` exists.
 
-[unreleased]: https://github.com/ashutosh887/stub/compare/sdk-v1.3.0...HEAD
-[1.3.0]: https://github.com/ashutosh887/stub/compare/sdk-v1.2.0...sdk-v1.3.0
+[unreleased]: https://github.com/ashutosh887/stub/compare/sdk-v2.0.1...HEAD
+[2.0.1]: https://github.com/ashutosh887/stub/compare/sdk-v2.0.0...sdk-v2.0.1
+[2.0.0]: https://github.com/ashutosh887/stub/compare/sdk-v1.2.0...sdk-v2.0.0
 [1.2.0]: https://github.com/ashutosh887/stub/compare/sdk-v1.1.0...sdk-v1.2.0
 [1.1.0]: https://github.com/ashutosh887/stub/compare/sdk-v1.0.2...sdk-v1.1.0
 [1.0.2]: https://github.com/ashutosh887/stub/compare/sdk-v1.0.1...sdk-v1.0.2
