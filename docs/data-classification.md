@@ -66,6 +66,7 @@ drives, and delete it when the reconciliation it was for is done.
 | Redaction in app logs                                                                             | n/a          | `lib/log.ts` masks any `authorization`, `api_key`, `token`, `password`, `secret` field and any `stub_sk_` value | n/a                                                                             |
 | CloudTrail logs and digests (who called which AWS API, from where)                                | Confidential | S3 log bucket from `infra/stub-audit.yaml`, SSE-S3, TLS only, no deletes by any principal                       | Glacier Instant Retrieval at 90 days, expired at 365 days; old versions 30 days |
 | AWS Config snapshots (DSQL cluster settings)                                                      | Internal     | Same bucket, `Config/` prefix                                                                                   | Same lifecycle                                                                  |
+| DSQL SQL audit log (DDL, role changes and writes, with the statement and the IAM identity)        | Confidential | Per-Region S3 bucket from `infra/stub-clusters.yaml`, Object Lock (governance), deletes denied                  | Locked, then expired, after the template's `AuditLogRetentionDays`              |
 | AWS Backup recovery points (the whole ledger)                                                     | Confidential | Vault `stub-ledger` in both Regions, Vault Lock (governance)                                                    | 35 days, no deletion before 7                                                   |
 | GuardDuty findings                                                                                | Confidential | GuardDuty in each Region; severity 4+ to the ops topic                                                          | GuardDuty's 90 days                                                             |
 | Ops alerts                                                                                        | Internal     | SNS `wa-stub-ops-alerts` (KMS customer managed key) to the operator's subscription                              | Not stored by SNS                                                               |
@@ -82,5 +83,5 @@ drives, and delete it when the reconciliation it was for is done.
 
 Nothing else leaves: the SDK talks only to the Stub deployment it is pointed at. No route deletes
 ledger rows. The drills (`/api/stress`, `/api/incident`) run against their own accounts
-(`drill-*`, from `npm run seed:drills`). They place holds and release them, so they add only reservations and
-denials, and the dashboard and query box leave those accounts out.
+(`drill-*`, from `npm run seed:drills`). They place holds and release them, so they add only
+reservations and denials, and the dashboard and query box leave those accounts out.

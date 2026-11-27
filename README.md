@@ -47,22 +47,21 @@ balance up the hierarchy in the same transaction, so agents racing the same budg
 shared row and the loser conflicts. That is how the invariant holds across Regions, where DSQL has
 no row locks (`SELECT … FOR UPDATE`).
 
-OCC resolves races. Two CHECK constraints refuse any write that would take a balance below zero
-(`accounts_balance_nonnegative`) or above its cap (`accounts_balance_within_cap`), whoever sends it.
-A script, a hotfix or a new route that skips the app's check gets `SQLSTATE 23514`, and so does
-`admin`. If a `23514` ever reaches the app's own spend path, it comes back as a denial with reason
-`db_refused` and is recorded like any other denial. The app connects as `stub_app`, a role that cannot rewrite or delete a ledger entry or
-change the schema (`42501`), with one-hour IAM credentials from Vercel OIDC and no stored key.
+The two constraints are `accounts_balance_nonnegative` and `accounts_balance_within_cap`. A
+script, a hotfix or a new route that skips the app's check gets `23514`, and so does `admin`. If a
+`23514` reaches the app's own spend path, the app records it as a denial with reason `db_refused`.
+The app connects as `stub_app`, a role that cannot rewrite or delete a ledger entry or change the
+schema (`42501`). It gets one-hour IAM credentials from Vercel OIDC and stores no key.
 
 ### Exactly-once around an irreversible payment
 
-A naive retry around OCC has a sharp edge. If the payment is sent _inside_ the retried transaction,
+A naive retry around OCC can pay twice. If the payment goes out _inside_ the retried transaction,
 a serialization conflict re-runs the block and **pays again**. Stub splits the flow the way card
 networks do: **reserve, pay, settle**. One transaction holds the estimate against the cap. The
 irreversible payment fires once, outside the transaction, keyed on the reservation. A second
 transaction settles the actual cost and refunds the difference. OCC retries replay the ledger and
 never the payment. If a process crashes between pay and settle, an idempotent sweeper reclaims the
-hold: settle and sweep contend on the hold row, OCC picks one winner, and the other does nothing.
+hold. Settle and sweep contend on the hold row, OCC picks one winner, and the other does nothing.
 
 ```
 Agent (x402 / AgentCore)
@@ -119,7 +118,7 @@ goes from about 13 ms at 1 writer to about 380 ms at 32. More writers buy nothin
 
 `core/sharded.ts` splits one balance into N shard rows. Each shard is checked and debited on its
 own, so writers collide less. No shard can go below zero, and `CHECK (balance_micro >= 0)` on
-`account_shards` enforces that in the database, so the sum cannot either: **sharding raises
+`account_shards` enforces that in the database, so the sum cannot either. **Sharding raises
 throughput without weakening the overspend invariant.** A spend takes one shard on the fast path
 and reads the others only when that shard is short, so it borrows across shards instead of denying
 a spend that fits. Measured at 8 shards on local Postgres, throughput rose 1.2 to 2.8 times with
@@ -128,7 +127,7 @@ equal or fewer conflicts per spend.
 Sharding is opt-in per account. `provisionShards` sets an account's `sharded` flag, and
 `/api/spend` sends any account with that flag down the sharded path (`core/sharded.ts`
 `spendAuto`), with the same policy, frozen, velocity and hierarchy checks either way. The console
-has no button for it yet: call the admin-gated `POST /api/accounts/shard`, or
+has no button for it yet. Call the admin-gated `POST /api/accounts/shard`, or
 `stub.provisionShards(accountId)` from the SDK. These numbers come from local Postgres at
 `SERIALIZABLE`, which also tracks read conflicts. DSQL checks conflicts on writes only, and the
 sharded benchmark has not been run there yet.
@@ -183,7 +182,7 @@ test/     invariant suite (offline), local Postgres, live cross-Region
 A deliberate double-entry ledger:
 
 - **`accounts`**: budget accounts (org → team → agent → vendor), each with a balance, a hard cap,
-  and an optional velocity limit. A spend is bound by the **tightest cap up the hierarchy**: it
+  and an optional velocity limit. A spend is bound by the **tightest cap up the hierarchy**. It
   debits the named account and updates every ancestor's balance in the same transaction. CHECK
   constraints keep each balance between zero and its cap.
 - **`entries`**: double-entry lines, append-only, and the audit log. `stub_app` has no `UPDATE` or
@@ -201,10 +200,10 @@ A deliberate double-entry ledger:
 
 ## Features
 
-- **Overspend invariant**: concurrent cross-Region writes to one balance resolve through OCC
-  (`SQLSTATE 40001`), and a spend that would breach a cap is recorded as a denial. CHECK
-  constraints refuse any balance below zero or above its cap (`23514`), whoever sends the write; a
-  refusal that reaches the app is recorded as a `db_refused` denial.
+- **Overspend invariant**: OCC (`40001`) orders concurrent cross-Region writes to one balance, and
+  CHECK constraints refuse any balance below zero or above its cap (`23514`), whoever sends the
+  write. A spend that no longer fits is denied, and a `23514` that reaches the app becomes a
+  `db_refused` denial.
 - **Exactly-once settlement**: reserve, pay, settle, so a retry around an irreversible payment
   can't double-charge; an idempotent sweeper reclaims a crashed hold.
 - **Hierarchical budgets**: org → team → agent caps enforced together in one transaction.
@@ -217,8 +216,8 @@ A deliberate double-entry ledger:
 - **Kill switch**: freeze one agent or the whole fleet with one call.
 - **Tamper-evident audit trail**: hash-chained entries verified on demand, with a live
   tamper-detection demo and an accounting **journal export** (CSV for QuickBooks or NetSuite).
-- **Cost attribution (chargeback and showback)**: every spend tags a team, customer or feature;
-  roll spend up by any of them to answer who drove it.
+- **Cost attribution (chargeback and showback)**: every spend tags a team, customer or feature,
+  and spend rolls up by any of them.
 - **Incident replay**: run a documented runaway-agent pattern against a budget and watch the cap
   hold, transaction by transaction.
 - **Agent registry and scoped API keys**: issue a key bound to one budget account; spends made with
@@ -287,8 +286,8 @@ npm run test:live           # live cross-region overspend proof (requires DSQL_E
 
 ## SDK
 
-Published to npm as [`trystub`](https://www.npmjs.com/package/trystub): dependency-free,
-works anywhere `fetch` exists.
+Published to npm as [`trystub`](https://www.npmjs.com/package/trystub). It has no dependencies
+and works anywhere `fetch` exists.
 
 ```bash
 npm install trystub
@@ -358,7 +357,7 @@ Without `ADMIN_TOKEN`, every admin and export route answers 401 in production. P
 multi-Region cluster, two peered Regions plus a witness, and the cross-Region overspend proof runs
 against real replication.
 
-Push a `sdk-v*` tag and the `Publish SDK` workflow builds `trystub`, publishes it to npm with
+Push a `sdk-v*` tag and the `Publish SDK` workflow builds `trystub` and publishes it to npm with
 provenance through trusted publishing (GitHub OIDC, no stored token). The maintainer then creates
 the [GitHub Release](https://github.com/ashutosh887/stub/releases) with that version's section of
 [`sdk/CHANGELOG.md`](./sdk/CHANGELOG.md) as the body; see
@@ -378,10 +377,10 @@ the [GitHub Release](https://github.com/ashutosh887/stub/releases) with that ver
 - Aurora DSQL's SQL audit log records every DDL, role change and write, with the statement and the
   IAM identity behind it, into a per-Region S3 bucket with Object Lock and deletes denied.
 - Region failure drill: an AWS FIS template refuses every connection to the primary cluster for
-  two minutes. Run twice against production. The first run found that DSQL drops an open
+  two minutes. It has run twice against production. The first run found that DSQL drops an open
   connection with `XX000`, which the pool did not recognise. After that fix, the second run moved
-  serving to us-east-2 in 17.3 s and found that a dropped connection could crash a function process;
-  that is fixed too (see RESULTS.md).
+  serving to us-east-2 in 17.3 s and found that a dropped connection could crash a function process.
+  That is fixed too (see RESULTS.md).
 - Measurements: [`measurements/wa-review/RESULTS.md`](./measurements/wa-review/RESULTS.md).
 
 ## Development
@@ -398,7 +397,7 @@ Code is formatted with Prettier and linted with ESLint, and the repo installs
 lint-staged (ESLint `--fix` and Prettier on staged files) and a **commit-msg** hook enforces
 [Conventional Commits](https://www.conventionalcommits.org). CI runs lint, the format check,
 typecheck, the offline suite and the build, plus the `db-proof` job on Postgres 17. See
-[CONTRIBUTING.md](./CONTRIBUTING.md) for the full standards.
+[CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## License
 

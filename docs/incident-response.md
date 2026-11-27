@@ -4,7 +4,7 @@ One playbook for each alarm, rule and refusal Stub has today. Every page goes to
 `wa-stub-ops-alerts` in the Region that raised it (us-east-1 or us-east-2). Each playbook names
 what fired, what to do in the first five minutes, how to confirm it, how to undo it, and who acts.
 
-**Who.** One role exists: **the operator**, who holds the operator IAM principal, the Vercel
+**Who.** One role exists, **the operator**, who holds the operator IAM principal, the Vercel
 project and the `ADMIN_TOKEN`. The operator is incident lead, responder and approver. Escalation
 outside Stub goes to AWS Support (a case from the console) for anything in AWS, and to Vercel
 support for the hosting. Keep the operator's contact details in the SNS subscription and the
@@ -209,19 +209,21 @@ timeout, 4.55 s when the primary's name stopped resolving.
 
 ### Budget balance check refused a write (SEV1)
 
-**What fired.** No alarm exists for this yet. A transaction that would make a balance negative, or
-raise a capped account's balance above its cap, is refused by the database with SQLSTATE `23514`
+**What fired.** No alarm exists for this yet. The database refuses a transaction that would make a
+balance negative, or raise a capped account's balance above its cap, with SQLSTATE `23514`
 (`accounts_balance_nonnegative`, `account_shards_balance_nonnegative` or
-`accounts_balance_within_cap`). The route answers 500 and logs `unhandled_error` with the
-constraint name in the message. The app checks the cap before writing and only ever returns to a
-budget what a hold took from it, so this refusal means the app's own check was bypassed or wrong.
+`accounts_balance_within_cap`). On spend, reserve, settle and release the app records the refusal
+as a denial with reason `db_refused`, so it shows in the denial feed. Any other route answers 500
+and logs `unhandled_error` with the constraint name in the message. The app checks the cap before
+writing and only ever returns to a budget what a hold took from it, so this refusal means the
+app's own check was bypassed or wrong.
 For `accounts_balance_within_cap`, look for a write that credited a capped account: the app denies
 any payee that is not a vendor account (`payee_not_vendor`) or is the budget itself
 (`payee_is_budget`), so that write skipped those checks.
 
 **First 5 minutes.**
 
-1. Freeze the account named in the log line (or all, if the account is unclear).
+1. Freeze the account named in the denial or the log line (or all, if the account is unclear).
 2. Keep the request id and the route from the log line.
 
 **Verify.** `GET /api/accounts`: no balance below zero or above its cap (the constraints guarantee

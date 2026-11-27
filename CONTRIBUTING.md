@@ -74,7 +74,7 @@ awk -v h="## [X.Y.Z]" 'index($0,h)==1{f=1;next} f&&index($0,"## [")==1{exit} f' 
 gh release create sdk-vX.Y.Z --title "trystub X.Y.Z" --notes-file notes.md --latest
 ```
 
-The workflow has no npm token. It publishes through npm trusted publishing: GitHub Actions hands npm
+The workflow has no npm token. It publishes through npm trusted publishing. GitHub Actions hands npm
 a short-lived OIDC token (`id-token: write`), and npm accepts it only for the publisher configured
 on the package. One-time setup on npmjs.com: package `trystub` → Settings → Trusted publishing →
 GitHub Actions, organization or user `ashutosh887`, repository `stub`, workflow `publish-sdk.yml`.
