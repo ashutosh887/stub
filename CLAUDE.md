@@ -193,7 +193,7 @@ normalization, CDC→Kinesis live feed.
   `Stamp` for a refused SQLSTATE, link and code primitives). Marketing copy cites only numbers in
   `measurements/wa-review/RESULTS.md`, with no em/en dashes or interpuncts. Every
   route runs through `lib/api.ts` `withRoute` (request id, sanitized errors, admin auth, rate
-  limit); page-level gating via `adminPageAllowed`. Auth is enforced when `ADMIN_TOKEN` is set;
+  limit); page-level gating via `adminPageAllowed`; a visitor without the token gets `components/console-gate.tsx` (the operator sign-in beside two ways in without a token: `/proof` and running the console on local Postgres), and the console pages are `noindex` and out of the sitemap. Auth is enforced when `ADMIN_TOKEN` is set;
   unset, it is open in development and closed in production. `/proof` is public: its button posts to
   `POST /api/proof` (`lib/proof.ts` `runProof`), which sends six statements as the app's own
   connection, each in its own `BEGIN … ROLLBACK`, and returns the SQLSTATE per statement; it refuses

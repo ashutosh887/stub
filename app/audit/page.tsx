@@ -1,5 +1,5 @@
 import { ConsoleShell } from "@/components/app-tabs";
-import { AdminLogin } from "@/components/admin-login";
+import { ConsoleGate } from "@/components/console-gate";
 import { AuditPanel } from "@/components/audit-panel";
 import { ConsoleHeader, Empty, LedgerSection } from "@/components/console-kit";
 import { adminPageAllowed } from "@/lib/api";
@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
+  robots: { index: false, follow: true },
   title: "Audit and chain verification",
   description:
     "Verify the tamper-evident hash chain over every ledger entry, see tamper detection demonstrated, and export the books as accounting journal lines.",
@@ -19,7 +20,7 @@ const LINK =
   "text-fg underline decoration-brand-dim underline-offset-4 transition-colors hover:decoration-brand";
 
 export default async function AuditPage() {
-  if (!(await adminPageAllowed())) return <AdminLogin />;
+  if (!(await adminPageAllowed())) return <ConsoleGate />;
 
   const report = await auditReport();
 

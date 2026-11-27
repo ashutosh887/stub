@@ -41,7 +41,7 @@ function body(): string {
     `- [Home](${SITE_URL}): what Stub is and what the review changed`,
     `- [How it works](${SITE_URL}/how-it-works): the spend transaction and the constraints that refuse an overspend`,
     `- [Proof](${SITE_URL}/proof): the race chart and the live database refusal`,
-    `- [Dashboard](${SITE_URL}/dashboard): the live ledger console`,
+    `- [Operator console](${SITE_URL}/dashboard): the live ledger console; production opens it only with the operator's token, and it opens without one on local Postgres`,
     "",
     "## Sources",
     "",

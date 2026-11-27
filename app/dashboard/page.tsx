@@ -15,7 +15,7 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { PolicyEditor, type PolicyView } from "@/components/policy-editor";
 import { NlQuery } from "@/components/nl-query";
 import { AgentRegistry } from "@/components/agent-registry";
-import { AdminLogin } from "@/components/admin-login";
+import { ConsoleGate } from "@/components/console-gate";
 import { ConsoleShell } from "@/components/app-tabs";
 import { StartHere } from "@/components/start-here";
 import { StressTest } from "@/components/stress-test";
@@ -37,6 +37,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
+  robots: { index: false, follow: true },
   title: "Live dashboard",
   description:
     "Watch agent spend commit and get denied in real time against one enforced budget, with live balances, burn rates, and the denial feed.",
@@ -54,7 +55,7 @@ const LINK =
   "text-fg-dim underline decoration-brand-dim underline-offset-4 transition-colors hover:text-fg hover:decoration-brand";
 
 export default async function Dashboard() {
-  if (!(await adminPageAllowed())) return <AdminLogin />;
+  if (!(await adminPageAllowed())) return <ConsoleGate />;
 
   const [accounts, entries, denials, policies, fleetSpend, agents] = await Promise.all([
     listAccounts(),

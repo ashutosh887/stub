@@ -1,5 +1,5 @@
 import { ConsoleShell } from "@/components/app-tabs";
-import { AdminLogin } from "@/components/admin-login";
+import { ConsoleGate } from "@/components/console-gate";
 import { SettlementDemo } from "@/components/settlement-demo";
 import { ConsoleHeader, Empty, LedgerSection, utcStamp } from "@/components/console-kit";
 import { NumberedStep } from "@/components/site-kit";
@@ -11,6 +11,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
+  robots: { index: false, follow: true },
   title: "Reserve, pay, settle",
   description:
     "The exactly-once settlement flow: hold an estimate against the budget, pay once, then settle the real cost and refund the difference.",
@@ -24,7 +25,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 
 export default async function SettlementPage() {
-  if (!(await adminPageAllowed())) return <AdminLogin />;
+  if (!(await adminPageAllowed())) return <ConsoleGate />;
 
   const [accounts, reservations] = await Promise.all([listAccounts(), listReservations(12)]);
   const budgets = accounts

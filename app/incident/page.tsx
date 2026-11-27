@@ -1,5 +1,5 @@
 import { ConsoleShell } from "@/components/app-tabs";
-import { AdminLogin } from "@/components/admin-login";
+import { ConsoleGate } from "@/components/console-gate";
 import { ConsoleHeader } from "@/components/console-kit";
 import { IncidentReplay } from "@/components/incident-replay";
 import { adminPageAllowed } from "@/lib/api";
@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
+  robots: { index: false, follow: true },
   title: "Incident replay",
   description:
     "Replay documented runaway-agent spend patterns against an enforced cap and watch the overspend get refused, transaction by transaction.",
@@ -16,7 +17,7 @@ export const metadata = {
 };
 
 export default async function IncidentPage() {
-  if (!(await adminPageAllowed())) return <AdminLogin />;
+  if (!(await adminPageAllowed())) return <ConsoleGate />;
 
   return (
     <ConsoleShell tab="incident">

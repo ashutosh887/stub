@@ -1,5 +1,5 @@
 import { ConsoleShell } from "@/components/app-tabs";
-import { AdminLogin } from "@/components/admin-login";
+import { ConsoleGate } from "@/components/console-gate";
 import { ConsoleHeader, Empty, LedgerSection } from "@/components/console-kit";
 import { adminPageAllowed } from "@/lib/api";
 import { type AttributionRow, listAttribution } from "@/lib/data";
@@ -9,6 +9,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
+  robots: { index: false, follow: true },
   title: "Cost attribution and chargeback",
   description:
     "Break agent spend down by cost center, team, and vendor to answer chargeback and showback questions a cloud bill cannot.",
@@ -19,7 +20,7 @@ const LINK =
   "text-fg underline decoration-brand-dim underline-offset-4 transition-colors hover:decoration-brand";
 
 export default async function AttributionPage() {
-  if (!(await adminPageAllowed())) return <AdminLogin />;
+  if (!(await adminPageAllowed())) return <ConsoleGate />;
 
   const [byCostCenter, byTeam, byVendor] = await Promise.all([
     listAttribution("costCenter"),

@@ -242,7 +242,7 @@ export default function Home() {
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
               <PrimaryLink href="/proof">Try to break it</PrimaryLink>
-              <SecondaryLink href="/dashboard">Open the dashboard</SecondaryLink>
+              <SecondaryLink href="/how-it-works">How it works</SecondaryLink>
             </div>
             <p className="mt-4 max-w-md text-sm leading-relaxed text-fg-mute">
               The button sends six hostile statements to production as the app&apos;s own role. Each
@@ -552,12 +552,13 @@ npm run test:local`}</CodeBlock>
               Press the button. Production answers.
             </h2>
             <p className="mt-4 max-w-xl text-[17px] leading-relaxed text-fg-dim">
-              Or open the dashboard and run a spend against the live ledger yourself.
+              Or run the whole console on your laptop. On local Postgres it opens without a token,
+              and you need no AWS account.
             </p>
           </div>
           <div className="flex shrink-0 flex-col gap-3 sm:flex-row">
             <PrimaryLink href="/proof">Try to break it</PrimaryLink>
-            <SecondaryLink href="/dashboard">Open the dashboard</SecondaryLink>
+            <SecondaryLink href={`${GITHUB_URL}#quickstart`}>Run it locally</SecondaryLink>
           </div>
         </div>
       </section>

@@ -27,6 +27,9 @@ export function SiteNav({ current }: { current?: "home" | "how" | "proof" | "das
           <NavLink href="/proof" active={current === "proof"}>
             Proof
           </NavLink>
+          <NavLink href="/dashboard" active={current === "dashboard"}>
+            Console
+          </NavLink>
           <NpmStatsLink
             ariaLabel="trystub on npm"
             placement="below"
@@ -44,13 +47,6 @@ export function SiteNav({ current }: { current?: "home" | "how" | "proof" | "das
           >
             <FaGithub className="h-[18px] w-[18px]" />
           </a>
-          <Link
-            href="/dashboard"
-            className="ml-1 shrink-0 whitespace-nowrap rounded-md border border-line-bright px-2.5 py-1.5 font-medium text-fg transition-colors hover:border-brand-dim hover:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand sm:px-3"
-          >
-            <span className="sm:hidden">Dashboard</span>
-            <span className="hidden sm:inline">Open the dashboard</span>
-          </Link>
         </div>
       </div>
     </nav>

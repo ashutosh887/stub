@@ -37,7 +37,7 @@ export function SiteFooter() {
           </li>
           <li>
             <Link href="/dashboard" className={LINK}>
-              Dashboard
+              Operator console
             </Link>
           </li>
         </FooterColumn>

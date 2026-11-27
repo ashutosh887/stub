@@ -1,5 +1,6 @@
 import { SiteFooter } from "@/components/site-footer";
 import { SiteNav } from "@/components/site-nav";
+import { GITHUB_URL } from "@/config/seo";
 import {
   CodeBlock,
   Mono,
@@ -144,31 +145,32 @@ export default function HowItWorks() {
       </div>
 
       <SiteSection
-        title="Try it in a minute."
-        intro="The dashboard runs on a live Aurora DSQL cluster with sample data. Nothing you do there spends real money."
+        title="Try it yourself."
+        intro="Production's console holds a live ledger, so it opens only with the operator's token. You can still test the guarantee on production, and run the whole console on your laptop."
         cites={[
-          { label: "/dashboard", href: "/dashboard" },
           { label: "/proof", href: "/proof" },
+          { label: "README quickstart", href: `${GITHUB_URL}#quickstart` },
         ]}
       >
         <ol className="max-w-2xl space-y-6">
-          <NumberedStep n={1} head="Run a spend">
-            In Simulate a spend, authorize a small amount. It commits and shows up in the ledger.
-          </NumberedStep>
-          <NumberedStep n={2} head="Trip a limit">
-            Authorize more than an agent has left. It is denied and recorded, and the balance holds.
-          </NumberedStep>
-          <NumberedStep n={3} head="Ask the ledger">
-            Type a question into Ask your ledger and read an answer drawn from the entries.
-          </NumberedStep>
-          <NumberedStep n={4} head="Go around the app">
+          <NumberedStep n={1} head="Go around the app">
             On <TextLink href="/proof">/proof</TextLink>, send the statements a buggy path would
             send and read the SQLSTATE production returns.
           </NumberedStep>
+          <NumberedStep n={2} head="Start the console locally">
+            Follow the quickstart. With local Postgres in Docker, the console opens without a token
+            and with sample agents.
+          </NumberedStep>
+          <NumberedStep n={3} head="Run a spend">
+            In Simulate a spend, authorize a small amount. It commits and shows up in the ledger.
+          </NumberedStep>
+          <NumberedStep n={4} head="Trip a limit">
+            Authorize more than an agent has left. It is denied and recorded, and the balance holds.
+          </NumberedStep>
         </ol>
         <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-          <PrimaryLink href="/dashboard">Open the dashboard</PrimaryLink>
-          <SecondaryLink href="/proof">Try to break it</SecondaryLink>
+          <PrimaryLink href="/proof">Try to break it</PrimaryLink>
+          <SecondaryLink href={`${GITHUB_URL}#quickstart`}>Run it locally</SecondaryLink>
         </div>
       </SiteSection>
 
