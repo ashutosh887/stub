@@ -50,7 +50,7 @@ describe.skipIf(db.driver !== "postgres")(
       const held = runs.reduce((s, r) => s + r.held, 0);
       const denied = runs.reduce((s, r) => s + r.denied, 0);
       expect(held).toBeGreaterThan(0);
-      expect(held).toBeLessThanOrEqual(Number(STRESS_BUDGET.capMicro / HOLD));
+      expect(runs.every((r) => r.held <= Number(STRESS_BUDGET.capMicro / HOLD))).toBe(true);
       expect(runs.every((r) => r.failed === 0 && r.lowMicro >= 0n)).toBe(true);
       expect(held + denied).toBe(CALLS * 2);
 
