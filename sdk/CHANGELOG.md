@@ -10,6 +10,15 @@ published verbatim as the body of the matching
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-11-27
+
+No code change: `dist` is byte-identical to 2.0.0.
+
+### Changed
+
+- The npm description, keywords and README now say the server's database refuses the overspend,
+  and link the live proof.
+
 ## [2.0.0] - 2026-11-27
 
 The database now enforces the budget. Before this release the overspend check lived in the server's
