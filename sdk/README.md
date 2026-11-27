@@ -20,6 +20,17 @@ a crash mid-flight.
 npm install trystub
 ```
 
+## Why the budget holds
+
+`guard()` asks the Stub server, and the server's database has the final word. Check constraints on
+every balance row refuse a write that would go below zero or above its cap (SQLSTATE `23514`),
+whichever role or code path sends it. The server connects as a role that cannot rewrite the ledger.
+
+On Aurora DSQL, ten writers that skip the server's own check took a $3.00 budget to -$7.00 in 20 of
+20 runs on the old schema. With the constraints, the balance stopped at $0.00 in all 20. Send those
+statements to the live database yourself at
+[trystub.vercel.app/proof](https://trystub.vercel.app/proof).
+
 ## Three lines in front of a paid call
 
 ```ts
@@ -84,16 +95,15 @@ const response = await meterLLM(
 
 `usageFrom` reads both OpenAI-shaped (`prompt_tokens` / `completion_tokens`) and Anthropic-shaped
 (`input_tokens` / `output_tokens`) responses, including cached-input tokens, and `costUsd` prices
-them. **You supply the rates.** This package ships no price table on purpose: published prices go
+them. **You supply the rates.** This package ships no price table on purpose. Published prices go
 stale, and a stale number in a dependency bills you wrong. If the response carries no usage,
 the hold settles at the full estimate rather than guessing low.
 
 ## Reliability
 
 Every call has a timeout and bounded retries on network errors, `429` and `5xx`. Retries are safe
-because the client attaches a generated `idempotencyKey` to each `spend` and `reserve`, so a request
-that is retried after the server already committed it resolves to that same single ledger entry
-instead of charging twice. Denials and `4xx` are never retried.
+because the client attaches a generated `idempotencyKey` to each `spend` and `reserve`. A retry of a
+request the server already committed resolves to the same ledger entry instead of charging twice. Denials and `4xx` are never retried.
 
 ```ts
 new StubClient({ baseUrl, apiKey, timeoutMs: 10_000, maxRetries: 2, retryDelayMs: 200 });
@@ -103,7 +113,7 @@ Set `maxRetries: 0` to disable retries; the client then sends no generated key.
 
 ## Operator actions
 
-Two calls are for whoever runs the Stub deployment, not an agent's runtime: construct the client
+Two calls are for whoever runs the Stub deployment, not an agent's runtime. Construct the client
 with the server's `ADMIN_TOKEN` as `apiKey` instead of an agent's scoped key.
 
 ```ts
@@ -117,7 +127,7 @@ await admin.provisionShards(accountId); // split a hot budget across shard rows 
 ```
 
 `provisionShards` shards whatever the account's balance is right now, and refuses to run twice on
-the same account. The vendors a sharded budget pays do not need shards: a vendor without them is
+the same account. The vendors a sharded budget pays do not need shards. A vendor without them is
 credited on its own balance row.
 
 ## API

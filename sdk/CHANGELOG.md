@@ -1,7 +1,7 @@
 # Changelog
 
 What changes for someone using `trystub`, or running the Stub server it talks to. Console styling,
-marketing pages, docs, and internal refactors are deliberately not listed here.
+marketing pages, docs and internal refactors are not listed here.
 
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format,
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) versions. Each released section below is
@@ -9,6 +9,11 @@ published verbatim as the body of the matching
 [GitHub Release](https://github.com/ashutosh887/stub/releases).
 
 ## [Unreleased]
+
+### Changed
+
+- The npm description, keywords and README now say the server's database refuses the overspend,
+  and link the live proof.
 
 ## [2.0.0] - 2026-11-27
 
