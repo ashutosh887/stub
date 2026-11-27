@@ -49,6 +49,7 @@ vi.mock("@/lib/ai", () => ({ openaiEnabled: false, answerSpendQuestion: vi.fn() 
 vi.mock("@/db/client", () => ({
   query: async () => ({ rows: [] }),
   createDriverPool: () => ({ end: async () => {} }),
+  createBurstPool: () => ({ end: async () => {} }),
   activeRegion: () => null,
   getPool: () => {
     throw new Error("no pool in tests");

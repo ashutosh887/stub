@@ -120,6 +120,13 @@ export function createFailoverPool(primary: Endpoint, peer: Endpoint): FailoverP
 
 let pool: Connectable | undefined;
 
+export function createBurstPool(max: number): Connectable & { end(): Promise<void> } {
+  if (!db.url && dsql.failover && dsql.peerEndpoint) {
+    return createFailoverPool(regionalEndpoint("primary", max), regionalEndpoint("peer", max));
+  }
+  return createDriverPool(max);
+}
+
 export function getPool(): Connectable {
   if (pool) return pool;
   const failover = !db.url && dsql.failover && dsql.peerEndpoint;

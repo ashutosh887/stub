@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createDriverPool } from "@/db/client";
+import { createBurstPool } from "@/db/client";
 import { HttpError, readJson, withRoute } from "@/lib/api";
 import { DrillNotProvisionedError, incidentBudget, runDrill } from "@/lib/drills";
 import { findScenario } from "@/lib/incidents";
@@ -16,7 +16,7 @@ export const POST = withRoute({ name: "incident", admin: true }, async ({ reques
   const calls = Math.min(40, scenario.calls);
   const perCall = BigInt(Math.round(scenario.perCallUsd * 1_000_000));
 
-  const pool = createDriverPool(calls);
+  const pool = createBurstPool(calls);
   try {
     const run = await runDrill(pool, incidentBudget(scenario), {
       calls,

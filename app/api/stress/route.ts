@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createDriverPool } from "@/db/client";
+import { createBurstPool } from "@/db/client";
 import { HttpError, readJson, withRoute } from "@/lib/api";
 import { DrillNotProvisionedError, STRESS_BUDGET, runDrill } from "@/lib/drills";
 
@@ -12,7 +12,7 @@ export const POST = withRoute({ name: "stress", admin: true }, async ({ request 
   const body = await readJson<{ count?: number }>(request).catch(() => ({ count: 12 }));
   const count = Math.max(2, Math.min(24, Number(body?.count ?? 12) || 12));
 
-  const pool = createDriverPool(count);
+  const pool = createBurstPool(count);
   try {
     const run = await runDrill(pool, STRESS_BUDGET, {
       calls: count,
