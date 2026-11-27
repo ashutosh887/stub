@@ -106,7 +106,7 @@ export default function HowItWorks() {
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-fg-dim">
             Stub sits between your agents and the money they spend. Each spend is a double-entry
             transaction, and three refusals from the database keep the budget and its record whole.
-            Here is the whole design, with the file that enforces each part beside it.
+            Here is the design, with the file that enforces each part beside it.
           </p>
         </div>
       </header>

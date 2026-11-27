@@ -201,7 +201,7 @@ normalization, CDC→Kinesis live feed.
   IP and overall. After the probes, in a separate statement, it records the run in `proof_runs`
   (`lib/proof-runs.ts`; `stub_app` may only `INSERT` and `SELECT` there) and returns the visitor
   tally, which `GET /api/proof` also serves, edge-cached; a missing table or a failed write only
-  hides the counter. Above the button, `components/race-chart.tsx` plots the bypass race from
+  hides the counter. Below the button, `components/race-chart.tsx` plots the bypass race from
   `measurements/wa-review/dsql-race-{before,after}.json`, imported at build time by `lib/race.ts`,
   which derives every number and sentence from the runs; `app/proof/opengraph-image.tsx` draws the
   same lines for the share card. Its before/after table copies numbers only from

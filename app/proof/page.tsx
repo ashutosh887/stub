@@ -179,15 +179,17 @@ export default function Proof() {
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-fg-dim">
             The budget check used to live only in application code, and the app connected as the
             database owner. Now two CHECK constraints keep every budget between zero and its cap,
-            and the app&apos;s role cannot rewrite the ledger or change the schema. Send the
-            statements yourself and read what the database answers.
+            and the app&apos;s role can&apos;t rewrite the ledger or change the schema. Press the
+            button and read what the database answers.
           </p>
         </header>
 
-        <RaceFigure />
-
-        <div className="mx-auto mt-16 max-w-5xl px-4 sm:px-6">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <ProofRunner />
+        </div>
+
+        <div className="mt-16">
+          <RaceFigure />
         </div>
 
         <section className="mx-auto mt-20 max-w-5xl px-4 sm:px-6">
@@ -226,9 +228,18 @@ export default function Proof() {
                           href={`${BLOB}/${source.path}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="break-all font-mono text-xs text-fg-dim transition-colors hover:text-brand"
+                          className="font-mono text-xs text-fg-dim transition-colors hover:text-brand"
                         >
-                          {source.label}
+                          {source.label.split("/").map((part, i) => (
+                            <span key={i}>
+                              {i > 0 && (
+                                <>
+                                  /<wbr />
+                                </>
+                              )}
+                              {part}
+                            </span>
+                          ))}
                         </a>
                       </li>
                     ))}
@@ -238,8 +249,8 @@ export default function Proof() {
             </ul>
           </div>
           <p className="mt-5 max-w-2xl text-[15px] leading-relaxed text-fg-mute">
-            The app&apos;s role must write balances, so a role alone cannot stop an overspend. The
-            two CHECK constraints can: a budget stays between zero and its cap whoever sends the
+            The app&apos;s role has to write balances, so a role alone can&apos;t stop an overspend.
+            The two CHECK constraints can. A budget stays between zero and its cap whoever sends the
             write. Sharded balances keep only the lower bound, because a cap covers the sum of the
             shards.
           </p>
