@@ -151,7 +151,10 @@ normalization, CDC→Kinesis live feed.
   class `08`/`28`/`57P0x`, or `XX000 internal error`, which is how DSQL drops an open connection,
   and the dropped client is discarded) is retried on the peer at once and later calls stay there; after
   `DSQL_FAILBACK_AFTER_MS` a background probe moves them back when the primary answers. SQL errors
-  (`40001`, `23514`, `42501`) never switch. Either endpoint is correct: the peers are strongly
+  (`40001`, `23514`, `42501`) never switch. `PgStore.transaction` and `FailoverPool.query` listen
+  for `error` on the client they hold (`pg` emits it when a checked-out connection drops, and with no
+  listener the process exits), skip the rollback on a dead connection and release it as broken. The
+  stress and incident drills take `createBurstPool(n)`, which fails over the same way. Either endpoint is correct: the peers are strongly
   consistent. `PgStore` takes any `Connectable`; `/api/health` reports the active Region.
   `npm run drill:failover [blackhole|dns]` measures time to the first committed spend on the peer
   from one client; the AWS FIS template `stub-dsql-primary-connection-failure` (us-east-1

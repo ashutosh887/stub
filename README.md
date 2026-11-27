@@ -378,8 +378,10 @@ the [GitHub Release](https://github.com/ashutosh887/stub/releases) with that ver
 - Aurora DSQL's SQL audit log records every DDL, role change and write, with the statement and the
   IAM identity behind it, into a per-Region S3 bucket with Object Lock and deletes denied.
 - Region failure drill: an AWS FIS template refuses every connection to the primary cluster for
-  two minutes. Run against production, it moved serving to us-east-2 in 25.9 s, and 18 of 19 spends
-  over the run committed; the drill's one finding is fixed (see RESULTS.md).
+  two minutes. Run twice against production. The first run found that DSQL drops an open
+  connection with `XX000`, which the pool did not recognise. After that fix, the second run moved
+  serving to us-east-2 in 17.3 s and found that a dropped connection could crash a function process;
+  that is fixed too (see RESULTS.md).
 - Measurements: [`measurements/wa-review/RESULTS.md`](./measurements/wa-review/RESULTS.md).
 
 ## Development

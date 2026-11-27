@@ -1108,7 +1108,7 @@ on `XX000`, so the call on a dropped connection failed without moving the pool, 
 client went back to the pool. Fixed: `XX000` with the message `internal error` now counts as an
 endpoint failure, and a client that failed that way is discarded instead of reused
 (`db/failover.ts`; `test/invariant/failover.test.ts` fails on the old code). Other `XX000` errors
-still do not switch. Not re-run after the fix.
+still do not switch. Re-run after the fix on 27 Nov: see the next section.
 
 Re-run, as an operator in us-east-1:
 
@@ -1137,6 +1137,51 @@ What to measure, and what reading the code says to expect:
   experiment and add that code. Because the action refuses "connection attempts", warm Vercel
   functions holding pooled connections (`DSQL_MAX_LIFETIME_SECONDS` 600) may keep working on the
   primary, and only cold starts and new pool connections would hit the fault.
+
+## Failover drill, re-run after the fix (27 Nov 2026, 03:43 UTC)
+
+Same template, against production (`https://trystub.vercel.app`, the deploy of `3282243`, which
+carries the `XX000` fix). Measured over HTTP only, from an operator's machine, with no database
+connection: `GET /api/health` every ~5.4 s, and every ~11 s a committed spend, `POST /api/reserve`
+then `POST /api/release` of $0.01 on the `drill-stress` budget. Server times below are from the
+Vercel function logs; the action ran from 03:43:23.4 to 03:45:23.6.
+
+| UTC        | Event                                                                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 03:43:11.9 | `StartExperiment`                                                                                                                                                  |
+| 03:43:23.4 | Action `aws:dsql:cluster-connection-failure` running: 100%, 2 minutes                                                                                              |
+| 03:43:28.8 | Production health: ok, us-east-1                                                                                                                                   |
+| 03:43:34.1 | One function instance: an open connection fails with `XX000 internal error`; the pool logs `dsql_endpoint_switch`, reason `XX000 internal error`                   |
+| 03:43:34.2 | The same instance: health `503`, and a reserve `500`; that reserve's connection then emits `Connection terminated unexpectedly` and the process exits (status 129) |
+| 03:43:39.5 | The next instance: a fresh connection refused with `08006`, pool switches to us-east-2                                                                             |
+| 03:43:40.7 | Production health: ok, **us-east-2**                                                                                                                               |
+| 03:43:46.6 | Reserve committed on us-east-2 (`reserve_settled`), release committed at 03:43:47.2                                                                                |
+| 03:45:23.6 | Action completed                                                                                                                                                   |
+| 03:45:57   | Instances fail back to us-east-1 one by one after their failback window; health answers from both Regions, every call ok                                           |
+
+| Measure                                          | 26 Nov, before the `XX000` fix         | 27 Nov, after                                                                                               |
+| ------------------------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `XX000 internal error` on an open connection     | not recognised, the pool stayed        | recognised, the pool switched on it                                                                         |
+| Fault start to production serving from us-east-2 | 25.9 s                                 | 17.3 s                                                                                                      |
+| Fault start to a committed spend on us-east-2    | 33.0 s                                 | 23.2 s                                                                                                      |
+| Production requests that failed during the fault | 2: one health `503`, one reserve `500` | 2: one health `503`, one reserve `500`                                                                      |
+| Spends committed during the fault                | not counted separately                 | 9 of 10                                                                                                     |
+| Spends over the whole 330 s                      | 18 of 19                               | 27 of 29; one is the `500`, the other a client timeout at 03:48:32 that never reached Vercel (no log entry) |
+
+What the re-run found: the `XX000` fix works, and it exposed the next failure behind it. The DSQL cut
+also ends the connection the failed transaction still holds. `pg` reports that as an `error` event on
+the client, and a checked-out client has no listener (the pool only listens while a client is idle),
+so Node treats it as an uncaught exception and the function process exits, taking any other request
+on that instance with it. `PgStore.transaction` also returned the dead client to the pool as healthy
+and tried a `ROLLBACK` on it. Fixed: `PgStore.transaction` and `FailoverPool.query` listen for the
+client's `error` while they hold it, skip the rollback on a dead connection and release it as
+broken, so the pool discards it (`test/invariant/pg-store-connection.test.ts` and
+`test/invariant/failover.test.ts` fail on the old code). Two more fixes from the same read: the
+stress and incident drills now get a failover pool (`createBurstPool`), and shard provisioning
+retries a `40001` like a spend, with the "already sharded" check moved inside its transaction so a
+retry cannot reset live shard balances. The request in flight on the dropped connection still fails;
+the SDK retries a `5xx` with the same idempotency key (`sdk/index.ts`), so its retry cannot charge twice; that retry was not measured here.
+Not re-run after these fixes. Cost: $0.20.
 
 ## Incident: a production ledger entry deleted by the reviewer, and restored
 
