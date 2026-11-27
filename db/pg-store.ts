@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { type Connectable, getPool } from "./client";
+import { isEndpointFailure } from "./failover";
 import { db } from "@/config";
 import type { Policy } from "@/core/policy";
 import {
@@ -37,18 +38,25 @@ export class PgStore implements Store {
 
   async transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
+    let broken: Error | undefined;
+    const onError = (err: Error) => {
+      broken ??= err;
+    };
+    client.on("error", onError);
     try {
       await client.query(beginStatement());
       const result = await fn(makeTx(client));
       await client.query("COMMIT");
       return result;
     } catch (err) {
-      await rollbackQuietly(client);
+      if (isEndpointFailure(err)) broken ??= err as Error;
+      if (!broken) await rollbackQuietly(client);
       if (isRetryable(err)) throw new ConflictError((err as Error).message);
       if (isCheckViolation(err)) throw new CheckViolationError((err as Error).message);
       throw err;
     } finally {
-      client.release();
+      client.off("error", onError);
+      client.release(broken);
     }
   }
 

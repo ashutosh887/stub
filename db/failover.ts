@@ -87,15 +87,20 @@ export class FailoverPool implements Connectable {
   ): Promise<QueryResult<R>> {
     const client = await this.connect();
     let broken: Error | undefined;
+    const onError = (err: Error) => {
+      broken ??= err;
+    };
+    client.on("error", onError);
     try {
       return await client.query<R>(text, params);
     } catch (err) {
       if (isEndpointFailure(err)) {
-        broken = err as Error;
+        broken ??= err as Error;
         this.switchTo(this.otherThan(this.active), describe(err));
       }
       throw err;
     } finally {
+      client.off("error", onError);
       client.release(broken);
     }
   }

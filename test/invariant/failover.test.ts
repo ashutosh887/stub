@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import type { Pool, PoolClient } from "pg";
 import { describe, expect, it } from "vitest";
 import { type Endpoint, FailoverPool, isEndpointFailure } from "@/db/failover";
@@ -8,15 +9,19 @@ function fakePool(label: string) {
     queryFailWith: null as null | { code?: string; message: string },
     released: [] as unknown[],
     connects: 0,
+    dropConnection: false,
   };
-  const client = {
+  const client = Object.assign(new EventEmitter(), {
     query: async () => {
-      if (state.queryFailWith)
+      if (state.queryFailWith) {
+        if (state.dropConnection)
+          client.emit("error", new Error("Connection terminated unexpectedly"));
         throw Object.assign(new Error(state.queryFailWith.message), state.queryFailWith);
+      }
       return { rows: [{ label }], rowCount: 1 };
     },
     release: (err?: unknown) => state.released.push(err),
-  } as unknown as PoolClient;
+  }) as unknown as PoolClient;
   const pool = {
     connect: async () => {
       state.connects += 1;
@@ -110,5 +115,14 @@ describe("WA REL10-BP01, REL13-BP05: the pool moves to the peer Region on its ow
     const { rows } = await failover.query<{ label: string }>("SELECT 1");
     expect(rows[0].label).toBe("peer");
     expect(isEndpointFailure({ code: "XX000", message: "could not read block" })).toBe(false);
+  });
+
+  it("survives a connection that dies while checked out, and discards it", async () => {
+    const { failover, primary } = setup();
+    primary.state.queryFailWith = { code: "XX000", message: "internal error" };
+    primary.state.dropConnection = true;
+    await expect(failover.query("SELECT 1")).rejects.toThrow("internal error");
+    expect(failover.active.name).toBe("peer");
+    expect((primary.state.released[0] as Error).message).toBe("Connection terminated unexpectedly");
   });
 });
